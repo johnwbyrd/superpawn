@@ -1,4 +1,10 @@
-#include "stdafx.h"
+#include <time.h>
+#include <string>
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include <sstream>
+#include <unordered_map>
 
 using namespace std;
 
@@ -88,118 +94,19 @@ protected:
 
 Clock gClock;
 
-#ifdef WIN32
-
-typedef LPTHREAD_START_ROUTINE ThreadStartFunc;
-typedef CCriticalSection CriticalSection;
-typedef CSemaphore Semaphore;
-
 class Lock : Object
 {
-public:
-	Lock( CriticalSection &critSec ) :
-		m_pLock( NULL )
-	{
-		m_pLock = &critSec;
-		EnterCriticalSection( *m_pLock );
-	}
-
-	~Lock()
-	{
-		LeaveCriticalSection( *m_pLock );
-		m_pLock = NULL;
-	}
-
-protected:
-	CriticalSection *m_pLock;
 };
 
 class Thread : Object
 {
 public:
-	Thread( ThreadStartFunc pThreadFunc,
-		void *pContext
-		) :
-		m_Handle( 0 ),
-		m_bIsRunning( false )
-	{
-		IsRunning( false );
-
-		DWORD nThreadID;
-
-		m_pContext = pContext;
-		m_pfnThread = pThreadFunc;
-
-		{
-			Lock l( m_csRunning );
-
-			m_Handle = (int)CreateThread(
-				NULL,
-				0,
-				(LPTHREAD_START_ROUTINE)&Thread::ThreadRedirect,
-				this,
-				0,
-				&nThreadID
-				);
-		}
-
-		if ( m_Handle == 0 )
-			abort();
-
-		SetThreadPriority( (HANDLE)m_Handle, THREAD_PRIORITY_BELOW_NORMAL );
-
-		while ( !IsRunning() )
-			Sleep( 1 );
-	}
-
-	static DWORD WINAPI ThreadRedirect( Thread *pSelf )
-	{
-		Lock l( pSelf->m_csRunning );
-
-		pSelf->IsRunning( true );
-		
-		// This callback function needs to terminate when IsRunning() returns false.
-		DWORD ret = ( pSelf->m_pfnThread )( (void *)pSelf );
-
-		pSelf->IsRunning( false );
-
-		return ret;
-	}
-
-	~Thread()
-	{
-		// Thread is now executing.  Wait for it to die.
-		Lock l( m_csRunning );
-
-		if ( IsRunning())
-			abort();
-	}
-
-	void IsRunning( bool bIsRunning )
-	{
-		Lock l( m_csLock );
-		m_bIsRunning = bIsRunning;
-	}
-
-	bool IsRunning()
-	{
-		Lock l( m_csLock );
-		return m_bIsRunning;
-	}
-
-public:
-	ThreadStartFunc m_pfnThread;
-	int m_Handle;
 	void *m_pContext;
-	CriticalSection m_csRunning;
-	CriticalSection m_csLock;
-	bool m_bIsRunning;
-	Semaphore m_IsDead;
+	bool IsRunning( const bool bRunning = false )
+	{
+		return bRunning;
+	}
 };
-
-#else
-#error Need to create CriticalSection and Thread objects for your platform
-#endif
 
 class Piece : Object
 {
@@ -1704,6 +1611,8 @@ public:
 		Game *pGame = pSelf->m_pGame;
 
 		Position *pPosition = pGame->GetPosition();
+
+		pPosition;
 	}
 
 	static void White( CMD_PARAMS )
@@ -1711,6 +1620,8 @@ public:
 		Game *pGame = pSelf->m_pGame;
 
 		Position *pPosition = pGame->GetPosition();
+
+		pPosition;
 	}
 
 
@@ -1882,7 +1793,7 @@ public:
 		if ( pSelf->m_pThinker )
 			StopThinking( pSelf, sParams );
 
-		pSelf->m_pThinker = new Thread( (ThreadStartFunc) &Interface::Search, pSelf );
+		// pSelf->m_pThinker = new Thread( &Interface::Search, pSelf );
 
 		Report(pSelf, "Thinking initiated");
 	}
@@ -2009,7 +1920,7 @@ public:
 	bool m_bPonder;
 
 protected:
-	std::tr1::unordered_map< string, InterfaceState > m_CommandMap;
+	unordered_map< string, InterfaceState > m_CommandMap;
 
 };
 
@@ -2041,7 +1952,7 @@ void TestSearch1()
 		pos.Dump();
 	}
 }
-int _tmain(int argc, _TCHAR* argv[])
+int main(int argc, char* argv[])
 {
 	srand ( (unsigned int ) time(NULL) );
 
