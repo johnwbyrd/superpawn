@@ -535,7 +535,7 @@ public:
 		m_Score = 0;
 	}
 
-	Move( Piece *piece, const Square source, const Square dest )
+	Move( Piece *piece, const Square &source, const Square dest )
 	{
 		m_Piece = piece;
 		m_Source = source;
@@ -624,6 +624,7 @@ public:
 	void Initialize()
 	{
 		m_Moves.clear();
+		m_Moves.reserve( 32 );
 	}
 
 	void Add( const Move &move )
@@ -631,7 +632,7 @@ public:
 		m_Moves.push_back( move );
 	}
 
-	Moves Moves::operator+ ( Moves otherMoves )
+	Moves operator+ ( Moves otherMoves )
 	{
 		m_Moves.insert( m_Moves.end(), 
 			otherMoves.m_Moves.begin(), 
@@ -1064,8 +1065,9 @@ class Searcher : Object
 public:
 
 	Searcher() :
-	  m_pThinker( NULL ),
-	  m_nNodesSearched( 0 )
+		m_nNodesSearched( 0 ),
+		m_pThinker( NULL )
+
 	{
 	
 	}
@@ -1153,12 +1155,6 @@ public:
 			m_nNodesSearched++;
 			return nEval + vCurrentMoves.size();
 		}
-
-		if ( nEval > 8000 )
-			return 100000;
-
-		if ( nEval < -8000 )
-			return -100000;
 
 		if ( vCurrentMoves.size() == 0 )
 			return -WhiteKing.PieceValue();
@@ -1469,19 +1465,6 @@ Moves Queen::GenerateMoves( const Square &source, const Board &board )
 	return moves;
 }
 
-class Interface;
-
-#define CMD_PARAMS Interface *pSelf, string sParams
-
-class InterfaceState 
-{
-public:
-	Interface *m_pInterface;
-	void (*m_fnCallback)(CMD_PARAMS);
-};
-
-class Interface;
-
 class Game : Object
 {
 public:
@@ -1512,9 +1495,27 @@ protected:
 	Position m_Position;
 };
 
+class Interface;
+
+#define INTERFACE_FUNCTION_PARAMS const string &sParams
+#define INTERFACE_FUNCTION_RETURN_TYPE void
+
+#define INTERFACE_PROTOTYPE( FunctionName )  INTERFACE_FUNCTION_RETURN_TYPE FunctionName ( INTERFACE_FUNCTION_PARAMS )
+#define INTERFACE_FUNCTION_TYPE( Variable ) INTERFACE_FUNCTION_RETURN_TYPE ( Interface::* Variable )( INTERFACE_FUNCTION_PARAMS )
+#define INTERFACE_FUNCTION_ABSTRACT_TYPE (*( INTERFACE_FUNCTION_RETURN_TYPE )())
+
+typedef INTERFACE_FUNCTION_RETURN_TYPE (Interface::*InterfaceFunctionType )( INTERFACE_FUNCTION_PARAMS );
 
 class Interface : Object
 {
+
+	class InterfaceCommand
+	{
+	public:
+		Interface *m_pInterface;
+		string *m_psParams;
+		INTERFACE_FUNCTION_TYPE( *m_pfnCommand );
+	};
 public:
 
 	Interface( istream *in = &cin, ostream *out = &cout )
@@ -1531,52 +1532,140 @@ public:
 		delete  m_pGame;
 	}
 
-	static void RegisterCommand( const string &sCommand,
-		Interface *iSelf,
-		void (*cmd)(CMD_PARAMS) )
+	void RegisterCommand( const string &sCommand, INTERFACE_FUNCTION_TYPE( pfnCommand ))
 	{
-		InterfaceState is;
-
-		is.m_pInterface = iSelf;
-		is.m_fnCallback = cmd;
-		iSelf->m_CommandMap[ sCommand ] = is;
+		m_CommandMap[ sCommand ] = pfnCommand;
 	};
 
-	static void RegisterXboard( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Notify )
 	{
-		RegisterCommand( "accepted",	pSelf,	Interface::Accepted );
-		RegisterCommand( "new",			pSelf,	Interface::New );
-		RegisterCommand( "protover",	pSelf,	Interface::Protover );
-		RegisterCommand( "ping",		pSelf,	Interface::Ping );
-		RegisterCommand( "usermove",	pSelf,	Interface::Usermove );
-		RegisterCommand( "setboard",	pSelf,	Interface::Setboard );
-		RegisterCommand( "level",		pSelf,	Interface::Level );
-		RegisterCommand( "st",			pSelf,	Interface::St );
-		RegisterCommand( "time",		pSelf,	Interface::Time );
-		RegisterCommand( "otim",		pSelf,	Interface::OTim );
-		RegisterCommand( "?",			pSelf,  Interface::MoveNow );
-		RegisterCommand( "post",		pSelf,  Interface::Post );
-		RegisterCommand( "nopost",		pSelf,  Interface::NoPost );
-		RegisterCommand( "hard",		pSelf,  Interface::Hard );
-		RegisterCommand( "easy",		pSelf,  Interface::Easy );
-		RegisterCommand( "force",		pSelf,  Interface::Force );
-		RegisterCommand( "go",			pSelf,	Interface::Go );
-		RegisterCommand( "black",		pSelf,  Interface::Black );
-		RegisterCommand( "white",		pSelf,  Interface::White );
+		switch ( m_Protocol )
+		{
+		case PROTOCOL_XBOARD:
+			(*m_Out) << "# " << sParams << endl;
+			break;
+
+		case PROTOCOL_UCI:
+			(*m_Out) << "info string " << sParams << endl;
+			break;
+
+		default:
+			(*m_Out) << sParams;
+		}
 	}
 
-	static void RegisterAll( Interface *pSelf)
+	INTERFACE_PROTOTYPE( Instruct )
+		{
+		(*m_Out) << sParams << endl;
+		}
+
+	INTERFACE_PROTOTYPE( Xboard )
+		{
+		RegisterXboard( sParams );
+		Notify( "Xboard commands registered" );
+		}
+
+	INTERFACE_PROTOTYPE( UCI )
+		{
+		RegisterUCI( sParams );
+		Instruct( "id name Ippon" );
+		Instruct( "id author John Byrd" );
+		Instruct( "uciok" );
+		Notify( "UCI commands registered" );
+		}
+	
+	INTERFACE_PROTOTYPE( RegisterXboard )
 	{
-		RegisterCommand( "xboard",	pSelf,	Interface::Xboard );
-		RegisterCommand( "quit",	pSelf,	Interface::Quit );
+		sParams;
+		m_Protocol = PROTOCOL_XBOARD;
+		RegisterCommand( "accepted",	&Interface::Accepted );
+		RegisterCommand( "new",			&Interface::New );
+		RegisterCommand( "protover",	&Interface::Protover );
+		RegisterCommand( "ping",		&Interface::Ping );
+		RegisterCommand( "usermove",	&Interface::Usermove );
+		RegisterCommand( "setboard",	&Interface::Setboard );
+		RegisterCommand( "level",		&Interface::Level );
+		RegisterCommand( "st",			&Interface::St );
+		RegisterCommand( "time",		&Interface::Time );
+		RegisterCommand( "otim",		&Interface::OTim );
+		RegisterCommand( "?",			&Interface::MoveNow );
+		RegisterCommand( "post",		&Interface::Post );
+		RegisterCommand( "nopost",		&Interface::NoPost );
+		RegisterCommand( "hard",		&Interface::Hard );
+		RegisterCommand( "easy",		&Interface::Easy );
+		RegisterCommand( "force",		&Interface::Force );
+		RegisterCommand( "go",			&Interface::XboardGo );
+		RegisterCommand( "black",		&Interface::Black );
+		RegisterCommand( "white",		&Interface::White );
 	}
 
-	static void Report( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( RegisterUCI )
 	{
-		*(pSelf->m_Out) << "# " << sParams << endl;
+		sParams;
+		m_Protocol = PROTOCOL_UCI;
+		RegisterCommand( "debug",		&Interface::DebugUCI );
+		RegisterCommand( "isready",		&Interface::IsReady );
+		RegisterCommand( "setoption",	&Interface::SetOption );
+		RegisterCommand( "ucinewgame",	&Interface::New );
+		RegisterCommand( "position",	&Interface::UCIPosition );
+		RegisterCommand( "go",			&Interface::UCIGo );
+		RegisterCommand( "stop",		&Interface::Stop );
+		RegisterCommand( "ponderhit",	&Interface::Ponderhit );
 	}
 
-	static void Ping( CMD_PARAMS )
+	void RegisterAll()
+	{
+		RegisterCommand( "xboard",	&Interface::Xboard );
+		RegisterCommand( "uci",		&Interface::UCI );
+		RegisterCommand( "quit",	&Interface::Quit );
+	}
+
+	INTERFACE_PROTOTYPE( DebugUCI )
+	{
+		sParams;
+	}
+
+	INTERFACE_PROTOTYPE( IsReady )
+		{
+		// stop any pondering or loading
+		sParams;
+		Instruct("readyok");
+		}
+
+	INTERFACE_PROTOTYPE( SetOption )
+		{
+		sParams;
+		}
+
+	INTERFACE_PROTOTYPE( UCIGo )
+		{
+		sParams;
+		}
+
+	INTERFACE_PROTOTYPE( UCIPosition )
+		{
+		sParams;
+		}
+
+
+	INTERFACE_PROTOTYPE( Stop )
+		{
+		sParams;
+		}
+
+	INTERFACE_PROTOTYPE( Ponderhit )
+		{
+		sParams;
+		}
+
+	INTERFACE_PROTOTYPE( Quit )
+		{
+		sParams;
+		Notify("Engine exiting");
+		exit( 0 );
+		}
+
+	INTERFACE_PROTOTYPE( Ping )
 	{
 		stringstream ss;
 		ss.str( sParams );
@@ -1584,138 +1673,141 @@ public:
 		int n;
 		ss >> n;
 
-		*(pSelf->m_Out) << "pong " << n << endl;
+		*(m_Out) << "pong " << n << endl;
 	}
 
-	static void StopThinking( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( StopThinking )
 	{
-		Thread *pThinker = pSelf->m_pThinker;
+		sParams;
+
+		Thread *pThinker = m_pThinker;
 
 		if ( pThinker == NULL )
 		{
-			Report(pSelf, "Not currently thinking");
+			Notify("Not currently thinking");
 		}
 		else
 		{
 			pThinker->IsRunning( false );
 			delete pThinker;
-			pSelf->m_pThinker = NULL;
+			m_pThinker = NULL;
 		}
 
-		Report(pSelf, "Thinking stopped");
+		Notify("Thinking stopped");
 
 	}
 
-	static void Black( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Black )
 	{
-		Game *pGame = pSelf->m_pGame;
-
-		Position *pPosition = pGame->GetPosition();
-
+		sParams;
+		Position *pPosition = m_pGame->GetPosition();
 		pPosition;
 	}
 
-	static void White( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( White )
 	{
-		Game *pGame = pSelf->m_pGame;
-
-		Position *pPosition = pGame->GetPosition();
-
+		sParams;
+		Position *pPosition = m_pGame->GetPosition();
 		pPosition;
 	}
 
-
-	static void Force( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Force )
 	{
-		StopThinking( pSelf, sParams );
-		Time( pSelf, "0");
-		OTim( pSelf, "0");
+		StopThinking( sParams );
+		Time( "0");
+		OTim( "0");
 
-		Report(pSelf, "Force");
+		Notify("Force");
 	}
 
-	static void MoveNow( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( MoveNow )
 	{
-		StopThinking( pSelf, sParams );
+		StopThinking( sParams );
 		Move myMove;
-		myMove = (pSelf->m_PrincipalVariation).GetFirst();
+		myMove = (m_PrincipalVariation).GetFirst();
 
-		*(pSelf->m_Out) << "move " << (string)myMove << endl;
-		*(pSelf->m_Out) << "# PV " << (string)pSelf->m_PrincipalVariation << endl;
+		*(m_Out) << "move " << (string)myMove << endl;
+		*(m_Out) << "# PV " << (string)m_PrincipalVariation << endl;
 	}
 
-	static void Post( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Post )
 	{
-		pSelf->m_bShowThinking = true;
-		Report(pSelf, "Thinking will be shown");
+		sParams;
+		m_bShowThinking = true;
+		Notify("Thinking will be shown");
 	}
 
-	static void NoPost( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( NoPost )
 	{
-		pSelf->m_bShowThinking = false;
-		Report(pSelf, "Thinking will not be shown");
+		sParams;
+		m_bShowThinking = false;
+		Notify("Thinking will not be shown");
 	}
 
-	static void Hard( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Hard )
 	{
-		pSelf->m_bPonder = true;
-		Report(pSelf, "Engine will ponder on opponent's time");
+		sParams;
+		m_bPonder = true;
+		Notify("Engine will ponder on opponent's time");
 	}
 
-	static void Easy( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Easy )
 	{
-		pSelf->m_bPonder = false;
-		Report(pSelf, "Engine will not ponder on opponent's time");
+		sParams;
+		m_bPonder = false;
+		Notify("Engine will not ponder on opponent's time");
 	}
 
-	static void Protover( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Protover )
 	{
 		stringstream ss;
 		ss.str( sParams );
 
-		ss >> pSelf->m_Protover;
+		ss >> m_Protover;
 
-		if ( pSelf->m_Protover >= 2 )
+		if ( m_Protover >= 2 )
 		{
 			string sResponse; 
 
-			*(pSelf->m_Out) << "feature ping=1 setboard=1 playother=1 usermove=1 analyze=0" << endl;
+			*(m_Out) << "feature ping=1 setboard=1 playother=1 usermove=1 analyze=0" << endl;
 		}
 
 	}
 
-	static void Accepted( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Accepted )
 	{
-		*(pSelf->m_Out) << "# Unknown parameter to accepted" << endl;
+		sParams;
+		*(m_Out) << "# Unknown parameter to accepted" << endl;
 	}
 
-	static void New( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( New )
 	{
-		pSelf->m_pGame->New();
-		Report(pSelf, "New game");
+		sParams;
+		m_pGame->New();
+		Notify("New game");
 	}
 
-	static void Setboard( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Setboard )
 	{
 		Position *pPosition;
 
-		pPosition = pSelf->m_pGame->GetPosition();
+		pPosition = m_pGame->GetPosition();
 
 		pPosition->SetFEN( sParams );
 
 		string sFEN = pPosition->GetFEN();
 
-		*(pSelf->m_Out) << "# New position: " << sFEN << endl;
+		*(m_Out) << "# New position: " << sFEN << endl;
 	}
 
-	static void Usermove( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Usermove )
 	{
 		Square sSrc, sDest;
 
 		sSrc.Set( sParams[0] - 'a', sParams[1] - '1' );
 		sDest.Set( sParams[2] - 'a', sParams[3] - '1' );
 
-		Position *pPosition = pSelf->m_pGame->GetPosition();
+		Position *pPosition = m_pGame->GetPosition();
 
 		Piece *pPiece = pPosition->GetBoard().Get( sSrc );
 
@@ -1724,12 +1816,12 @@ public:
 		Position nextPos( *pPosition, move );
 		*pPosition = nextPos;
 
-		*(pSelf->m_Out) << "# User move: " << (string)move << endl;
+		*(m_Out) << "# User move: " << (string)move << endl;
 
-		Go( pSelf, "Thinking Params Go Here");
+		XboardGo( "Thinking Params Go Here");
 	}
 
-	static int TimeToSeconds( const string &sTime )
+	int TimeToSeconds( const string &sTime )
 	{
 		unsigned int nColon = 0;
 		int nMinutes = 0, nSeconds = 0;
@@ -1752,117 +1844,99 @@ public:
 		}
 
 		return ( nMinutes * 60 + nSeconds );
-
 	}
 
-	static void Level( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Level )
 	{
-		Game *pGame = pSelf->m_pGame;
-
 		stringstream ss;
 		ss.str( sParams );
 
 		string sBaseTime, sIncrementTime;
 
-		ss >> pGame->m_nMovesPerBaseTime >> sBaseTime >> sIncrementTime;
+		ss >> m_pGame->m_nMovesPerBaseTime >> sBaseTime >> sIncrementTime;
 
-		pGame->m_nBaseTime = TimeToSeconds( sBaseTime );
-		pGame->m_nIncrementTime = TimeToSeconds( sIncrementTime );
+		m_pGame->m_nBaseTime = TimeToSeconds( sBaseTime );
+		m_pGame->m_nIncrementTime = TimeToSeconds( sIncrementTime );
 
-		*(pSelf->m_Out) << "# Level: Moves per base: " << pGame->m_nMovesPerBaseTime << 
-			" Base: " << pGame->m_nBaseTime << " Inc: " << pGame->m_nIncrementTime << endl;
+		*(m_Out) << "# Level: Moves per base: " << m_pGame->m_nMovesPerBaseTime << 
+			" Base: " << m_pGame->m_nBaseTime << " Inc: " << m_pGame->m_nIncrementTime << endl;
 
 	}
 
-	static void St( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( St )
 	{
-		Game *pGame = pSelf->m_pGame;
-
 		stringstream ss;
 		ss.str( sParams );
 
-		ss >> pGame->m_nBaseTime;
-		pGame->m_nMovesPerBaseTime = pGame->m_nIncrementTime = 0;
+		ss >> m_pGame->m_nBaseTime;
+		m_pGame->m_nMovesPerBaseTime = m_pGame->m_nIncrementTime = 0;
 
-		*(pSelf->m_Out) << "# Level: Moves per base: " << pGame->m_nMovesPerBaseTime << 
-			" Base: " << pGame->m_nBaseTime << " Inc: " << pGame->m_nIncrementTime << endl;
+		*(m_Out) << "# Level: Moves per base: " << m_pGame->m_nMovesPerBaseTime << 
+			" Base: " << m_pGame->m_nBaseTime << " Inc: " << m_pGame->m_nIncrementTime << endl;
 	}
 
-	static void Go( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( XboardGo )
 	{
-		if ( pSelf->m_pThinker )
-			StopThinking( pSelf, sParams );
+		if ( m_pThinker )
+			StopThinking( sParams );
 
 		// pSelf->m_pThinker = new Thread( &Interface::Search, pSelf );
 
-		Report(pSelf, "Thinking initiated");
+		Notify("Thinking initiated");
 	}
 
-	static void Time( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( Time )
 	{
-		Game *pGame = pSelf->m_pGame;
-
 		stringstream ss;
 		ss.str( sParams );
 
-		ss >> pGame->m_Time;
+		ss >> m_pGame->m_Time;
 
-		*(pSelf->m_Out) << "# Time: " << pGame->m_Time << endl;
+		*(m_Out) << "# Time: " << m_pGame->m_Time << endl;
 		
 	}
 
-	static void OTim( CMD_PARAMS )
+	INTERFACE_PROTOTYPE( OTim )
 	{
-		Game *pGame = pSelf->m_pGame;
-
 		stringstream ss;
 		ss.str( sParams );
 
-		ss >> pGame->m_OTime;
+		ss >> m_pGame->m_OTime;
 
-		*(pSelf->m_Out) << "# Opponent time: " << pGame->m_OTime << endl;
+		*(m_Out) << "# Opponent time: " << m_pGame->m_OTime << endl;
 	}
 
-	static int Search( Thread *pCaller )
+	int Search( Thread *pCaller )
 	{
-		gClock.Reset();
-		gClock.Start();
-
 		Interface *pSelf = (Interface *)pCaller->m_pContext;
+		pSelf;
 
 		SearcherAlphaBeta searcher( pCaller );
 
-		(pSelf->m_PrincipalVariation).Initialize();
+		(m_PrincipalVariation).Initialize();
 
-		Position *pPosition = pSelf->m_pGame->GetPosition();
+		Position *pPosition = m_pGame->GetPosition();
 
-		searcher.Search( *pPosition, pSelf->m_PrincipalVariation );
+		searcher.Search( *pPosition, m_PrincipalVariation );
 
 		Move myMove;
-		myMove = pSelf->m_PrincipalVariation.GetFirst();
+		myMove = m_PrincipalVariation.GetFirst();
 
 		Position NextPosition( *pPosition, myMove );
 		*pPosition = NextPosition;
 
-		gClock.Stop();
-
-		Report(pSelf, "Move search completed");
+		Notify("Move search completed");
 
 		return 0;
 	}
 
-	static void Xboard( CMD_PARAMS )
+
+	
+	static void Execute( void *pInterface, const string &sCommand )
 	{
-		RegisterXboard( pSelf, sParams );
-		*(pSelf->m_Out) << "# Xboard commands registered" << endl;
+	((Interface *)pInterface)->Execute( sCommand );
 	}
 
-	static void Quit( CMD_PARAMS )
-	{
-		pSelf; 
-		*(pSelf->m_Out) << "# Engine exiting" << endl;
-		exit( 0 );
-	}
 
 	void Execute( const string &sCommand )
 	{
@@ -1876,18 +1950,19 @@ public:
 		if ( sVerb.length() < sCommand.length() )
 			sParams = sCommand.substr( sVerb.length() + 1, 1024 );
 
-		InterfaceState is = m_CommandMap[ sVerb ];
+		InterfaceFunctionType ic = m_CommandMap[ sVerb ];
 
-		if ( is.m_fnCallback )
-			is.m_fnCallback( is.m_pInterface, sParams );
+		if ( ic )
+			(this->*ic)( sParams );
 		else
-			*m_Out << "# Unknown command: " << sCommand << endl;
+		{
+			stringstream unk;
+			unk << "Unknown command: ";
+			unk << sCommand;
+			Notify( unk.str() );
+		}
 	}
 
-	static void Execute( void *pInterface, const string &sCommand )
-	{
-		((Interface *)pInterface)->Execute( sCommand );
-	}
 
 	void Run()
 	{
@@ -1895,12 +1970,12 @@ public:
 
 		string sInputLine;
 
-		RegisterAll( this );
+		RegisterAll( );
 
 		for ( ;; )
 		{
 			getline( *m_In, sInputLine );
-			Execute( this, sInputLine );
+			Execute( sInputLine );
 		}
 	}
 
@@ -1914,13 +1989,20 @@ public:
 	Thread *m_pThinker;
 	Thread *m_pTimer;
 
+	enum ProtocolType {
+		PROTOCOL_XBOARD,
+		PROTOCOL_UCI
+	};
+
+	ProtocolType m_Protocol;
+
 	int	m_Protover;
 
 	bool m_bShowThinking;
 	bool m_bPonder;
 
 protected:
-	unordered_map< string, InterfaceState > m_CommandMap;
+	unordered_map< string, InterfaceFunctionType > m_CommandMap;
 
 };
 
