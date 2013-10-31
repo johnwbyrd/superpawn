@@ -614,6 +614,11 @@ class Moves : Object
 			m_Moves.push_back( move );
 		}
 
+		void Make( const Move& move )
+		{
+			m_Moves.push_back( move );
+		}
+
 		Moves operator+ ( Moves otherMoves )
 		{
 			m_Moves.insert( m_Moves.end(),
@@ -621,6 +626,11 @@ class Moves : Object
 							otherMoves.m_Moves.end() );
 
 			return *this;
+		}
+
+		void Sort()
+		{
+			sort( m_Moves.begin(), m_Moves.end() );
 		}
 
 		Move Random()
@@ -711,8 +721,16 @@ class Moves : Object
 			return nAttacks;
 		}
 
-	protected:
 		typedef vector< Move > MovesInternalType;
+		typedef MovesInternalType::iterator iterator;
+		typedef MovesInternalType::const_iterator const_iterator;
+
+		iterator begin() { return m_Moves.begin(); }
+		const_iterator begin() const { return m_Moves.begin(); }
+		iterator end() { return m_Moves.end(); }
+		const_iterator end() const { return m_Moves.end(); }
+
+	protected:
 		MovesInternalType m_Moves;
 };
 
@@ -748,9 +766,9 @@ class Position : Object
 
 		Position( const Position& position, const Move& move )
 		{
-			Initialize();
-			m_Board = position.m_Board;
-			m_nPly = position.m_nPly + 1;
+			*this = position;
+
+			++m_nPly;
 
 			if ( &move == &NullMove )
 			{ return; }
@@ -1009,10 +1027,7 @@ class Position : Object
 			return s;
 		}
 
-		operator string ()
-		{
-			return GetFEN();
-		}
+		operator string () { return GetFEN(); }
 
 		unsigned int UpperBound() const { return m_nUpperBound; }
 		void UpperBound( unsigned int val ) { m_nUpperBound = val; }
@@ -1074,6 +1089,74 @@ class Searcher : Object
 
 	protected:
 		int m_nNodesSearched;
+};
+
+class SearcherAlphaBeta : Searcher
+{
+public:
+	virtual int Search( const Position& pos,
+		Moves& mPrincipalVariation )
+		{
+		const int depth = 2;
+		return alphaBetaMax( INT_MIN, INT_MAX, depth, pos, mPrincipalVariation );
+		}
+
+
+protected:
+		virtual int alphaBetaMax( int alpha, int beta, int depthleft, 
+			const Position& pos, Moves &pv)
+		{
+			if ( depthleft == 0 )
+			{ return Evaluate( pos ); }
+
+			Move bestMove;
+
+			for ( Move & move : pos.GenerateMoves() )
+			{
+				Position nextPos( pos, move );
+				int score = alphaBetaMin( alpha, beta, depthleft - 1,
+										  nextPos, pv );
+				if( score >= beta )
+				{ 
+					return beta; 
+				}
+				if( score > alpha )
+				{ 
+					alpha = score; 
+					bestMove = move;
+				}
+			}
+			pv.Make( bestMove );
+			return alpha;
+		}
+
+		virtual int alphaBetaMin( int alpha, int beta, int depthleft, 
+			const Position &pos, Moves &pv )
+		{
+			if ( depthleft == 0 )
+			{ return -Evaluate( pos ); }
+
+			Move bestMove;
+
+			for ( Move & move : pos.GenerateMoves() )
+			{
+				Position nextPos( pos, move );
+				int score = alphaBetaMax( alpha, beta, depthleft - 1, 
+					nextPos, pv );
+				if( score <= alpha )
+				{ 
+					return alpha;
+				}
+				if( score < beta )
+				{ 
+					beta = score; 
+					bestMove = move;
+				}
+			}
+			pv.Make( bestMove );
+			return beta;
+		}
+
 };
 
 Piece* Board::Set( const Square& s, Piece* piece )
@@ -1453,9 +1536,7 @@ class Interface : Object
 		INTERFACE_PROTOTYPE( StopThinking )
 		{
 			sParams;
-
 			Notify( "Thinking stopped" );
-
 		}
 
 		INTERFACE_PROTOTYPE( Black )
@@ -1528,10 +1609,7 @@ class Interface : Object
 
 			if ( m_Protover >= 2 )
 			{
-				string sResponse;
-
-				*( m_Out ) << "feature ping=1 setboard=1 playother=1 usermove=1 analyze=0" <<
-						   endl;
+				Instruct( "feature ping=1 setboard=1 playother=1 usermove=1 analyze=0" );
 			}
 
 		}
@@ -1621,7 +1699,6 @@ class Interface : Object
 			*( m_Out ) << "# Level: Moves per base: " << m_pGame->m_nMovesPerBaseTime <<
 					   " Base: " << m_pGame->m_nBaseTime << " Inc: " << m_pGame->m_nIncrementTime <<
 					   endl;
-
 		}
 
 		INTERFACE_PROTOTYPE( St )
@@ -1689,8 +1766,7 @@ class Interface : Object
 			else
 			{
 				stringstream unk;
-				unk << "Unknown command: ";
-				unk << sCommand << endl;
+				unk << "Unknown command: " << sCommand ;
 				Notify( unk.str() );
 			}
 		}
@@ -1725,9 +1801,7 @@ class Interface : Object
 		};
 
 		ProtocolType m_Protocol;
-
 		int m_Protover;
-
 		bool m_bShowThinking;
 		bool m_bPonder;
 
@@ -1736,9 +1810,22 @@ class Interface : Object
 
 };
 
+void TestSearch()
+{
+	Position pos;
+	pos.SetFEN("8/3k4/6p1/5P2/8/3K4/8/8 w - - 0 1");
+
+	SearcherAlphaBeta sab;
+	Moves pv;
+
+	sab.Search( pos, pv );
+}
+
 int main( int argc, char* argv[] )
 {
 	srand ( ( unsigned int ) time( NULL ) );
+
+	TestSearch();
 
 	// clean up unreferenced warnings about parameters
 	argc;
