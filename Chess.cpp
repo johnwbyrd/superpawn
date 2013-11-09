@@ -546,11 +546,13 @@ class Move : Object
 
 		operator string ()
 		{
-			string s;
+			string letter;
+			stringstream ss;
 
-			s = ( string )m_Source + ( string )m_Dest;
+			ss << m_Piece->Letter();
+			ss >> letter;
 
-			return s;
+			return (letter) + ( string )m_Source + ( string )m_Dest;
 		}
 
 		int Score() const { return m_Score; }
@@ -617,6 +619,11 @@ class Moves : Object
 		void Make( const Move& move )
 		{
 			m_Moves.push_back( move );
+		}
+
+		void Unmake()
+		{
+			m_Moves.pop_back();
 		}
 
 		Moves operator+ ( Moves otherMoves )
@@ -1093,67 +1100,81 @@ class Searcher : Object
 
 class SearcherAlphaBeta : Searcher
 {
-public:
-	virtual int Search( const Position& pos,
-		Moves& mPrincipalVariation )
+	public:
+		virtual int Search( const Position& pos,
+							Moves& mPrincipalVariation )
 		{
-		const int depth = 2;
-		return alphaBetaMax( INT_MIN, INT_MAX, depth, pos, mPrincipalVariation );
+			const int depth = 4;
+
+			return alphaBetaMax( INT_MIN, INT_MAX, depth, pos, 
+				mPrincipalVariation );
 		}
 
 
-protected:
-		virtual int alphaBetaMax( int alpha, int beta, int depthleft, 
-			const Position& pos, Moves &pv)
+	protected:
+		virtual int alphaBetaMax( int alpha, int beta, int depthleft,
+								  const Position& pos, Moves& pv )
 		{
 			if ( depthleft == 0 )
-			{ return Evaluate( pos ); }
+				 return Evaluate( pos );
 
-			Move bestMove;
+			Moves bestPV, currentPV;
 
 			for ( Move & move : pos.GenerateMoves() )
 			{
+				currentPV = pv;
+				currentPV.Make( move );
 				Position nextPos( pos, move );
+
 				int score = alphaBetaMin( alpha, beta, depthleft - 1,
-										  nextPos, pv );
+										  nextPos, currentPV );
 				if( score >= beta )
-				{ 
-					return beta; 
+				{
+					Move nullMove;
+					pv.Make( nullMove );
+					return beta;
 				}
 				if( score > alpha )
-				{ 
-					alpha = score; 
-					bestMove = move;
+				{
+					alpha = score;
+					bestPV = currentPV;
 				}
 			}
-			pv.Make( bestMove );
+
+			pv = bestPV;
 			return alpha;
 		}
 
-		virtual int alphaBetaMin( int alpha, int beta, int depthleft, 
-			const Position &pos, Moves &pv )
+		virtual int alphaBetaMin( int alpha, int beta, int depthleft,
+								  const Position& pos, Moves& pv )
 		{
-			if ( depthleft == 0 )
-			{ return -Evaluate( pos ); }
+			if ( depthleft == 0 ) 
+				return -Evaluate( pos );
 
-			Move bestMove;
+			Moves bestPV, currentPV;
 
 			for ( Move & move : pos.GenerateMoves() )
 			{
+				currentPV = pv;
+				currentPV.Make( move );
 				Position nextPos( pos, move );
-				int score = alphaBetaMax( alpha, beta, depthleft - 1, 
-					nextPos, pv );
+
+				int score = alphaBetaMax( alpha, beta, depthleft - 1,
+										  nextPos, currentPV );
 				if( score <= alpha )
-				{ 
+				{
+					Move nullMove;
+					pv.Make( nullMove );
 					return alpha;
 				}
 				if( score < beta )
-				{ 
-					beta = score; 
-					bestMove = move;
+				{
+					beta = score;
+					bestPV = currentPV;
 				}
 			}
-			pv.Make( bestMove );
+
+			pv = bestPV;
 			return beta;
 		}
 
@@ -1502,7 +1523,22 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE( UCIPosition )
 		{
-			sParams;
+			stringstream ss( sParams );
+			string sType;
+
+			ss >> sType;
+
+			if ( sType == "fen" )
+			{
+				Position pos;
+
+				pos.SetFEN( sType );				
+				m_pGame->SetPosition( pos );
+			}
+			
+			Notify( "New position: " );
+			Notify( sType );
+
 		}
 
 		INTERFACE_PROTOTYPE( Stop )
@@ -1813,19 +1849,21 @@ class Interface : Object
 void TestSearch()
 {
 	Position pos;
-	pos.SetFEN("8/3k4/6p1/5P2/8/3K4/8/8 w - - 0 1");
+	pos.SetFEN( "8/3k4/6p1/5P2/8/3K4/8/8 w - - 0 1" );
 
 	SearcherAlphaBeta sab;
 	Moves pv;
 
 	sab.Search( pos, pv );
+
+	cout << (string) pv;
 }
 
 int main( int argc, char* argv[] )
 {
 	srand ( ( unsigned int ) time( NULL ) );
 
-	TestSearch();
+	// TestSearch();
 
 	// clean up unreferenced warnings about parameters
 	argc;
