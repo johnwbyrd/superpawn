@@ -781,7 +781,7 @@ class Position : Object
 		{
 			m_ColorToMove = WHITE;
 			m_nPly = 0;
-			m_nScore = 0;
+			m_nMaterialScore = 0;
 			m_nHalfMoves = 0;
 			m_bBKR = m_bBQR = m_bWKR = m_bWQR = true;
 			m_sEnPassant.Set( -1, -1 );
@@ -808,7 +808,7 @@ class Position : Object
 			if ( &move == &NullMove )
 			{ return; }
 
-			m_nScore = position.Score() + ( m_Board.Get( move.Dest() )->PieceValue() ) *
+			m_nMaterialScore = position.GetScore() + ( m_Board.Get( move.Dest() )->PieceValue() ) *
 					   ( m_ColorToMove ? -1 : 1 );
 
 			m_Board.Set( move.Dest().I(), move.Dest().J(), m_Board.Get( move.Source() ) );
@@ -1074,8 +1074,12 @@ class Position : Object
 		Color ColorToMove() const { return m_ColorToMove; }
 		void ColorToMove( Color val ) { m_ColorToMove = val; }
 
-		int Score() const { return m_nScore; }
-		void Score( int val ) { m_nScore = val; }
+		int GetScore() const { 
+			return m_nMaterialScore; 
+		}
+		void SetScore( int val ) { 
+			m_nMaterialScore = val;
+		}
 
 	protected:
 		Board   m_Board;
@@ -1083,11 +1087,94 @@ class Position : Object
 		unsigned int    m_nPly;
 		int m_nLowerBound;
 		int m_nUpperBound;
-		int m_nScore;
+		int m_nMaterialScore;
 		int m_nHalfMoves;
 		// Virgin rooks; can tell whether any of the four rooks has been moved
 		bool m_bWKR, m_bWQR, m_bBKR, m_bBQR;
 		Square m_sEnPassant;
+};
+
+class Evaluator : public Object
+{
+public:
+	virtual int Evaluate( const Position &pos ) = 0;
+};
+
+class EvaluatorMaterial : public Evaluator
+{
+public:
+	virtual int Evaluate( const Position &pos ) {
+		Board board = pos.GetBoard();
+		Piece* piece;
+
+		int nScore = 0;
+
+		for ( int i = 0; i < MAX_FILES; i++ )
+			for ( int j = 0; j < MAX_FILES; j++ )
+				{
+				piece = board.Get( i, j );
+
+				if ( piece != &None ) {
+					nScore += ( piece->PieceValue() *
+						( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
+					}
+				}
+
+		return nScore;
+	}
+};
+
+class EvaluatorWeighted : public Evaluator 
+{
+public:
+	virtual int Evaluate( const Position &pos )
+	{
+		if ( m_Evaluators.empty() )
+			abort();
+
+		WeightsType::iterator weightIter;
+		weightIter = m_Weights.begin();
+
+		int nScore = 0;
+
+		for ( auto evIter : m_Evaluators )
+		{
+			nScore += (int) ( evIter->Evaluate( pos ) * ( *weightIter ));
+			++weightIter;
+		}
+
+		return nScore;
+	}
+
+	void Add( Evaluator &eval, float weight = 1.0f )
+	{
+		m_Evaluators.push_back( &eval );
+		m_Weights.push_back( weight );
+	}
+
+protected:
+	typedef vector<float> WeightsType;
+	typedef vector<Evaluator *> EvaluatorsType;
+
+	WeightsType m_Weights;
+	EvaluatorsType m_Evaluators;
+};
+
+class EvaluatorStandard : public EvaluatorWeighted
+{
+public:
+	EvaluatorStandard()
+	{
+		m_Weighted.Add( m_Material );
+	}
+
+	virtual int Evaluate( const Position &pos )
+	{
+		return m_Weighted.Evaluate( pos );
+	} 
+	
+	EvaluatorMaterial m_Material;
+	EvaluatorWeighted m_Weighted;
 };
 
 class Searcher : Object
@@ -1105,29 +1192,14 @@ class Searcher : Object
 
 		virtual int Evaluate( const Position& pos )
 		{
-			int nScore = 0;
-
-			Board board = pos.GetBoard();
-			Piece* piece;
-
-			for ( int i = 0; i < MAX_FILES; i++ )
-				for ( int j = 0; j < MAX_FILES; j++ )
-				{
-					piece = board.Get( i, j );
-
-					if ( piece != &None ) {
-						nScore += ( piece->PieceValue() *
-								( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
-					}
-				}
-
-			return nScore;
+			return m_Evaluator.Evaluate( pos );
 		}
 
 	protected:
 		int m_nNodesSearched;
 		bool m_bTerminated;
 		thread* m_ptSearchThread;
+		EvaluatorStandard m_Evaluator;
 
 };
 
@@ -1991,12 +2063,14 @@ int main( int argc, char* argv[] )
 
 	stringstream ss;
 	
+	/*
 	    ss << "uci\nisready\nucinewgame\nisready\nposition fen ";
 	    // ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
 		ss << "1r3bnr/7p/3RBk2/6p1/Np3p2/pP3P2/P1P2KPP/4R3 b - - 5 24";
 		// ss << "1k6/6q1/1n6/8/2Q5/8/8/1K4R1 w - - 0 1 ";
 	    ss << "\ngo infinite\n";
 	    i.In( &ss );
+	*/
 
 	i.Run();
 
