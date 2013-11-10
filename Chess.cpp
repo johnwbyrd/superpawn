@@ -676,6 +676,11 @@ class Moves : Object
 			return m_Moves.front();
 		}
 
+		bool Empty()
+		{
+			return m_Moves.empty();
+		}
+
 		void Dump()
 		{
 			vector< Move >::iterator it;
@@ -816,6 +821,7 @@ class Position : Object
 		{
 			Piece* pPiece;
 			Moves moves;
+
 			for ( int j = 0; j < MAX_FILES; j++ )
 				for ( int i = 0; i < MAX_FILES; i++ )
 				{
@@ -1089,7 +1095,8 @@ class Searcher : Object
 	public:
 
 		Searcher() :
-			m_nNodesSearched( 0 )
+			m_nNodesSearched( 0 ),
+			m_bTerminated( false )
 		{
 		}
 
@@ -1112,9 +1119,7 @@ class Searcher : Object
 
 				}
 
-			int nBias = ( pos.ColorToMove() == WHITE ) ? 1 : -1;
-
-			return nScore * nBias;
+			return nScore;
 		}
 
 	protected:
@@ -1130,9 +1135,7 @@ class SearcherAlphaBeta : Searcher
 		virtual int Search( const Position& pos,
 							Moves& mPrincipalVariation )
 		{
-			const int depth = 10;
-
-			++m_nNodesSearched;
+			const int depth = 6;
 
 			return alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
 								 mPrincipalVariation );
@@ -1144,11 +1147,22 @@ class SearcherAlphaBeta : Searcher
 								  const Position& pos, Moves& pv )
 		{
 			if ( depthleft == 0 )
-			{ return Evaluate( pos ); }
+			{ 
+				return -Evaluate( pos ); 
+			}
 
 			Moves bestPV, currentPV;
 
-			for ( Move & move : pos.GenerateMoves() )
+			Moves myMoves = pos.GenerateMoves();
+
+			if ( myMoves.Empty() )
+			{
+				Move nullMove;
+				pv.Make( nullMove );
+				return beta;
+			}
+
+			for ( Move & move : myMoves )
 			{
 				currentPV = pv;
 				currentPV.Make( move );
@@ -1179,12 +1193,25 @@ class SearcherAlphaBeta : Searcher
 		virtual int alphaBetaMin( int alpha, int beta, int depthleft,
 								  const Position& pos, Moves& pv )
 		{
+
 			if ( depthleft == 0 )
-			{ return -Evaluate( pos ); }
+			{ 
+				return Evaluate( pos );
+			}
 
 			Moves bestPV, currentPV;
 
-			for ( Move & move : pos.GenerateMoves() )
+			Moves myMoves = pos.GenerateMoves();
+
+			if ( myMoves.Empty() )
+				{
+				Move nullMove;
+				pv.Make( nullMove );
+
+				return alpha;
+				}
+
+			for ( Move & move : myMoves )
 			{
 				currentPV = pv;
 				currentPV.Make( move );
@@ -1962,12 +1989,14 @@ int main( int argc, char* argv[] )
 
 	stringstream ss;
 
-/*
-	    ss << "uci\nisready\nucinewgame\nisready\nposition startpos moves e2e4 ";
-//	    ss << "4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1";
+	 /*
+	    ss << "uci\nisready\nucinewgame\nisready\nposition fen ";
+	    ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
+		// ss << "1k6/6q1/1n6/8/2Q5/8/8/1K4R1 w - - 0 1 ";
 	    ss << "\ngo infinite\n";
 	    i.In( &ss );
-*/
+	*/
+
 
 	i.Run();
 
