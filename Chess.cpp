@@ -1107,16 +1107,18 @@ class Searcher : Object
 		{
 			int nScore = 0;
 
+			Board board = pos.GetBoard();
+			Piece* piece;
+
 			for ( int i = 0; i < MAX_FILES; i++ )
 				for ( int j = 0; j < MAX_FILES; j++ )
 				{
-					Piece* piece;
+					piece = board.Get( i, j );
 
-					piece = pos.GetBoard().Get( i, j );
-
-					nScore += ( piece->PieceValue() *
+					if ( piece != &None ) {
+						nScore += ( piece->PieceValue() *
 								( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
-
+					}
 				}
 
 			return nScore;
@@ -1988,15 +1990,13 @@ int main( int argc, char* argv[] )
 	Interface i;
 
 	stringstream ss;
-
-	 /*
+	
 	    ss << "uci\nisready\nucinewgame\nisready\nposition fen ";
-	    ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
+	    // ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
+		ss << "1r3bnr/7p/3RBk2/6p1/Np3p2/pP3P2/P1P2KPP/4R3 b - - 5 24";
 		// ss << "1k6/6q1/1n6/8/2Q5/8/8/1K4R1 w - - 0 1 ";
 	    ss << "\ngo infinite\n";
 	    i.In( &ss );
-	*/
-
 
 	i.Run();
 
