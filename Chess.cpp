@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <sstream>
 #include <unordered_map>
+#include <thread>
+#include <mutex>
+#include <memory>
 
 using namespace std;
 
@@ -525,6 +528,18 @@ class Move : Object
 			m_Score = 0;
 		}
 
+		Move( string sMove )
+		{
+			if ( sMove.length() != 4 )
+			{ abort(); }
+
+			m_Piece = &None;
+			m_Source.I( sMove[0] - 'a' );
+			m_Source.J( sMove[1] - '1' );
+			m_Dest.I( sMove[2] - 'a' );
+			m_Dest.J( sMove[3] - '1' );
+		}
+
 		Piece* GetPiece() const { return m_Piece; }
 		void SetPiece( Piece* val ) { m_Piece = val; }
 		Square Source() const { return m_Source; }
@@ -549,10 +564,18 @@ class Move : Object
 			string letter;
 			stringstream ss;
 
+			return ( string )m_Source + ( string )m_Dest;
+		}
+
+		string TextWithPiece()
+		{
+			string letter;
+			stringstream ss;
+
 			ss << m_Piece->Letter();
 			ss >> letter;
 
-			return (letter) + ( string )m_Source + ( string )m_Dest;
+			return ( letter ) + ( string )m_Source + ( string )m_Dest;
 		}
 
 		int Score() const { return m_Score; }
@@ -783,8 +806,8 @@ class Position : Object
 			m_nScore = position.Score() + ( m_Board.Get( move.Dest() )->PieceValue() ) *
 					   ( m_ColorToMove ? -1 : 1 );
 
+			m_Board.Set( move.Dest().I(), move.Dest().J(), m_Board.Get( move.Source() ) );
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
-			m_Board.Set( move.Dest().I(), move.Dest().J(), move.GetPiece() );
 
 			m_ColorToMove = !position.m_ColorToMove;
 		}
@@ -1096,6 +1119,9 @@ class Searcher : Object
 
 	protected:
 		int m_nNodesSearched;
+		bool m_bTerminated;
+		thread* m_ptSearchThread;
+
 };
 
 class SearcherAlphaBeta : Searcher
@@ -1104,10 +1130,12 @@ class SearcherAlphaBeta : Searcher
 		virtual int Search( const Position& pos,
 							Moves& mPrincipalVariation )
 		{
-			const int depth = 4;
+			const int depth = 10;
 
-			return alphaBetaMax( INT_MIN, INT_MAX, depth, pos, 
-				mPrincipalVariation );
+			++m_nNodesSearched;
+
+			return alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
+								 mPrincipalVariation );
 		}
 
 
@@ -1116,7 +1144,7 @@ class SearcherAlphaBeta : Searcher
 								  const Position& pos, Moves& pv )
 		{
 			if ( depthleft == 0 )
-				 return Evaluate( pos );
+			{ return Evaluate( pos ); }
 
 			Moves bestPV, currentPV;
 
@@ -1139,6 +1167,9 @@ class SearcherAlphaBeta : Searcher
 					alpha = score;
 					bestPV = currentPV;
 				}
+
+				if ( m_bTerminated )
+				{ break; }
 			}
 
 			pv = bestPV;
@@ -1148,8 +1179,8 @@ class SearcherAlphaBeta : Searcher
 		virtual int alphaBetaMin( int alpha, int beta, int depthleft,
 								  const Position& pos, Moves& pv )
 		{
-			if ( depthleft == 0 ) 
-				return -Evaluate( pos );
+			if ( depthleft == 0 )
+			{ return -Evaluate( pos ); }
 
 			Moves bestPV, currentPV;
 
@@ -1172,6 +1203,9 @@ class SearcherAlphaBeta : Searcher
 					beta = score;
 					bestPV = currentPV;
 				}
+
+				if ( m_bTerminated )
+				{ break; }
 			}
 
 			pv = bestPV;
@@ -1396,6 +1430,11 @@ typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
 class Interface : Object
 {
 	public:
+		enum ProtocolType
+		{
+			PROTOCOL_XBOARD,
+			PROTOCOL_UCI
+		};
 
 		Interface( istream* in = &cin, ostream* out = &cout )
 		{
@@ -1409,6 +1448,33 @@ class Interface : Object
 		{
 			delete  m_pGame;
 		}
+
+		ostream* Out() const { return m_Out; }
+		void Out( ostream* val ) { m_Out = val; }
+
+		istream* In() const { return m_In; }
+		void In( istream* val ) { m_In = val; }
+
+		void Run()
+		{
+			m_Out->setf( ios::unitbuf );
+
+			string sInputLine;
+
+			RegisterAll( );
+
+			for ( ;; )
+			{
+				getline( *m_In, sInputLine );
+
+				if ( sInputLine.empty() )
+				{ break; }
+
+				Execute( sInputLine );
+			}
+		}
+
+	protected:
 
 		void RegisterCommand( const string& sCommand,
 							  INTERFACE_FUNCTION_TYPE( pfnCommand ) )
@@ -1429,7 +1495,7 @@ class Interface : Object
 					break;
 
 				default:
-					( *m_Out ) << sParams;
+					( *m_Out ) << sParams << endl;
 			}
 		}
 
@@ -1519,6 +1585,15 @@ class Interface : Object
 		INTERFACE_PROTOTYPE( UCIGo )
 		{
 			sParams;
+			SearcherAlphaBeta sab;
+
+			Moves moves;
+			sab.Search( *m_pGame->GetPosition(), moves );
+
+			Notify( ( string ) moves );
+			stringstream ss;
+			ss << "bestmove " << ( string )( moves.GetFirst() );
+			Instruct( ss.str() );
 		}
 
 		INTERFACE_PROTOTYPE( UCIPosition )
@@ -1526,19 +1601,51 @@ class Interface : Object
 			stringstream ss( sParams );
 			string sType;
 
-			ss >> sType;
-
-			if ( sType == "fen" )
+			while ( ss >> sType )
 			{
-				Position pos;
 
-				pos.SetFEN( sType );				
-				m_pGame->SetPosition( pos );
+				if ( sType == "fen" )
+				{
+					string sArg, sFen;
+					const int fenArgs = 6;
+
+					for ( int t = 0; t < fenArgs; t++ )
+					{
+						ss >> sArg;
+						if ( t != 0 )
+						{
+							sFen.append( " " );
+						}
+						sFen.append( sArg );
+					}
+
+					Position pos;
+					pos.SetFEN( sFen );
+					m_pGame->SetPosition( pos );
+
+					Notify( "New position: " );
+					Notify( sFen );
+				}
+
+				if ( sType == "startpos" )
+				{
+					m_pGame->New();
+				}
+
+				if ( sType == "moves" )
+				{
+					string sMove;
+
+					while ( ss >> sMove )
+					{
+						Move nextMove( sMove );
+
+						Position *pLast = m_pGame->GetPosition();
+						Position nextPos( *pLast, nextMove );
+						m_pGame->SetPosition( nextPos );
+					}
+				}
 			}
-			
-			Notify( "New position: " );
-			Notify( sType );
-
 		}
 
 		INTERFACE_PROTOTYPE( Stop )
@@ -1793,7 +1900,7 @@ class Interface : Object
 			ss >> sVerb;
 
 			if ( sVerb.length() < sCommand.length() )
-			{ sParams = sCommand.substr( sVerb.length() + 1, 1024 ); }
+			{ sParams = sCommand.substr( sVerb.length() + 1, 16384 ); }
 
 			InterfaceFunctionType ic = m_CommandMap[ sVerb ];
 
@@ -1808,33 +1915,13 @@ class Interface : Object
 		}
 
 
-		void Run()
-		{
-			m_Out->setf( ios::unitbuf );
-
-			string sInputLine;
-
-			RegisterAll( );
-
-			for ( ;; )
-			{
-				getline( *m_In, sInputLine );
-				Execute( sInputLine );
-			}
-		}
+	protected:
 
 		ostream* m_Out;
 		istream* m_In;
 
 		Game* m_pGame;
-
 		Moves m_PrincipalVariation;
-
-		enum ProtocolType
-		{
-			PROTOCOL_XBOARD,
-			PROTOCOL_UCI
-		};
 
 		ProtocolType m_Protocol;
 		int m_Protover;
@@ -1856,7 +1943,7 @@ void TestSearch()
 
 	sab.Search( pos, pv );
 
-	cout << (string) pv;
+	cout << ( string ) pv;
 }
 
 int main( int argc, char* argv[] )
@@ -1872,6 +1959,15 @@ int main( int argc, char* argv[] )
 	PieceInitializer pieceInitializer;
 
 	Interface i;
+
+	stringstream ss;
+
+/*
+	    ss << "uci\nisready\nucinewgame\nisready\nposition startpos moves e2e4 ";
+//	    ss << "4k3/pppppppp/8/8/8/8/PPPPPPPP/4K3 w - - 0 1";
+	    ss << "\ngo infinite\n";
+	    i.In( &ss );
+*/
 
 	i.Run();
 
