@@ -1,3 +1,10 @@
+/**
+ **	Chess.cpp
+ **	A simple UCI-compatible chess engine
+ **
+ **	http://creativecommons.org/licenses/by/3.0/
+ **/
+
 #include <time.h>
 #include <string>
 #include <iostream>
@@ -19,6 +26,7 @@ typedef bool Color;
 const Color BLACK = 0;
 const Color WHITE = 1;
 
+/** The base class for all objects in the program. */
 class Object
 {
 };
@@ -39,7 +47,7 @@ class Board;
 class Moves;
 class Square;
 
-// A centisecond wall clock.
+/** A centisecond wall clock. */
 class Clock : Object
 {
 	public:
@@ -111,7 +119,7 @@ class Piece : Object
 			m_pOtherColor = NULL;
 		}
 
-		virtual int PieceValue() = 0;
+		virtual int PieceValue() const = 0;
 		virtual Moves GenerateMoves( const Square& source, const Board& board ) = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
 		virtual bool IsDifferentOrEmpty( const Square& dest, const Board& board ) const;
@@ -164,7 +172,7 @@ class NoPiece : public Piece
 			m_pOtherColor = this;
 		}
 
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 0;
 		}
@@ -182,7 +190,7 @@ class Pawn : public Piece
 			m_Letter = 'p';
 		}
 
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 100;
 		}
@@ -199,7 +207,7 @@ class Bishop : public Piece
 			m_Letter = 'b';
 			m_PieceType = BISHOP;
 		}
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 300;
 		}
@@ -217,7 +225,7 @@ class Knight : public Piece
 			m_PieceType = KNIGHT;
 		}
 
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 300;
 		}
@@ -235,7 +243,7 @@ class Rook : public Piece
 			m_PieceType = ROOK;
 		}
 
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 500;
 		}
@@ -253,7 +261,7 @@ class Queen : public Piece
 			m_PieceType = QUEEN;
 		}
 
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 900;
 		}
@@ -271,7 +279,7 @@ class King : public Piece
 			m_PieceType = KING;
 		}
 
-		int PieceValue()
+		int PieceValue() const
 		{
 			return 100000;
 		}
@@ -289,7 +297,7 @@ NoPiece None;
 
 class Square;
 
-class Board : Object
+class Board : public Object
 {
 	public:
 		Board()
@@ -384,7 +392,7 @@ class Board : Object
 		Piece* m_Piece[ MAX_FILES ][ MAX_FILES ];
 };
 
-class Square : Object
+class Square : public Object
 {
 	public:
 		Square()
@@ -487,17 +495,6 @@ class Square : Object
 		{
 			Square s1( i + s.I(), j + s.I() );
 			return s1;
-		}
-
-		void Test()
-		{
-			I( 3 );
-			J( 4 );
-			Dump();
-			I( 12 );
-			J( 0 );
-			Dump();
-
 		}
 
 	protected:
@@ -2071,6 +2068,10 @@ int main( int argc, char* argv[] )
 	    ss << "\ngo infinite\n";
 	    i.In( &ss );
 	*/
+
+/*
+ * problem position:  rn2k1nr/2N5/b1pP1bpp/8/1qPBpP2/pP5Q/P1P3PP/3R1RK1 b kq - 1 4 
+ */
 
 	i.Run();
 
