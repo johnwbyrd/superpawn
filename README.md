@@ -1,11 +1,9 @@
 Ippon
 =====
 
-Ippon is a trivial, pedantic, and somewhat ridiculous chess
-engine.
-
-As of this writing, it is capable of only playing a pseudo-legal
-game of chess.
+Ippon is a trivial, pedantic, and somewhat silly chess
+engine.  As of this writing, it is capable of only playing
+a pseudo-legal game of chess. 
 
 Current features
 ----------------
@@ -15,6 +13,9 @@ Current features
   with Arena 3.0
 - Pluggable architecture permits easy experimentation for 
   new algorithms for search and evaluation  
+- Uses C++11 features, as well as some gratuitous functional
+  programming concepts
+- Vaguely const-correct
 
 Anti-features (things the engine doesn't do)
 --------------------------------------------

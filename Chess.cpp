@@ -5,6 +5,16 @@
  **	http://creativecommons.org/licenses/by/3.0/
  **/
 
+ /** Number of rows and columns on the board */
+const unsigned int MAX_FILES = 8;
+const unsigned int HIGHEST_FILE = MAX_FILES - 1;
+
+/** An estimate of a reasonable maximum of moves in any given position.  Not
+ ** a hard bound.
+ **/
+const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
+
+
 #include <time.h>
 #include <string>
 #include <iostream>
@@ -18,13 +28,10 @@
 
 using namespace std;
 
-const unsigned int MAX_FILES = 8;
-const unsigned int HIGHEST_FILE = MAX_FILES - 1;
-
 typedef bool Color;
 
-const Color BLACK = 0;
-const Color WHITE = 1;
+const Color BLACK = false;
+const Color WHITE = true;
 
 /** The base class for all objects in the program. */
 class Object
@@ -120,7 +127,7 @@ class Piece : Object
 		}
 
 		virtual int PieceValue() const = 0;
-		virtual Moves GenerateMoves( const Square& source, const Board& board ) = 0;
+		virtual Moves GenerateMoves( const Square& source, const Board& board ) const = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
 		virtual bool IsDifferentOrEmpty( const Square& dest, const Board& board ) const;
 
@@ -177,7 +184,7 @@ class NoPiece : public Piece
 			return 0;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
 
@@ -195,7 +202,7 @@ class Pawn : public Piece
 			return 100;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
 
@@ -212,7 +219,7 @@ class Bishop : public Piece
 			return 300;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
 
@@ -230,7 +237,7 @@ class Knight : public Piece
 			return 300;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
 
@@ -248,7 +255,7 @@ class Rook : public Piece
 			return 500;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
 
@@ -266,7 +273,7 @@ class Queen : public Piece
 			return 900;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
 
@@ -284,15 +291,19 @@ class King : public Piece
 			return 100000;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board );
+		Moves GenerateMoves( const Square& source, const Board& board ) const;
+
+	private:
+		King();
 };
 
-Pawn WhitePawn( WHITE ), BlackPawn( BLACK );
-Knight WhiteKnight( WHITE ), BlackKnight( BLACK );
-Bishop WhiteBishop( WHITE ), BlackBishop( BLACK );
-Rook WhiteRook( WHITE ), BlackRook( BLACK );
-Queen WhiteQueen( WHITE ), BlackQueen( BLACK );
-King WhiteKing( WHITE ), BlackKing( BLACK );
+/* PVS-Studio objects to this casting of bool to class type */
+Pawn WhitePawn( WHITE ), BlackPawn( BLACK );        //-V601
+Knight WhiteKnight( WHITE ), BlackKnight( BLACK );	//-V601
+Bishop WhiteBishop( WHITE ), BlackBishop( BLACK );  //-V601
+Rook WhiteRook( WHITE ), BlackRook( BLACK );        //-V601
+Queen WhiteQueen( WHITE ), BlackQueen( BLACK );	    //-V601
+King WhiteKing( WHITE ), BlackKing( BLACK );        //-V601
 NoPiece None;
 
 class Square;
@@ -365,7 +376,7 @@ class Board : public Object
 
 		bool IsEmpty( const Square& square ) const;
 
-		void Dump()
+		void Dump()	const
 		{
 			for ( int j = ( MAX_FILES - 1 ); j >= 0; j-- )
 			{
@@ -412,7 +423,7 @@ class Square : public Object
 			j = s[1] - 'a';
 		}
 
-		bool IsLegal() const
+		bool IsOnBoard() const
 		{
 			return ( ( ( i & ~7 ) == 0 ) && ( ( j & ~7 ) == 0 ) );
 		}
@@ -443,11 +454,11 @@ class Square : public Object
 			j = jp;
 		}
 
-		operator string ()
+		operator string () const
 		{
 			string s;
 
-			if ( IsLegal() )
+			if ( IsOnBoard() )
 			{
 				s = ( char )( 'a' + i );
 				s += ( char )( '1' + j );
@@ -458,9 +469,9 @@ class Square : public Object
 			return s;
 		}
 
-		void Dump()
+		void Dump()	const
 		{
-			if ( IsLegal() )
+			if ( IsOnBoard() )
 			{
 				cout << ( char )( 'a' + i );
 				cout << ( char )( '1' + j );
@@ -517,7 +528,7 @@ class Move : Object
 			m_Score = 0;
 		}
 
-		Move( Piece* piece, const Square& source, const Square dest )
+		Move( const Piece *piece, const Square& source, const Square &dest )
 		{
 			m_Piece = piece;
 			m_Source = source;
@@ -527,9 +538,6 @@ class Move : Object
 
 		Move( string sMove )
 		{
-			if ( sMove.length() != 4 )
-			{ abort(); }
-
 			m_Piece = &None;
 			m_Source.I( sMove[0] - 'a' );
 			m_Source.J( sMove[1] - '1' );
@@ -537,14 +545,14 @@ class Move : Object
 			m_Dest.J( sMove[3] - '1' );
 		}
 
-		Piece* GetPiece() const { return m_Piece; }
-		void SetPiece( Piece* val ) { m_Piece = val; }
+		const Piece* GetPiece() const { return m_Piece; }
+		void SetPiece( const Piece* val ) { m_Piece = val; }
 		Square Source() const { return m_Source; }
 		void Source( Square val ) { m_Source = val; }
 		Square Dest() const { return m_Dest; }
 		void Dest( Square val ) { m_Dest = val; }
 
-		void Dump()
+		void Dump()	const
 		{
 			if ( m_Piece == &None )
 			{
@@ -556,11 +564,8 @@ class Move : Object
 			m_Dest.Dump();
 		}
 
-		operator string ()
+		operator string () const
 		{
-			string letter;
-			stringstream ss;
-
 			return ( string )m_Source + ( string )m_Dest;
 		}
 
@@ -579,7 +584,7 @@ class Move : Object
 		void Score( int val ) { m_Score = val; }
 
 	protected:
-		Piece* m_Piece;
+		const Piece* m_Piece;
 		Square m_Source, m_Dest;
 		int m_Score;
 };
@@ -609,7 +614,7 @@ class PieceInitializer : Object
 			BlackQueen.SetOtherColor( WhiteQueen );
 			WhiteKing.SetOtherColor( BlackKing );
 			BlackKing.SetOtherColor( WhiteKing );
-			None.SetOtherColor( None );
+			None.SetOtherColor( None ); //-V678
 
 			NullMove.Source( Square( -99, -99 ) );
 			NullMove.Dest( Square( -99, -99 ) );
@@ -628,7 +633,7 @@ class Moves : Object
 		void Initialize()
 		{
 			m_Moves.clear();
-			m_Moves.reserve( 32 );
+			m_Moves.reserve( DEFAULT_MOVES_SIZE );
 		}
 
 		void Add( const Move& move )
@@ -646,7 +651,7 @@ class Moves : Object
 			m_Moves.pop_back();
 		}
 
-		Moves operator+ ( Moves otherMoves )
+		Moves operator+ ( const Moves &otherMoves )
 		{
 			m_Moves.insert( m_Moves.end(),
 							otherMoves.m_Moves.begin(),
@@ -668,34 +673,34 @@ class Moves : Object
 			return m_Moves.at( rand() % m_Moves.size() );
 		}
 
-		Move GetFirst()
+		Move GetFirst()	const
 		{
 			return m_Moves.front();
 		}
 
-		bool Empty()
+		bool Empty() const
 		{
 			return m_Moves.empty();
 		}
 
-		void Dump()
+		void Dump()	
 		{
 			vector< Move >::iterator it;
 
-			for ( it = m_Moves.begin(); it != m_Moves.end(); it++ )
+			for ( it = m_Moves.begin(); it != m_Moves.end(); ++it )
 			{
 				( *it ).Dump();
 				cout << " ";
 			}
 		}
 
-		operator string ()
+		operator string () const
 		{
 			string s;
 
-			MovesInternalType::iterator it;
+			const_iterator it;
 
-			for ( it = m_Moves.begin(); it != m_Moves.end(); it++ )
+			for ( it = m_Moves.begin(); it != m_Moves.end(); ++it )
 			{
 				s += ( string ) * it;
 				s += " ";
@@ -704,13 +709,20 @@ class Moves : Object
 			return s;
 		}
 
+		/** Attempt to add a particular attack to this Moves object.  If the
+		 ** attempt succeeds, return true.
+		 ** \param m The move with source information and piece information
+		 ** \param board The board on which to make the move
+		 ** \param id The row delta of the intended piece destination
+		 ** \param jd The column delta of the intended piece destination
+		 **/
 		bool TryAttack( const Move& m, const Board& board, int id, int jd )
 		{
 			Move myMove = m;
 
 			myMove.Dest( Square( id + myMove.Source().I(), jd + myMove.Source().J() ) );
 
-			if ( myMove.Dest().IsLegal() )
+			if ( myMove.Dest().IsOnBoard() )
 			{
 				// Captures are more interesting than moves.
 				if ( myMove.GetPiece()->IsDifferent( myMove.Dest(), board ) )
@@ -729,6 +741,15 @@ class Moves : Object
 			return false;
 		}
 
+		/** Attempt to add a particular ray (sliding) attack to this Moves object.
+		 ** Generates a move for every successful step of the slide.
+		 ** \return The number of actual moves generated in that slide
+		 ** direction.  May be zero.
+		 ** \param m The move with source information and piece information
+		 ** \param board The board on which to make the move
+		 ** \param id The row delta of the intended piece destination
+		 ** \param jd The column delta of the intended piece destination
+		 **/
 		unsigned int TryRayAttack( const Move& m, const Board& board, int id, int jd )
 		{
 			int nAttacks = 0;
@@ -796,6 +817,11 @@ class Position : Object
 			SetFEN( sFEN );
 		}
 
+
+		/** Generates a new Position based on a previous, existing Position
+		 ** as well as a Move to apply to that previous Position.  A new
+		 ** Position is generated; the original Position remains untouched.
+		 **/
 		Position( const Position& position, const Move& move )
 		{
 			*this = position;
@@ -994,7 +1020,7 @@ class Position : Object
 			return 0;
 		}
 
-		string GetFEN()
+		string GetFEN()	const
 		{
 			string s;
 			Piece* pPiece;
@@ -1094,13 +1120,13 @@ class Position : Object
 class Evaluator : public Object
 {
 public:
-	virtual int Evaluate( const Position &pos ) = 0;
+	virtual int Evaluate( const Position &pos ) const = 0;
 };
 
 class EvaluatorMaterial : public Evaluator
 {
 public:
-	virtual int Evaluate( const Position &pos ) {
+	virtual int Evaluate( const Position &pos ) const {
 		Board board = pos.GetBoard();
 		Piece* piece;
 
@@ -1124,12 +1150,12 @@ public:
 class EvaluatorWeighted : public Evaluator 
 {
 public:
-	virtual int Evaluate( const Position &pos )
+	virtual int Evaluate( const Position &pos ) const
 	{
 		if ( m_Evaluators.empty() )
 			abort();
 
-		WeightsType::iterator weightIter;
+		WeightsType::const_iterator weightIter;
 		weightIter = m_Weights.begin();
 
 		int nScore = 0;
@@ -1165,7 +1191,7 @@ public:
 		m_Weighted.Add( m_Material );
 	}
 
-	virtual int Evaluate( const Position &pos )
+	virtual int Evaluate( const Position &pos )	const
 	{
 		return m_Weighted.Evaluate( pos );
 	} 
@@ -1347,7 +1373,7 @@ bool Piece::IsDifferentOrEmpty( const Square& dest, const Board& board ) const
 	return ( m_Color != piece->GetColor() );
 }
 
-Moves NoPiece::GenerateMoves( const Square& source, const Board& board )
+Moves NoPiece::GenerateMoves( const Square& source, const Board& board ) const
 {
 	source;
 	board;
@@ -1356,7 +1382,7 @@ Moves NoPiece::GenerateMoves( const Square& source, const Board& board )
 	return moves;
 }
 
-Moves Pawn::GenerateMoves( const Square& source, const Board& board )
+Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Moves moves;
 	Square dest = source;
@@ -1388,14 +1414,14 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board )
 
 	// Generate capture moves
 	dest = source.Add( -1, d );
-	if ( dest.IsLegal() && IsDifferent( dest, board ) )
+	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
 	{
 		m.Dest( dest );
 		moves.Add( m );
 	}
 
 	dest = source.Add( 1, d );
-	if ( dest.IsLegal() && IsDifferent( dest, board ) )
+	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
 	{
 		m.Dest( dest );
 		moves.Add( m );
@@ -1404,7 +1430,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board )
 	return moves;
 }
 
-Moves Knight::GenerateMoves( const Square& source, const Board& board )
+Moves Knight::GenerateMoves( const Square& source, const Board& board )	const
 {
 	Move m( this, source, source );
 	Moves moves;
@@ -1422,7 +1448,7 @@ Moves Knight::GenerateMoves( const Square& source, const Board& board )
 	return moves;
 }
 
-Moves Bishop::GenerateMoves( const Square& source, const Board& board )
+Moves Bishop::GenerateMoves( const Square& source, const Board& board )	const
 {
 	Moves moves;
 	Move m( this, source, source );
@@ -1435,7 +1461,7 @@ Moves Bishop::GenerateMoves( const Square& source, const Board& board )
 	return moves;
 }
 
-Moves Rook::GenerateMoves( const Square& source, const Board& board )
+Moves Rook::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Moves moves;
 	Move m( this, source, source );
@@ -1448,7 +1474,7 @@ Moves Rook::GenerateMoves( const Square& source, const Board& board )
 	return moves;
 }
 
-Moves King::GenerateMoves( const Square& source, const Board& board )
+Moves King::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Move m( this, source, source );
 	Moves moves;
@@ -1466,7 +1492,7 @@ Moves King::GenerateMoves( const Square& source, const Board& board )
 	return moves;
 }
 
-Moves Queen::GenerateMoves( const Square& source, const Board& board )
+Moves Queen::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Moves moves;
 	Move m( this, source, source );
@@ -1902,7 +1928,7 @@ class Interface : Object
 
 		int TimeToSeconds( const string& sTime )
 		{
-			unsigned int nColon = 0;
+			size_t nColon = 0;
 			int nMinutes = 0, nSeconds = 0;
 
 			nColon = sTime.find( ':' );
@@ -2058,9 +2084,10 @@ int main( int argc, char* argv[] )
 
 	Interface i;
 
-	stringstream ss;
-	
 	/*
+	stringstream ss;
+
+
 	    ss << "uci\nisready\nucinewgame\nisready\nposition fen ";
 	    // ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
 		ss << "1r3bnr/7p/3RBk2/6p1/Np3p2/pP3P2/P1P2KPP/4R3 b - - 5 24";
