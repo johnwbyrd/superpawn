@@ -8,14 +8,17 @@ a pseudo-legal game of chess.
 Current features
 ----------------
 
-- All the code exists within a single C++ source file
 - Implements a subset of UCI protocol sufficient to permit play 
   with Arena 3.0
 - Pluggable architecture permits easy experimentation for 
   new algorithms for search and evaluation  
+- Alpha-beta search of fixed depth
+- Material evaluator
 - Uses C++11 features, as well as some gratuitous functional
   programming concepts
+- All the code exists within a single C++ source file
 - Vaguely const-correct
+
 
 Anti-features (things the engine doesn't do)
 --------------------------------------------

@@ -1,5 +1,5 @@
 set( PROJECT_NAME ippon )
-cmake_minimum_required (VERSION 2.8.4)
+cmake_minimum_required (VERSION 2.6.4)
 set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cotire/CMake" )	
 include(cotire OPTIONAL)
 project ( ${PROJECT_NAME} )
@@ -19,7 +19,7 @@ elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-variadic-macros -Wall -Werror -Wno-long-long")
 endif()
 
-add_executable( ${PROJECT_NAME} chess.cpp )
+add_executable( ${PROJECT_NAME} Chess.cpp )
 
 target_link_libraries( ${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
 
