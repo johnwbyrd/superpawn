@@ -318,8 +318,8 @@ class Board : public Object
 
 		void Initialize()
 		{
-			for ( int i = 0; i < MAX_FILES; i++ )
-				for ( int j = 0; j < MAX_FILES; j++ )
+			for ( auto i = 0; i < MAX_FILES; i++ )
+				for ( auto j = 0; j < MAX_FILES; j++ )
 				{ m_Piece[ i ][ j ] = &None; }
 
 		}
@@ -339,7 +339,7 @@ class Board : public Object
 
 		void Setup()
 		{
-			for ( int i = 0 ; i < MAX_FILES; i ++ )
+			for ( auto i = 0 ; i < MAX_FILES; i ++ )
 			{
 				m_Piece[i][1] = &WhitePawn;
 				m_Piece[i][6] = &BlackPawn;
@@ -364,9 +364,8 @@ class Board : public Object
 		{
 			Piece* pTemp;
 
-
-			for ( int j = 0 ; j < ( MAX_FILES / 2 ); j++ )
-				for ( int i = 0; i < MAX_FILES; i++ )
+			for ( auto j = 0 ; j < ( MAX_FILES / 2 ); j++ )
+				for ( auto i = 0; i < MAX_FILES; i++ )
 				{
 					pTemp = m_Piece[i][j];
 					m_Piece[i][j] = m_Piece[HIGHEST_FILE - i][HIGHEST_FILE - j];
