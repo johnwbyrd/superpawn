@@ -1899,9 +1899,13 @@ class Interface : Object
 
 			pPosition = m_pGame->GetPosition();
 			pPosition->SetFEN( sParams );
-			string sFEN = pPosition->GetFEN();
+			string sFEN;
+			sFEN = pPosition->GetFEN();
 
-			*( m_Out ) << "# New position: " << sFEN << endl;
+			stringstream ss;
+			ss << "New position: " << sFEN;
+
+			Notify( ss.str() );
 		}
 
 		INTERFACE_PROTOTYPE( Usermove )
