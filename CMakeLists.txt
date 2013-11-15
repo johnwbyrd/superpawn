@@ -15,10 +15,8 @@ if(MSVC)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX")
   endif()
 elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  # Warnings are errors; generate lots of warnings
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-variadic-macros -Wall -Werror -Wno-long-long")
-  # We need C++11
-  set(CMAKE_CXX_FLAGS -std=c++0x "${CMAKE_CXX_FLAGS}")
+  # Warnings are errors; generate lots of warnings, add C++0x support
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wno-variadic-macros -Wall -Werror -Wno-long-long -std=c++0x")
 endif()
 
 add_executable( ${PROJECT_NAME} Chess.cpp )
