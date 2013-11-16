@@ -26,6 +26,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <mutex>
 #include <memory>
 #include <chrono>
+#include <climits>
 
 using namespace std;
 
