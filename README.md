@@ -10,7 +10,7 @@ Current features
 
 - Implements a subset of UCI protocol sufficient to permit play 
   with Arena 3.0
-- Pluggable architecture permits easy experimentation for 
+- Pluggable architecture permits easy experimentation with 
   new algorithms for search and evaluation  
 - Alpha-beta search of fixed depth
 - Material evaluator

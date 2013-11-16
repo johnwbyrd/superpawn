@@ -25,6 +25,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <thread>
 #include <mutex>
 #include <memory>
+#include <chrono>
 
 using namespace std;
 
@@ -53,6 +54,18 @@ class PieceInitializer;
 class Board;
 class Moves;
 class Square;
+class Interface;
+
+/* Definitions specifically to speed along definitions in the Interface class. */
+#define INTERFACE_FUNCTION_PARAMS const string &sParams
+#define INTERFACE_FUNCTION_RETURN_TYPE void
+
+#define INTERFACE_PROTOTYPE( FunctionName )  INTERFACE_FUNCTION_RETURN_TYPE FunctionName ( INTERFACE_FUNCTION_PARAMS )
+#define INTERFACE_FUNCTION_TYPE( Variable ) INTERFACE_FUNCTION_RETURN_TYPE ( Interface::* Variable )( INTERFACE_FUNCTION_PARAMS )
+#define INTERFACE_FUNCTION_ABSTRACT_TYPE (*( INTERFACE_FUNCTION_RETURN_TYPE )())
+
+typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
+	INTERFACE_FUNCTION_PARAMS );
 
 /** A centisecond wall clock. */
 class Clock : Object
@@ -318,8 +331,8 @@ class Board : public Object
 
 		void Initialize()
 		{
-			for ( int i = 0; i < MAX_FILES; i++ )
-				for ( int j = 0; j < MAX_FILES; j++ )
+			for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{ m_Piece[ i ][ j ] = &None; }
 
 		}
@@ -1223,6 +1236,7 @@ class Searcher : Object
 		bool m_bTerminated;
 		thread* m_ptSearchThread;
 		EvaluatorStandard m_Evaluator;
+		Clock m_Clock;
 
 };
 
@@ -1234,8 +1248,17 @@ class SearcherAlphaBeta : Searcher
 		{
 			const int depth = 6;
 
-			return alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
+			if ( pos.ColorToMove() == BLACK )
+			{
+				return alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
 								 mPrincipalVariation );
+			}
+			else
+			{
+				return alphaBetaMin( INT_MIN, INT_MAX, depth, pos,
+					mPrincipalVariation );
+			}
+
 		}
 
 
@@ -1335,7 +1358,6 @@ class SearcherAlphaBeta : Searcher
 			pv = bestPV;
 			return beta;
 		}
-
 };
 
 Piece* Board::Set( const Square& s, Piece* piece )
@@ -1539,18 +1561,6 @@ class Game : Object
 		Position m_Position;
 };
 
-class Interface;
-
-#define INTERFACE_FUNCTION_PARAMS const string &sParams
-#define INTERFACE_FUNCTION_RETURN_TYPE void
-
-#define INTERFACE_PROTOTYPE( FunctionName )  INTERFACE_FUNCTION_RETURN_TYPE FunctionName ( INTERFACE_FUNCTION_PARAMS )
-#define INTERFACE_FUNCTION_TYPE( Variable ) INTERFACE_FUNCTION_RETURN_TYPE ( Interface::* Variable )( INTERFACE_FUNCTION_PARAMS )
-#define INTERFACE_FUNCTION_ABSTRACT_TYPE (*( INTERFACE_FUNCTION_RETURN_TYPE )())
-
-typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
-	INTERFACE_FUNCTION_PARAMS );
-
 class Interface : Object
 {
 	public:
@@ -1592,7 +1602,7 @@ class Interface : Object
 				getline( *m_In, sInputLine );
 
 				if ( sInputLine.empty() )
-				{ break; }
+					break;
 
 				Execute( sInputLine );
 			}
@@ -1628,12 +1638,6 @@ class Interface : Object
 			( *m_Out ) << sParams << endl;
 		}
 
-		INTERFACE_PROTOTYPE( Xboard )
-		{
-			RegisterXboard( sParams );
-			Notify( "Xboard commands registered" );
-		}
-
 		INTERFACE_PROTOTYPE( UCI )
 		{
 			RegisterUCI( sParams );
@@ -1641,31 +1645,6 @@ class Interface : Object
 			Instruct( "id author John Byrd" );
 			Instruct( "uciok" );
 			Notify( "UCI commands registered" );
-		}
-
-		INTERFACE_PROTOTYPE( RegisterXboard )
-		{
-			sParams;
-			m_Protocol = PROTOCOL_XBOARD;
-			RegisterCommand( "accepted",    &Interface::Accepted );
-			RegisterCommand( "new",         &Interface::New );
-			RegisterCommand( "protover",    &Interface::Protover );
-			RegisterCommand( "ping",        &Interface::Ping );
-			RegisterCommand( "usermove",    &Interface::Usermove );
-			RegisterCommand( "setboard",    &Interface::Setboard );
-			RegisterCommand( "level",       &Interface::Level );
-			RegisterCommand( "st",          &Interface::St );
-			RegisterCommand( "time",        &Interface::Time );
-			RegisterCommand( "otim",        &Interface::OTim );
-			RegisterCommand( "?",           &Interface::MoveNow );
-			RegisterCommand( "post",        &Interface::Post );
-			RegisterCommand( "nopost",      &Interface::NoPost );
-			RegisterCommand( "hard",        &Interface::Hard );
-			RegisterCommand( "easy",        &Interface::Easy );
-			RegisterCommand( "force",       &Interface::Force );
-			RegisterCommand( "go",          &Interface::XboardGo );
-			RegisterCommand( "black",       &Interface::Black );
-			RegisterCommand( "white",       &Interface::White );
 		}
 
 		INTERFACE_PROTOTYPE( RegisterUCI )
@@ -1684,7 +1663,6 @@ class Interface : Object
 
 		void RegisterAll()
 		{
-			RegisterCommand( "xboard",  &Interface::Xboard );
 			RegisterCommand( "uci",     &Interface::UCI );
 			RegisterCommand( "quit",    &Interface::Quit );
 		}
@@ -1772,6 +1750,14 @@ class Interface : Object
 			}
 		}
 
+		INTERFACE_PROTOTYPE( New )
+		{
+				sParams;
+				m_pGame->New();
+				Notify( "New game" );
+		}
+
+
 		INTERFACE_PROTOTYPE( Stop )
 		{
 			sParams;
@@ -1787,143 +1773,6 @@ class Interface : Object
 			sParams;
 			Notify( "Engine exiting" );
 			exit( 0 );
-		}
-
-		INTERFACE_PROTOTYPE( Ping )
-		{
-			stringstream ss;
-			ss.str( sParams );
-
-			int n;
-			ss >> n;
-
-			*( m_Out ) << "pong " << n << endl;
-		}
-
-		INTERFACE_PROTOTYPE( StopThinking )
-		{
-			sParams;
-			Notify( "Thinking stopped" );
-		}
-
-		INTERFACE_PROTOTYPE( Black )
-		{
-			sParams;
-			Position* pPosition = m_pGame->GetPosition();
-			pPosition;
-		}
-
-		INTERFACE_PROTOTYPE( White )
-		{
-			sParams;
-			Position* pPosition = m_pGame->GetPosition();
-			pPosition;
-		}
-
-		INTERFACE_PROTOTYPE( Force )
-		{
-			StopThinking( sParams );
-			Time( "0" );
-			OTim( "0" );
-
-			Notify( "Force" );
-		}
-
-		INTERFACE_PROTOTYPE( MoveNow )
-		{
-			StopThinking( sParams );
-			Move myMove;
-			myMove = ( m_PrincipalVariation ).GetFirst();
-
-			*( m_Out ) << "move " << ( string )myMove << endl;
-			*( m_Out ) << "# PV " << ( string )m_PrincipalVariation << endl;
-		}
-
-		INTERFACE_PROTOTYPE( Post )
-		{
-			sParams;
-			m_bShowThinking = true;
-			Notify( "Thinking will be shown" );
-		}
-
-		INTERFACE_PROTOTYPE( NoPost )
-		{
-			sParams;
-			m_bShowThinking = false;
-			Notify( "Thinking will not be shown" );
-		}
-
-		INTERFACE_PROTOTYPE( Hard )
-		{
-			sParams;
-			m_bPonder = true;
-			Notify( "Engine will ponder on opponent's time" );
-		}
-
-		INTERFACE_PROTOTYPE( Easy )
-		{
-			sParams;
-			m_bPonder = false;
-			Notify( "Engine will not ponder on opponent's time" );
-		}
-
-		INTERFACE_PROTOTYPE( Protover )
-		{
-			stringstream ss;
-			ss.str( sParams );
-
-			ss >> m_Protover;
-
-			if ( m_Protover >= 2 )
-			{
-				Instruct( "feature ping=1 setboard=1 playother=1 usermove=1 analyze=0" );
-			}
-
-		}
-
-		INTERFACE_PROTOTYPE( Accepted )
-		{
-			sParams;
-			*( m_Out ) << "# Unknown parameter to accepted" << endl;
-		}
-
-		INTERFACE_PROTOTYPE( New )
-		{
-			sParams;
-			m_pGame->New();
-			Notify( "New game" );
-		}
-
-		INTERFACE_PROTOTYPE( Setboard )
-		{
-			Position* pPosition;
-
-			pPosition = m_pGame->GetPosition();
-			pPosition->SetFEN( sParams );
-			string sFEN = pPosition->GetFEN();
-
-			*( m_Out ) << "# New position: " << sFEN << endl;
-		}
-
-		INTERFACE_PROTOTYPE( Usermove )
-		{
-			Square sSrc, sDest;
-
-			sSrc.Set( sParams[0] - 'a', sParams[1] - '1' );
-			sDest.Set( sParams[2] - 'a', sParams[3] - '1' );
-
-			Position* pPosition = m_pGame->GetPosition();
-
-			Piece* pPiece = pPosition->GetBoard().Get( sSrc );
-
-			Move move( pPiece, sSrc, sDest );
-
-			Position nextPos( *pPosition, move );
-			*pPosition = nextPos;
-
-			*( m_Out ) << "# User move: " << ( string )move << endl;
-
-			XboardGo( "Thinking Params Go Here" );
 		}
 
 		int TimeToSeconds( const string& sTime )
@@ -1951,69 +1800,6 @@ class Interface : Object
 			return ( nMinutes * 60 + nSeconds );
 		}
 
-		INTERFACE_PROTOTYPE( Level )
-		{
-			stringstream ss;
-			ss.str( sParams );
-
-			string sBaseTime, sIncrementTime;
-
-			ss >> m_pGame->m_nMovesPerBaseTime >> sBaseTime >> sIncrementTime;
-
-			m_pGame->m_nBaseTime = TimeToSeconds( sBaseTime );
-			m_pGame->m_nIncrementTime = TimeToSeconds( sIncrementTime );
-
-			*( m_Out ) << "# Level: Moves per base: " << m_pGame->m_nMovesPerBaseTime <<
-					   " Base: " << m_pGame->m_nBaseTime << " Inc: " << m_pGame->m_nIncrementTime <<
-					   endl;
-		}
-
-		INTERFACE_PROTOTYPE( St )
-		{
-			stringstream ss;
-			ss.str( sParams );
-
-			ss >> m_pGame->m_nBaseTime;
-			m_pGame->m_nMovesPerBaseTime = m_pGame->m_nIncrementTime = 0;
-
-			*( m_Out ) << "# Level: Moves per base: " << m_pGame->m_nMovesPerBaseTime <<
-					   " Base: " << m_pGame->m_nBaseTime << " Inc: " << m_pGame->m_nIncrementTime <<
-					   endl;
-		}
-
-		INTERFACE_PROTOTYPE( XboardGo )
-		{
-			sParams;
-			Notify( "Thinking initiated" );
-		}
-
-		INTERFACE_PROTOTYPE( Time )
-		{
-			stringstream ss;
-			ss.str( sParams );
-
-			ss >> m_pGame->m_Time;
-
-			*( m_Out ) << "# Time: " << m_pGame->m_Time << endl;
-
-		}
-
-		INTERFACE_PROTOTYPE( OTim )
-		{
-			stringstream ss;
-			ss.str( sParams );
-
-			ss >> m_pGame->m_OTime;
-
-			*( m_Out ) << "# Opponent time: " << m_pGame->m_OTime << endl;
-		}
-
-
-		static void Execute( void* pInterface, const string& sCommand )
-		{
-			( ( Interface* )pInterface )->Execute( sCommand );
-		}
-
 		void Execute( const string& sCommand )
 		{
 			string sParams, sVerb;
@@ -2029,7 +1815,9 @@ class Interface : Object
 			InterfaceFunctionType ic = m_CommandMap[ sVerb ];
 
 			if ( ic )
-			{ ( this->*ic )( sParams ); }
+			{ 
+				( this->*ic )( sParams );
+			}
 			else
 			{
 				stringstream unk;
@@ -2040,7 +1828,6 @@ class Interface : Object
 
 
 	protected:
-
 		ostream* m_Out;
 		istream* m_In;
 
@@ -2054,21 +1841,7 @@ class Interface : Object
 
 	protected:
 		unordered_map< string, InterfaceFunctionType > m_CommandMap;
-
 };
-
-void TestSearch()
-{
-	Position pos;
-	pos.SetFEN( "8/3k4/6p1/5P2/8/3K4/8/8 w - - 0 1" );
-
-	SearcherAlphaBeta sab;
-	Moves pv;
-
-	sab.Search( pos, pv );
-
-	cout << ( string ) pv;
-}
 
 int main( int argc, char* argv[] )
 {
