@@ -1246,7 +1246,10 @@ class Searcher : Object
 		}
 
 	protected:
-		Searcher()
+		Searcher() :
+			m_nNodesSearched( 0 ),
+			m_bTerminated( false ),
+			m_pInterface( nullptr )
 			{
 			}
 
