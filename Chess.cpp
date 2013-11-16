@@ -27,6 +27,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <memory>
 #include <chrono>
 #include <climits>
+#include <ratio>
 
 using namespace std;
 
@@ -75,6 +76,14 @@ typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
 class Clock : Object
 {
 	public:
+
+		typedef chrono::steady_clock NativeClockType;
+		typedef NativeClockType::duration NativeClockDurationType;
+		typedef NativeClockType::time_point NativeTimePointType;
+
+		typedef int64_t ChessTickType;
+		typedef chrono::duration< ChessTickType, centi > Duration;
+
 		Clock()
 		{
 			Reset();
@@ -82,45 +91,40 @@ class Clock : Object
 
 		void Reset()
 		{
-			m_bIsRunning = false;
-			m_tTotal = 0;
-			m_tLastStart = 0;
+			m_Start = m_Clock.now();
 		}
 
-		int Get()
+		Duration Get() const
 		{
-			if ( m_bIsRunning )
-			{ return ( m_tTotal + ( clock() - m_tLastStart ) ) * 100 / CLOCKS_PER_SEC; }
+			NativeTimePointType timeNow;
+			timeNow = m_Clock.now();
 
-			return m_tTotal * 100 / CLOCKS_PER_SEC;
-		}
+			Duration dur;
+			dur = chrono::duration_cast< Duration >( timeNow - m_Start );
 
-		operator int ()
-		{
-			return Get();
+			return dur;
 		}
 
 		void Start()
 		{
-			if ( m_bIsRunning )
-			{ return; }
-
-			m_tLastStart = clock();
-
-			m_bIsRunning = true;
+			Reset();
 		}
 
-		void Stop()
+		void Test()
 		{
-			m_bIsRunning = false;
-			m_tTotal +=  ( clock() - m_tLastStart );
-			m_tLastStart = ( clock_t )0;
+			for (int t = 0; t < 100; t++ )
+			{
+				chrono::milliseconds delay( 500 ); 
+				this_thread::sleep_for( delay );
 
+				cout << "Duration is now: " << Get().count() << endl;
+			}
 		}
-
+		
 	protected:
-		clock_t m_tLastStart;
-		clock_t m_tTotal;
+		NativeClockType m_Clock;
+		NativeTimePointType m_Start;
+
 		bool m_bIsRunning;
 };
 
@@ -1227,12 +1231,11 @@ class EvaluatorStandard : public EvaluatorWeighted
 class Searcher : Object
 {
 	public:
-
-		Searcher() :
+		Searcher( Interface *pInterface ) :
 			m_nNodesSearched( 0 ),
-			m_bTerminated( false )
-		{
-		}
+			m_bTerminated( false ),
+			m_pInterface( pInterface )
+			{ }
 
 		virtual int Search( const Position& pos,
 							Moves& mPrincipalVariation ) = 0;
@@ -1243,9 +1246,15 @@ class Searcher : Object
 		}
 
 	protected:
+		Searcher() :
+			m_nNodesSearched( 0 ),
+			m_bTerminated( false )
+			{
+			}
+
+		Interface *m_pInterface;
 		int m_nNodesSearched;
 		bool m_bTerminated;
-		thread* m_ptSearchThread;
 		EvaluatorStandard m_Evaluator;
 		Clock m_Clock;
 
@@ -1254,6 +1263,10 @@ class Searcher : Object
 class SearcherAlphaBeta : Searcher
 {
 	public:
+		SearcherAlphaBeta( Interface *pInterface ) :
+			Searcher( pInterface )
+		{ }
+
 		virtual int Search( const Position& pos,
 							Moves& mPrincipalVariation )
 		{
@@ -1371,6 +1384,10 @@ class SearcherAlphaBeta : Searcher
 			pv = bestPV;
 			return beta;
 		}
+
+protected:
+	SearcherAlphaBeta();
+
 };
 
 Piece* Board::Set( const Square& s, Piece* piece )
@@ -1658,10 +1675,10 @@ class Interface : Object
 		INTERFACE_PROTOTYPE( UCI )
 		{
 			RegisterUCI( sParams );
+
 			Instruct( "id name Ippon" );
 			Instruct( "id author John Byrd" );
 			Instruct( "uciok" );
-			Notify( "UCI commands registered" );
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( RegisterUCI )
@@ -1696,7 +1713,7 @@ class Interface : Object
 		INTERFACE_PROTOTYPE( UCIGo )
 		{
 			Notify( sParams );
-			SearcherAlphaBeta sab;
+			SearcherAlphaBeta sab( this );
 
 			Moves moves;
 			sab.Search( *m_pGame->GetPosition(), moves );
@@ -1853,6 +1870,8 @@ class Interface : Object
 int main( int , char** )
 {
 	srand ( ( unsigned int ) time( NULL ) );
+
+	Clock c;
 
 	// TestSearch();
 
