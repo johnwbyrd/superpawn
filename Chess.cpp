@@ -59,10 +59,13 @@ class Interface;
 
 /* Definitions specifically to speed along definitions in the Interface class. */
 #define INTERFACE_FUNCTION_PARAMS const string &sParams
+#define INTERFACE_FUNCTION_NO_PARAMS const string &
 #define INTERFACE_FUNCTION_RETURN_TYPE void
 
 #define INTERFACE_PROTOTYPE( FunctionName )  INTERFACE_FUNCTION_RETURN_TYPE FunctionName ( INTERFACE_FUNCTION_PARAMS )
+#define INTERFACE_PROTOTYPE_NO_PARAMS( FunctionName )  INTERFACE_FUNCTION_RETURN_TYPE FunctionName ( INTERFACE_FUNCTION_NO_PARAMS )
 #define INTERFACE_FUNCTION_TYPE( Variable ) INTERFACE_FUNCTION_RETURN_TYPE ( Interface::* Variable )( INTERFACE_FUNCTION_PARAMS )
+#define INTERFACE_FUNCTION_TYPE_NO_PARAMS( Variable ) INTERFACE_FUNCTION_RETURN_TYPE ( Interface::* Variable )( INTERFACE_FUNCTION_NO_PARAMS )
 #define INTERFACE_FUNCTION_ABSTRACT_TYPE (*( INTERFACE_FUNCTION_RETURN_TYPE )())
 
 typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
@@ -1397,11 +1400,8 @@ bool Piece::IsDifferentOrEmpty( const Square& dest, const Board& board ) const
 	return ( m_Color != piece->GetColor() );
 }
 
-Moves NoPiece::GenerateMoves( const Square& source, const Board& board ) const
+Moves NoPiece::GenerateMoves( const Square& /*source*/, const Board& /*board*/) const
 {
-	source;
-	board;
-
 	Moves moves;
 	return moves;
 }
@@ -1618,6 +1618,12 @@ class Interface : Object
 			m_CommandMap[ sCommand ] = pfnCommand;
 		};
 
+		void RegisterAll()
+		{
+			RegisterCommand( "uci",     &Interface::UCI );
+			RegisterCommand( "quit",    &Interface::Quit );
+		}
+
 		INTERFACE_PROTOTYPE( Notify )
 		{
 			switch ( m_Protocol )
@@ -1663,32 +1669,25 @@ class Interface : Object
 			RegisterCommand( "ponderhit",   &Interface::Ponderhit );
 		}
 
-		void RegisterAll()
+		INTERFACE_PROTOTYPE_NO_PARAMS( DebugUCI )
 		{
-			RegisterCommand( "uci",     &Interface::UCI );
-			RegisterCommand( "quit",    &Interface::Quit );
+			Notify("DebugUCI not yet implemented");
 		}
 
-		INTERFACE_PROTOTYPE( DebugUCI )
-		{
-			sParams;
-		}
-
-		INTERFACE_PROTOTYPE( IsReady )
+		INTERFACE_PROTOTYPE_NO_PARAMS( IsReady )
 		{
 			// stop any pondering or loading
-			sParams;
 			Instruct( "readyok" );
 		}
 
-		INTERFACE_PROTOTYPE( SetOption )
+		INTERFACE_PROTOTYPE_NO_PARAMS( SetOption )
 		{
-			sParams;
+			Notify("SetOption not yet implemented");		
 		}
 
 		INTERFACE_PROTOTYPE( UCIGo )
 		{
-			sParams;
+			Notify( sParams );
 			SearcherAlphaBeta sab;
 
 			Moves moves;
@@ -1752,27 +1751,24 @@ class Interface : Object
 			}
 		}
 
-		INTERFACE_PROTOTYPE( New )
+		INTERFACE_PROTOTYPE_NO_PARAMS( New )
 		{
-				sParams;
-				m_pGame->New();
-				Notify( "New game" );
+			m_pGame->New();
 		}
 
 
-		INTERFACE_PROTOTYPE( Stop )
+		INTERFACE_PROTOTYPE_NO_PARAMS( Stop )
 		{
-			sParams;
+			Notify("Stop not yet implemented");
 		}
 
-		INTERFACE_PROTOTYPE( Ponderhit )
+		INTERFACE_PROTOTYPE_NO_PARAMS( Ponderhit )
 		{
-			sParams;
+			Notify("Ponderhit not yet implemented");
 		}
 
-		INTERFACE_PROTOTYPE( Quit )
+		INTERFACE_PROTOTYPE_NO_PARAMS( Quit )
 		{
-			sParams;
 			Notify( "Engine exiting" );
 			exit( 0 );
 		}
