@@ -340,8 +340,8 @@ class Board : public Object
 
 		void Initialize()
 		{
-			for ( auto i = 0; i < MAX_FILES; i++ )
-				for ( auto j = 0; j < MAX_FILES; j++ )
+			for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{ m_Piece[ i ][ j ] = &None; }
 
 		}
@@ -361,7 +361,7 @@ class Board : public Object
 
 		void Setup()
 		{
-			for ( auto i = 0 ; i < MAX_FILES; i ++ )
+			for ( unsigned int i = 0 ; i < MAX_FILES; i ++ )
 			{
 				m_Piece[i][1] = &WhitePawn;
 				m_Piece[i][6] = &BlackPawn;
@@ -386,8 +386,8 @@ class Board : public Object
 		{
 			Piece* pTemp;
 
-			for ( auto j = 0 ; j < ( MAX_FILES / 2 ); j++ )
-				for ( auto i = 0; i < MAX_FILES; i++ )
+			for ( unsigned int j = 0 ; j < ( MAX_FILES / 2 ); j++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pTemp = m_Piece[i][j];
 					m_Piece[i][j] = m_Piece[HIGHEST_FILE - i][HIGHEST_FILE - j];
@@ -399,9 +399,9 @@ class Board : public Object
 
 		void Dump() const
 		{
-			for ( auto j = ( MAX_FILES - 1 ); j != 0; j-- )
+			for ( unsigned int j = ( MAX_FILES - 1 ); j != 0; j-- )
 			{
-				for ( auto i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					cout << m_Piece[ i ][ j ]->Letter();
 				}
@@ -703,7 +703,7 @@ class Moves : Object
 		{
 			return m_Moves.empty();
 		}
-
+														
 		void Dump()
 		{
 			for ( auto move: m_Moves ) 
@@ -863,8 +863,8 @@ class Position : Object
 			Piece* pPiece;
 			Moves moves;
 
-			for ( auto j = 0; j < MAX_FILES; j++ )
-				for ( auto i = 0; i < MAX_FILES; i++ )
+			for ( unsigned int j = 0; j < MAX_FILES; j++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
 
@@ -1044,9 +1044,9 @@ class Position : Object
 			Piece* pPiece;
 			int nSpaces = 0;
 
-			for ( auto j = MAX_FILES - 1; j != 0; j-- )
+			for ( unsigned int j = MAX_FILES - 1; j != 0; j-- )
 			{
-				for ( auto i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
 
@@ -1153,8 +1153,8 @@ class EvaluatorMaterial : public Evaluator
 
 			int nScore = 0;
 
-			for ( auto i = 0; i < MAX_FILES; i++ )
-				for ( auto j = 0; j < MAX_FILES; j++ )
+			for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{
 					piece = board.Get( i, j );
 
