@@ -390,7 +390,7 @@ class Board : public Object
 
 		void Dump()	const
 		{
-			for ( unsigned int j = ( MAX_FILES - 1 ); j >= 0; j-- )
+			for ( unsigned int j = ( MAX_FILES - 1 ); j != 0; j-- )
 			{
 				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
@@ -1038,7 +1038,7 @@ class Position : Object
 			Piece* pPiece;
 			int nSpaces = 0;
 
-			for ( unsigned int j = MAX_FILES - 1; j >= 0; j-- )
+			for ( unsigned int j = MAX_FILES - 1; j != 0; j-- )
 			{
 				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
