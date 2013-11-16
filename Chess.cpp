@@ -352,7 +352,7 @@ class Board : public Object
 
 		void Setup()
 		{
-			for ( int i = 0 ; i < MAX_FILES; i ++ )
+			for ( unsigned int i = 0 ; i < MAX_FILES; i ++ )
 			{
 				m_Piece[i][1] = &WhitePawn;
 				m_Piece[i][6] = &BlackPawn;
@@ -377,9 +377,8 @@ class Board : public Object
 		{
 			Piece* pTemp;
 
-
-			for ( int j = 0 ; j < ( MAX_FILES / 2 ); j++ )
-				for ( int i = 0; i < MAX_FILES; i++ )
+			for ( unsigned int j = 0 ; j < ( MAX_FILES / 2 ); j++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pTemp = m_Piece[i][j];
 					m_Piece[i][j] = m_Piece[HIGHEST_FILE - i][HIGHEST_FILE - j];
@@ -391,9 +390,9 @@ class Board : public Object
 
 		void Dump()	const
 		{
-			for ( int j = ( MAX_FILES - 1 ); j >= 0; j-- )
+			for ( unsigned int j = ( MAX_FILES - 1 ); j >= 0; j-- )
 			{
-				for ( int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					cout << m_Piece[ i ][ j ]->Letter();
 				}
@@ -1039,9 +1038,9 @@ class Position : Object
 			Piece* pPiece;
 			int nSpaces = 0;
 
-			for ( int j = MAX_FILES - 1; j >= 0; j-- )
+			for ( unsigned int j = MAX_FILES - 1; j >= 0; j-- )
 			{
-				for ( int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
 
@@ -1145,8 +1144,8 @@ public:
 
 		int nScore = 0;
 
-		for ( int i = 0; i < MAX_FILES; i++ )
-			for ( int j = 0; j < MAX_FILES; j++ )
+		for ( unsigned int i = 0; i < MAX_FILES; i++ )
+			for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{
 				piece = board.Get( i, j );
 
@@ -1774,6 +1773,7 @@ class Interface : Object
 			Notify( "Engine exiting" );
 			exit( 0 );
 		}
+
 
 		int TimeToSeconds( const string& sTime )
 		{
