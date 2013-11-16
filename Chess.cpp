@@ -340,8 +340,8 @@ class Board : public Object
 
 		void Initialize()
 		{
-			for ( unsigned int i = 0; i < MAX_FILES; i++ )
-				for ( unsigned int j = 0; j < MAX_FILES; j++ )
+			for ( auto i = 0; i < MAX_FILES; i++ )
+				for ( auto j = 0; j < MAX_FILES; j++ )
 				{ m_Piece[ i ][ j ] = &None; }
 
 		}
@@ -361,7 +361,7 @@ class Board : public Object
 
 		void Setup()
 		{
-			for ( unsigned int i = 0 ; i < MAX_FILES; i ++ )
+			for ( auto i = 0 ; i < MAX_FILES; i ++ )
 			{
 				m_Piece[i][1] = &WhitePawn;
 				m_Piece[i][6] = &BlackPawn;
@@ -386,8 +386,8 @@ class Board : public Object
 		{
 			Piece* pTemp;
 
-			for ( unsigned int j = 0 ; j < ( MAX_FILES / 2 ); j++ )
-				for ( unsigned int i = 0; i < MAX_FILES; i++ )
+			for ( auto j = 0 ; j < ( MAX_FILES / 2 ); j++ )
+				for ( auto i = 0; i < MAX_FILES; i++ )
 				{
 					pTemp = m_Piece[i][j];
 					m_Piece[i][j] = m_Piece[HIGHEST_FILE - i][HIGHEST_FILE - j];
@@ -399,9 +399,9 @@ class Board : public Object
 
 		void Dump() const
 		{
-			for ( unsigned int j = ( MAX_FILES - 1 ); j != 0; j-- )
+			for ( auto j = ( MAX_FILES - 1 ); j != 0; j-- )
 			{
-				for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( auto i = 0; i < MAX_FILES; i++ )
 				{
 					cout << m_Piece[ i ][ j ]->Letter();
 				}
@@ -706,11 +706,9 @@ class Moves : Object
 
 		void Dump()
 		{
-			vector< Move >::iterator it;
-
-			for ( it = m_Moves.begin(); it != m_Moves.end(); ++it )
+			for ( auto move: m_Moves ) 
 			{
-				( *it ).Dump();
+				move.Dump();
 				cout << " ";
 			}
 		}
@@ -719,11 +717,9 @@ class Moves : Object
 		{
 			string s;
 
-			const_iterator it;
-
-			for ( it = m_Moves.begin(); it != m_Moves.end(); ++it )
+			for ( auto move: m_Moves )
 			{
-				s += ( string ) * it;
+				s += ( string ) move;
 				s += " ";
 			}
 
@@ -867,8 +863,8 @@ class Position : Object
 			Piece* pPiece;
 			Moves moves;
 
-			for ( unsigned int j = 0; j < MAX_FILES; j++ )
-				for ( unsigned int i = 0; i < MAX_FILES; i++ )
+			for ( auto j = 0; j < MAX_FILES; j++ )
+				for ( auto i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
 
@@ -1048,9 +1044,9 @@ class Position : Object
 			Piece* pPiece;
 			int nSpaces = 0;
 
-			for ( unsigned int j = MAX_FILES - 1; j != 0; j-- )
+			for ( auto j = MAX_FILES - 1; j != 0; j-- )
 			{
-				for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( auto i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
 
@@ -1157,8 +1153,8 @@ class EvaluatorMaterial : public Evaluator
 
 			int nScore = 0;
 
-			for ( unsigned int i = 0; i < MAX_FILES; i++ )
-				for ( unsigned int j = 0; j < MAX_FILES; j++ )
+			for ( auto i = 0; i < MAX_FILES; i++ )
+				for ( auto j = 0; j < MAX_FILES; j++ )
 				{
 					piece = board.Get( i, j );
 
@@ -1870,12 +1866,7 @@ class Interface : Object
 
 int main( int , char** )
 {
-	srand ( ( unsigned int ) time( NULL ) );
-
 	Clock c;
-	// c.Test();
-
-	// TestSearch();
 
 	PieceInitializer pieceInitializer;
 
