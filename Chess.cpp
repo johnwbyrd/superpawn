@@ -1655,9 +1655,8 @@ class Interface : Object
 			Notify( "UCI commands registered" );
 		}
 
-		INTERFACE_PROTOTYPE( RegisterUCI )
+		INTERFACE_PROTOTYPE_NO_PARAMS( RegisterUCI )
 		{
-			sParams;
 			m_Protocol = PROTOCOL_UCI;
 			RegisterCommand( "debug",       &Interface::DebugUCI );
 			RegisterCommand( "isready",     &Interface::IsReady );
@@ -1842,15 +1841,11 @@ class Interface : Object
 		unordered_map< string, InterfaceFunctionType > m_CommandMap;
 };
 
-int main( int argc, char* argv[] )
+int main( int , char* )
 {
 	srand ( ( unsigned int ) time( NULL ) );
 
 	// TestSearch();
-
-	// clean up unreferenced warnings about parameters
-	argc;
-	argv;
 
 	PieceInitializer pieceInitializer;
 
