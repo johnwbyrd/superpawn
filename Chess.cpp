@@ -1246,9 +1246,7 @@ class Searcher : Object
 		}
 
 	protected:
-		Searcher() :
-			m_nNodesSearched( 0 ),
-			m_bTerminated( false )
+		Searcher()
 			{
 			}
 
