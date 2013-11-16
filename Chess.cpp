@@ -857,8 +857,8 @@ class Position : Object
 			Piece* pPiece;
 			Moves moves;
 
-			for ( int j = 0; j < MAX_FILES; j++ )
-				for ( int i = 0; i < MAX_FILES; i++ )
+			for ( unsigned int j = 0; j < MAX_FILES; j++ )
+				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
 
@@ -1172,9 +1172,11 @@ public:
 
 		int nScore = 0;
 
-		for ( auto evIter : m_Evaluators )
+		for ( EvaluatorsType::const_iterator iter = m_Evaluators.begin();
+				iter != m_Evaluators.end();
+				++iter )
 		{
-			nScore += (int) ( evIter->Evaluate( pos ) * ( *weightIter ));
+			nScore += (int) ( (*iter)->Evaluate( pos ) * ( *weightIter ));
 			++weightIter;
 		}
 
