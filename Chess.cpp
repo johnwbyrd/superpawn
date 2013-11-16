@@ -540,18 +540,21 @@ class Move : Object
 		Move()
 		{
 			m_Piece = &None;
+			m_PromoteTo = &None;
 			m_Score = 0;
 		}
 
 		Move( Piece* piece )
 		{
 			m_Piece = piece;
+			m_PromoteTo = &None;
 			m_Score = 0;
 		}
 
 		Move( const Piece* piece, const Square& source, const Square& dest )
 		{
 			m_Piece = piece;
+			m_PromoteTo = &None;
 			m_Source = source;
 			m_Dest = dest;
 			m_Score = 0;
@@ -564,6 +567,7 @@ class Move : Object
 			m_Source.J( sMove[1] - '1' );
 			m_Dest.I( sMove[2] - 'a' );
 			m_Dest.J( sMove[3] - '1' );
+
 		}
 
 		const Piece* GetPiece() const { return m_Piece; }
@@ -608,6 +612,7 @@ class Move : Object
 		const Piece* m_Piece;
 		Square m_Source, m_Dest;
 		int m_Score;
+		const Piece* m_PromoteTo;
 };
 
 bool operator< ( const Move& left, const Move& right )
@@ -1227,11 +1232,12 @@ class EvaluatorStandard : public EvaluatorWeighted
 class Searcher : Object
 {
 	public:
-		Searcher( Interface *pInterface ) :
+		Searcher( Interface &interface ) :
 			m_nNodesSearched( 0 ),
-			m_bTerminated( false ),
-			m_pInterface( pInterface )
-			{ }
+			m_bTerminated( false )
+			{
+				m_pInterface = &interface;
+			}
 
 		virtual int Search( const Position& pos,
 							Moves& mPrincipalVariation ) = 0;
@@ -1242,27 +1248,35 @@ class Searcher : Object
 		}
 
 	protected:
-		Searcher() :
-			m_nNodesSearched( 0 ),
-			m_bTerminated( false ),
-			m_pInterface( nullptr )
-			{
-			}
-
 		int m_nNodesSearched;
 		bool m_bTerminated;
 		Interface *m_pInterface;
 		EvaluatorStandard m_Evaluator;
 		Clock m_Clock;
 
+		Searcher( const Searcher & ) {};
+		Searcher() {};
 };
 
-class SearcherAlphaBeta : Searcher
+class SearcherReporting : public Searcher
+{
+public:
+	SearcherReporting( Interface &interface ) :
+		Searcher( interface ) {};
+
+	virtual void Report() const
+	{
+
+	}
+	
+};
+
+class SearcherAlphaBeta : public SearcherReporting
 {
 	public:
-		SearcherAlphaBeta( Interface *pInterface ) :
-			Searcher( pInterface )
-		{ }
+		SearcherAlphaBeta( Interface &interface ) :
+			SearcherReporting( interface )
+			{ }
 
 		virtual int Search( const Position& pos,
 							Moves& mPrincipalVariation )
@@ -1303,12 +1317,11 @@ class SearcherAlphaBeta : Searcher
 				return beta;
 			}
 
-			Moves::iterator curMove;
-			for ( curMove = myMoves.begin(); curMove != myMoves.end(); ++curMove )
-			{
+			for ( auto &move: myMoves )
+				{
 				currentPV = pv;
-				currentPV.Make( *curMove );
-				Position nextPos( pos, *curMove );
+				currentPV.Make( move );
+				Position nextPos( pos, move );
 
 				int score = alphaBetaMin( alpha, beta, depthleft - 1,
 										  nextPos, currentPV );
@@ -1353,12 +1366,11 @@ class SearcherAlphaBeta : Searcher
 				return alpha;
 			}
 
-			Moves::iterator curMove;
-			for ( curMove = myMoves.begin(); curMove != myMoves.end(); ++curMove )
+			for ( auto &move: myMoves )
 			{
 				currentPV = pv;
-				currentPV.Make( *curMove );
-				Position nextPos( pos, *curMove );
+				currentPV.Make( move );
+				Position nextPos( pos, move );
 
 				int score = alphaBetaMax( alpha, beta, depthleft - 1,
 										  nextPos, currentPV );
@@ -1433,6 +1445,11 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Moves moves;
 	Square dest = source;
+	Color movingColor = GetColor();
+
+	int sourceI, sourceJ;
+	sourceI = source.I();
+	sourceJ = source.J();
 
 	int d = m_Color ? 1 : -1;
 
@@ -1447,15 +1464,14 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 		moves.Add( m );
 
 		// Two-square slide only from initial square
-		if ( ( ( source.J() == 1 ) && ( GetColor() == WHITE ) ) ||
-				( ( source.J() == 6 ) && ( GetColor() == BLACK ) ) )
+		if ( ( ( sourceJ == 1 ) && ( movingColor == WHITE ) ) ||
+				( ( sourceJ == 6 ) && ( movingColor == BLACK ) ) )
 		{
 			dest.Change( 0, d );
 			m.Dest( dest );
 
 			if ( board.IsEmpty( m.Dest() ) )
 			{ moves.Add( m ); }
-
 		}
 	}
 
@@ -1472,6 +1488,12 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	{
 		m.Dest( dest );
 		moves.Add( m );
+	}
+
+	/* Promotion rules */
+	if ( ( ( sourceJ == 7 ) && ( movingColor == WHITE ) ) )
+	{
+
 	}
 
 	return moves;
@@ -1710,7 +1732,8 @@ class Interface : Object
 		INTERFACE_PROTOTYPE( UCIGo )
 		{
 			Notify( sParams );
-			SearcherAlphaBeta sab( this );
+
+			SearcherAlphaBeta sab( *this );
 
 			Moves moves;
 			sab.Search( *m_pGame->GetPosition(), moves );
@@ -1778,7 +1801,6 @@ class Interface : Object
 			m_pGame->New();
 		}
 
-
 		INTERFACE_PROTOTYPE_NO_PARAMS( Stop )
 		{
 			Notify( "Stop not yet implemented" );
@@ -1794,7 +1816,6 @@ class Interface : Object
 			Notify( "Engine exiting" );
 			exit( 0 );
 		}
-
 
 		int TimeToSeconds( const string& sTime )
 		{
