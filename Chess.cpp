@@ -1,11 +1,11 @@
 /**
- **	Chess.cpp
- **	A simple UCI-compatible chess engine
+ ** Chess.cpp
+ ** A simple UCI-compatible chess engine
  **
- **	http://creativecommons.org/licenses/by/3.0/
+ ** http://creativecommons.org/licenses/by/3.0/
  **/
 
- /** Number of rows and columns on the board */
+/** Number of rows and columns on the board */
 const unsigned int MAX_FILES = 8;
 const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 
@@ -144,7 +144,8 @@ class Piece : Object
 		}
 
 		virtual int PieceValue() const = 0;
-		virtual Moves GenerateMoves( const Square& source, const Board& board ) const = 0;
+		virtual Moves GenerateMoves( const Square& source,
+									 const Board& board ) const = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
 		virtual bool IsDifferentOrEmpty( const Square& dest, const Board& board ) const;
 
@@ -316,10 +317,10 @@ class King : public Piece
 
 /* PVS-Studio objects to this casting of bool to class type */
 Pawn WhitePawn( WHITE ), BlackPawn( BLACK );        //-V601
-Knight WhiteKnight( WHITE ), BlackKnight( BLACK );	//-V601
+Knight WhiteKnight( WHITE ), BlackKnight( BLACK );  //-V601
 Bishop WhiteBishop( WHITE ), BlackBishop( BLACK );  //-V601
 Rook WhiteRook( WHITE ), BlackRook( BLACK );        //-V601
-Queen WhiteQueen( WHITE ), BlackQueen( BLACK );	    //-V601
+Queen WhiteQueen( WHITE ), BlackQueen( BLACK );     //-V601
 King WhiteKing( WHITE ), BlackKing( BLACK );        //-V601
 NoPiece None;
 
@@ -392,7 +393,7 @@ class Board : public Object
 
 		bool IsEmpty( const Square& square ) const;
 
-		void Dump()	const
+		void Dump() const
 		{
 			for ( unsigned int j = ( MAX_FILES - 1 ); j != 0; j-- )
 			{
@@ -485,7 +486,7 @@ class Square : public Object
 			return s;
 		}
 
-		void Dump()	const
+		void Dump() const
 		{
 			if ( IsOnBoard() )
 			{
@@ -544,7 +545,7 @@ class Move : Object
 			m_Score = 0;
 		}
 
-		Move( const Piece *piece, const Square& source, const Square &dest )
+		Move( const Piece* piece, const Square& source, const Square& dest )
 		{
 			m_Piece = piece;
 			m_Source = source;
@@ -568,7 +569,7 @@ class Move : Object
 		Square Dest() const { return m_Dest; }
 		void Dest( Square val ) { m_Dest = val; }
 
-		void Dump()	const
+		void Dump() const
 		{
 			if ( m_Piece == &None )
 			{
@@ -667,7 +668,7 @@ class Moves : Object
 			m_Moves.pop_back();
 		}
 
-		Moves operator+ ( const Moves &otherMoves )
+		Moves operator+ ( const Moves& otherMoves )
 		{
 			m_Moves.insert( m_Moves.end(),
 							otherMoves.m_Moves.begin(),
@@ -689,7 +690,7 @@ class Moves : Object
 			return m_Moves.at( rand() % m_Moves.size() );
 		}
 
-		Move GetFirst()	const
+		Move GetFirst() const
 		{
 			return m_Moves.front();
 		}
@@ -699,7 +700,7 @@ class Moves : Object
 			return m_Moves.empty();
 		}
 
-		void Dump()	
+		void Dump()
 		{
 			vector< Move >::iterator it;
 
@@ -847,8 +848,9 @@ class Position : Object
 			if ( &move == &NullMove )
 			{ return; }
 
-			m_nMaterialScore = position.GetScore() + ( m_Board.Get( move.Dest() )->PieceValue() ) *
-					   ( m_ColorToMove ? -1 : 1 );
+			m_nMaterialScore = position.GetScore() + ( m_Board.Get(
+								   move.Dest() )->PieceValue() ) *
+							   ( m_ColorToMove ? -1 : 1 );
 
 			m_Board.Set( move.Dest().I(), move.Dest().J(), m_Board.Get( move.Source() ) );
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
@@ -1036,7 +1038,7 @@ class Position : Object
 			return 0;
 		}
 
-		string GetFEN()	const
+		string GetFEN() const
 		{
 			string s;
 			Piece* pPiece;
@@ -1113,10 +1115,12 @@ class Position : Object
 		Color ColorToMove() const { return m_ColorToMove; }
 		void ColorToMove( Color val ) { m_ColorToMove = val; }
 
-		int GetScore() const { 
-			return m_nMaterialScore; 
+		int GetScore() const
+		{
+			return m_nMaterialScore;
 		}
-		void SetScore( int val ) { 
+		void SetScore( int val )
+		{
 			m_nMaterialScore = val;
 		}
 
@@ -1135,87 +1139,89 @@ class Position : Object
 
 class Evaluator : public Object
 {
-public:
-	virtual int Evaluate( const Position &pos ) const = 0;
+	public:
+		virtual int Evaluate( const Position& pos ) const = 0;
 };
 
 class EvaluatorMaterial : public Evaluator
 {
-public:
-	virtual int Evaluate( const Position &pos ) const {
-		Board board = pos.GetBoard();
-		Piece* piece;
+	public:
+		virtual int Evaluate( const Position& pos ) const
+		{
+			Board board = pos.GetBoard();
+			Piece* piece;
 
-		int nScore = 0;
+			int nScore = 0;
 
-		for ( unsigned int i = 0; i < MAX_FILES; i++ )
-			for ( unsigned int j = 0; j < MAX_FILES; j++ )
+			for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{
-				piece = board.Get( i, j );
+					piece = board.Get( i, j );
 
-				if ( piece != &None ) {
-					nScore += ( piece->PieceValue() *
-						( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
+					if ( piece != &None )
+					{
+						nScore += ( piece->PieceValue() *
+									( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
 					}
 				}
 
-		return nScore;
-	}
+			return nScore;
+		}
 };
 
-class EvaluatorWeighted : public Evaluator 
+class EvaluatorWeighted : public Evaluator
 {
-public:
-	virtual int Evaluate( const Position &pos ) const
-	{
-		if ( m_Evaluators.empty() )
-			abort();
-
-		WeightsType::const_iterator weightIter;
-		weightIter = m_Weights.begin();
-
-		int nScore = 0;
-
-		for ( EvaluatorsType::const_iterator iter = m_Evaluators.begin();
-				iter != m_Evaluators.end();
-				++iter )
+	public:
+		virtual int Evaluate( const Position& pos ) const
 		{
-			nScore += (int) ( (*iter)->Evaluate( pos ) * ( *weightIter ));
-			++weightIter;
+			if ( m_Evaluators.empty() )
+			{ abort(); }
+
+			WeightsType::const_iterator weightIter;
+			weightIter = m_Weights.begin();
+
+			int nScore = 0;
+
+			for ( EvaluatorsType::const_iterator iter = m_Evaluators.begin();
+					iter != m_Evaluators.end();
+					++iter )
+			{
+				nScore += ( int ) ( ( *iter )->Evaluate( pos ) * ( *weightIter ) );
+				++weightIter;
+			}
+
+			return nScore;
 		}
 
-		return nScore;
-	}
+		void Add( Evaluator& eval, float weight = 1.0f )
+		{
+			m_Evaluators.push_back( &eval );
+			m_Weights.push_back( weight );
+		}
 
-	void Add( Evaluator &eval, float weight = 1.0f )
-	{
-		m_Evaluators.push_back( &eval );
-		m_Weights.push_back( weight );
-	}
+	protected:
+		typedef vector<float> WeightsType;
+		typedef vector<Evaluator*> EvaluatorsType;
 
-protected:
-	typedef vector<float> WeightsType;
-	typedef vector<Evaluator *> EvaluatorsType;
-
-	WeightsType m_Weights;
-	EvaluatorsType m_Evaluators;
+		WeightsType m_Weights;
+		EvaluatorsType m_Evaluators;
 };
 
 class EvaluatorStandard : public EvaluatorWeighted
 {
-public:
-	EvaluatorStandard()
-	{
-		m_Weighted.Add( m_Material );
-	}
+	public:
+		EvaluatorStandard()
+		{
+			m_Weighted.Add( m_Material );
+		}
 
-	virtual int Evaluate( const Position &pos )	const
-	{
-		return m_Weighted.Evaluate( pos );
-	} 
-	
-	EvaluatorMaterial m_Material;
-	EvaluatorWeighted m_Weighted;
+		virtual int Evaluate( const Position& pos ) const
+		{
+			return m_Weighted.Evaluate( pos );
+		}
+
+		EvaluatorMaterial m_Material;
+		EvaluatorWeighted m_Weighted;
 };
 
 class Searcher : Object
@@ -1256,12 +1262,12 @@ class SearcherAlphaBeta : Searcher
 			if ( pos.ColorToMove() == BLACK )
 			{
 				return alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
-								 mPrincipalVariation );
+									 mPrincipalVariation );
 			}
 			else
 			{
 				return alphaBetaMin( INT_MIN, INT_MAX, depth, pos,
-					mPrincipalVariation );
+									 mPrincipalVariation );
 			}
 
 		}
@@ -1272,8 +1278,8 @@ class SearcherAlphaBeta : Searcher
 								  const Position& pos, Moves& pv )
 		{
 			if ( depthleft == 0 )
-			{ 
-				return -Evaluate( pos ); 
+			{
+				return -Evaluate( pos );
 			}
 
 			Moves bestPV, currentPV;
@@ -1287,11 +1293,12 @@ class SearcherAlphaBeta : Searcher
 				return beta;
 			}
 
-			for ( Move & move : myMoves )
+			Moves::iterator curMove;
+			for ( curMove = myMoves.begin(); curMove != myMoves.end(); ++curMove )
 			{
 				currentPV = pv;
-				currentPV.Make( move );
-				Position nextPos( pos, move );
+				currentPV.Make( *curMove );
+				Position nextPos( pos, *curMove );
 
 				int score = alphaBetaMin( alpha, beta, depthleft - 1,
 										  nextPos, currentPV );
@@ -1320,7 +1327,7 @@ class SearcherAlphaBeta : Searcher
 		{
 
 			if ( depthleft == 0 )
-			{ 
+			{
 				return Evaluate( pos );
 			}
 
@@ -1329,18 +1336,19 @@ class SearcherAlphaBeta : Searcher
 			Moves myMoves = pos.GenerateMoves();
 
 			if ( myMoves.Empty() )
-				{
+			{
 				Move nullMove;
 				pv.Make( nullMove );
 
 				return alpha;
-				}
+			}
 
-			for ( Move & move : myMoves )
+			Moves::iterator curMove;
+			for ( curMove = myMoves.begin(); curMove != myMoves.end(); ++curMove )
 			{
 				currentPV = pv;
-				currentPV.Make( move );
-				Position nextPos( pos, move );
+				currentPV.Make( *curMove );
+				Position nextPos( pos, *curMove );
 
 				int score = alphaBetaMax( alpha, beta, depthleft - 1,
 										  nextPos, currentPV );
@@ -1400,7 +1408,8 @@ bool Piece::IsDifferentOrEmpty( const Square& dest, const Board& board ) const
 	return ( m_Color != piece->GetColor() );
 }
 
-Moves NoPiece::GenerateMoves( const Square& /*source*/, const Board& /*board*/) const
+Moves NoPiece::GenerateMoves( const Square& /*source*/,
+							  const Board& /*board*/ ) const
 {
 	Moves moves;
 	return moves;
@@ -1454,7 +1463,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	return moves;
 }
 
-Moves Knight::GenerateMoves( const Square& source, const Board& board )	const
+Moves Knight::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Move m( this, source, source );
 	Moves moves;
@@ -1472,7 +1481,7 @@ Moves Knight::GenerateMoves( const Square& source, const Board& board )	const
 	return moves;
 }
 
-Moves Bishop::GenerateMoves( const Square& source, const Board& board )	const
+Moves Bishop::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Moves moves;
 	Move m( this, source, source );
@@ -1604,7 +1613,7 @@ class Interface : Object
 				getline( *m_In, sInputLine );
 
 				if ( sInputLine.empty() )
-					break;
+				{ break; }
 
 				Execute( sInputLine );
 			}
@@ -1670,7 +1679,7 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( DebugUCI )
 		{
-			Notify("DebugUCI not yet implemented");
+			Notify( "DebugUCI not yet implemented" );
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( IsReady )
@@ -1681,7 +1690,7 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( SetOption )
 		{
-			Notify("SetOption not yet implemented");		
+			Notify( "SetOption not yet implemented" );
 		}
 
 		INTERFACE_PROTOTYPE( UCIGo )
@@ -1742,7 +1751,7 @@ class Interface : Object
 					{
 						Move nextMove( sMove );
 
-						Position *pLast = m_pGame->GetPosition();
+						Position* pLast = m_pGame->GetPosition();
 						Position nextPos( *pLast, nextMove );
 						m_pGame->SetPosition( nextPos );
 					}
@@ -1758,12 +1767,12 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( Stop )
 		{
-			Notify("Stop not yet implemented");
+			Notify( "Stop not yet implemented" );
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( Ponderhit )
 		{
-			Notify("Ponderhit not yet implemented");
+			Notify( "Ponderhit not yet implemented" );
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( Quit )
@@ -1813,7 +1822,7 @@ class Interface : Object
 			InterfaceFunctionType ic = m_CommandMap[ sVerb ];
 
 			if ( ic )
-			{ 
+			{
 				( this->*ic )( sParams );
 			}
 			else
@@ -1841,7 +1850,7 @@ class Interface : Object
 		unordered_map< string, InterfaceFunctionType > m_CommandMap;
 };
 
-int main( int , char* )
+int main( int , char** )
 {
 	srand ( ( unsigned int ) time( NULL ) );
 
@@ -1857,15 +1866,15 @@ int main( int , char* )
 
 	    ss << "uci\nisready\nucinewgame\nisready\nposition fen ";
 	    // ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
-		ss << "1r3bnr/7p/3RBk2/6p1/Np3p2/pP3P2/P1P2KPP/4R3 b - - 5 24";
-		// ss << "1k6/6q1/1n6/8/2Q5/8/8/1K4R1 w - - 0 1 ";
+	    ss << "1r3bnr/7p/3RBk2/6p1/Np3p2/pP3P2/P1P2KPP/4R3 b - - 5 24";
+	    // ss << "1k6/6q1/1n6/8/2Q5/8/8/1K4R1 w - - 0 1 ";
 	    ss << "\ngo infinite\n";
 	    i.In( &ss );
 	*/
 
-/*
- * problem position:  rn2k1nr/2N5/b1pP1bpp/8/1qPBpP2/pP5Q/P1P3PP/3R1RK1 b kq - 1 4 
- */
+	/*
+	 * problem position:  rn2k1nr/2N5/b1pP1bpp/8/1qPBpP2/pP5Q/P1P3PP/3R1RK1 b kq - 1 4
+	 */
 
 	i.Run();
 
