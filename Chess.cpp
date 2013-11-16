@@ -77,7 +77,7 @@ class Clock : Object
 {
 	public:
 
-		typedef chrono::steady_clock NativeClockType;
+		typedef chrono::system_clock NativeClockType;
 		typedef NativeClockType::duration NativeClockDurationType;
 		typedef NativeClockType::time_point NativeTimePointType;
 
@@ -1872,6 +1872,7 @@ int main( int , char** )
 	srand ( ( unsigned int ) time( NULL ) );
 
 	Clock c;
+	// c.Test();
 
 	// TestSearch();
 
