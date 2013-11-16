@@ -1253,9 +1253,9 @@ class Searcher : Object
 			{
 			}
 
-		Interface *m_pInterface;
 		int m_nNodesSearched;
 		bool m_bTerminated;
+		Interface *m_pInterface;
 		EvaluatorStandard m_Evaluator;
 		Clock m_Clock;
 
