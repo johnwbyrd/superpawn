@@ -743,9 +743,14 @@ class Moves : Object
 			return m_Moves.front();
 		}
 
-		bool Empty() const
+		bool IsEmpty() const
 		{
 			return m_Moves.empty();
+		}
+
+		void Clear()
+		{
+			m_Moves.clear();
 		}
 														
 		void Dump()
@@ -1180,13 +1185,13 @@ class Position : Object
 		Square m_sEnPassant;
 };
 
-class Evaluator : public Object
+class EvaluatorBase : public Object
 {
 	public:
 		virtual int Evaluate( const Position& pos ) const = 0;
 };
 
-class EvaluatorMaterial : public Evaluator
+class EvaluatorMaterial : public EvaluatorBase
 {
 	public:
 		virtual int Evaluate( const Position& pos ) const
@@ -1210,7 +1215,7 @@ class EvaluatorMaterial : public Evaluator
 		}
 };
 
-class EvaluatorWeighted : public Evaluator
+class EvaluatorWeighted : public EvaluatorBase
 {
 	public:
 		virtual int Evaluate( const Position& pos ) const
@@ -1234,7 +1239,7 @@ class EvaluatorWeighted : public Evaluator
 			return nScore;
 		}
 
-		void Add( Evaluator& eval, float weight = 1.0f )
+		void Add( EvaluatorBase& eval, float weight = 1.0f )
 		{
 			m_Evaluators.push_back( &eval );
 			m_Weights.push_back( weight );
@@ -1242,7 +1247,7 @@ class EvaluatorWeighted : public Evaluator
 
 	protected:
 		typedef vector<float> WeightsType;
-		typedef vector<Evaluator*> EvaluatorsType;
+		typedef vector<EvaluatorBase*> EvaluatorsType;
 
 		WeightsType m_Weights;
 		EvaluatorsType m_Evaluators;
@@ -1265,25 +1270,33 @@ class EvaluatorStandard : public EvaluatorWeighted
 		EvaluatorWeighted m_Weighted;
 };
 
-class Searcher : Object
+typedef EvaluatorStandard Evaluator;
+
+class SearcherBase : Object
 {
 	public:
-		Searcher( Interface &interface ) :
+		SearcherBase( Interface &interface ) :
 			m_nNodesSearched( 0 ),
 			m_bTerminated( false )
 			{
 				m_pInterface = &interface;
 			}
 
-		virtual void Start( const Position& pos,
-			Moves& mPrincipalVariation )
+		~SearcherBase()
 		{
+			Stop();
+		}
+
+		virtual void Start( const Position& /*pos*/,
+			Moves& /*mPrincipalVariation*/  )
+		{		
 
 		}
 
 		virtual int Stop()
 		{
-
+			
+			return 0;
 		}
 
 		virtual int Evaluate( const Position& pos )
@@ -1294,26 +1307,41 @@ class Searcher : Object
 	protected:
 		void Notify( const string &s) const;
 		void Instruct( const string &s) const;
+
+		void SearchComplete( ) const
+		{
+			stringstream ss;
+
+			ss << "Principal variation found: " << (string) m_Result;
+			Notify( ss.str() );
+
+			ss.str("");
+			ss << "bestmove " << (string) m_Result.GetFirst();
+			Instruct( ss.str() );
+		}
 		
-		virtual int Search( const Position& pos,
-			Moves& mPrincipalVariation ) = 0;
+		virtual int Search( const Position& pos ) = 0;
 
 		int m_nNodesSearched;
+		mutex m_Lock;
 		bool m_bTerminated;
 		Interface *m_pInterface;
-		thread *m_pThread;
-		EvaluatorStandard m_Evaluator;
+		thread m_Thread;
+		Evaluator m_Evaluator;
 		Clock m_Clock;
 
-		Searcher( const Searcher & ) {};
-		Searcher() {};
+		Moves m_Result;
+		int m_Score;
+
+		SearcherBase( const SearcherBase & ) {};
+		SearcherBase() {};
 };
 
-class SearcherReporting : public Searcher
+class SearcherReporting : public SearcherBase
 {
 public:
 	SearcherReporting( Interface &interface ) :
-		Searcher( interface ) {};
+		SearcherBase( interface ) {};
 
 	virtual void Report() const
 	{
@@ -1329,24 +1357,36 @@ class SearcherAlphaBeta : public SearcherReporting
 			SearcherReporting( interface )
 			{ }
 
+		virtual void Start( const Position& pos )
+		{
+			lock_guard< mutex > guard( m_Lock );
+
+			m_Result.Clear();
+			m_Thread = thread( &SearcherAlphaBeta::Search, this, pos );
+		}
+
 	protected:
 
-		virtual int Search( const Position& pos,
-							Moves& mPrincipalVariation )
+		virtual int Search( const Position& pos )
 		{
 			const int depth = 6;
 
+			Moves PV;
+
 			if ( pos.ColorToMove() == BLACK )
 			{
-				return alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
-									 mPrincipalVariation );
+				m_Score = alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
+									 PV );
 			}
 			else
 			{
-				return alphaBetaMin( INT_MIN, INT_MAX, depth, pos,
-									 mPrincipalVariation );
+				m_Score = alphaBetaMin( INT_MIN, INT_MAX, depth, pos,
+									 PV );
 			}
 
+			m_Result = PV;
+			SearchComplete();
+			return m_Score;
 		}
 
 		virtual int alphaBetaMax( int alpha, int beta, int depthleft,
@@ -1361,7 +1401,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			Moves myMoves = pos.GenerateMoves();
 
-			if ( myMoves.Empty() )
+			if ( myMoves.IsEmpty() )
 			{
 				Move nullMove;
 				pv.Make( nullMove );
@@ -1408,7 +1448,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			Moves myMoves = pos.GenerateMoves();
 
-			if ( myMoves.Empty() )
+			if ( myMoves.IsEmpty() )
 			{
 				Move nullMove;
 				pv.Make( nullMove );
@@ -1448,6 +1488,8 @@ protected:
 	SearcherAlphaBeta();
 
 };
+
+typedef SearcherAlphaBeta Searcher;
 
 Piece* Board::Set( const Square& s, Piece* piece )
 {
@@ -1693,17 +1735,17 @@ class Interface : Object
 			PROTOCOL_UCI
 		};
 
-		Interface( istream* in = &cin, ostream* out = &cout )
+		Interface( istream* in = &cin, ostream* out = &cout ) :
+			m_In( in ),
+			m_Out( out ),
+			m_bShowThinking( false ),
+			m_pGame( new Game )
 		{
-			m_In = in;
-			m_Out = out;
-			m_pGame = new Game;
-			m_bShowThinking = false;
+			m_pSearcher = shared_ptr< Searcher >( new Searcher( *this ));
 		}
 
 		~Interface()
 		{
-			delete  m_pGame;
 		}
 
 		ostream* GetOut() const { return m_Out; }
@@ -1816,18 +1858,19 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE( UCIGo )
 		{
-			Notify( sParams );
+			stringstream ss;
 
-			shared_ptr< SearcherAlphaBeta > 
-				sab( new SearcherAlphaBeta( *this ));
+			ss << "Go parameters: " << sParams;
+			Notify( ss.str() );
 
-			Moves moves;
-			sab->Start( *m_pGame->GetPosition(), moves );
+			m_pSearcher->Start( *(m_pGame->GetPosition()) );
 
+			/*
 			Notify( ( string ) moves );
 			stringstream ss;
 			ss << "bestmove " << ( string )( moves.GetFirst() );
 			Instruct( ss.str() );
+			*/
 		}
 
 		INTERFACE_PROTOTYPE( UCIPosition )
@@ -1960,25 +2003,26 @@ class Interface : Object
 
 		mutex m_Lock;
 
-		Game* m_pGame;
 		Moves m_PrincipalVariation;
 
 		ProtocolType m_Protocol;
 		int m_Protover;
 		bool m_bShowThinking;
 		bool m_bPonder;
+		shared_ptr< Game > m_pGame;
+		shared_ptr< Searcher > m_pSearcher;
 
 	protected:
 		unordered_map< string, InterfaceFunctionType > m_CommandMap;
 };
 
-void Searcher::Notify( const string &s)	const
+void SearcherBase::Notify( const string &s)	const
 {
 	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Notify( s );			
 }
 
-void Searcher::Instruct( const string &s) const
+void SearcherBase::Instruct( const string &s) const
 {
 	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Instruct( s );			
@@ -1989,12 +2033,6 @@ int main( int , char** )
 	Clock c;
 	PieceInitializer pieceInitializer;
 	Interface i;
-
-	Board b;
-	b.Setup();
-	b.Dump();
-	b.Flip();
-	b.Dump();
 
 	/*
 	stringstream ss;
