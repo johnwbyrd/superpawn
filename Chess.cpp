@@ -11,7 +11,7 @@ const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 4;
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -591,11 +591,11 @@ class Move : Object
 
 		Move( string sMove )
 		{
-			unsigned int moveLength = sMove.length();
+			size_t moveLength = sMove.length();
 
 			m_PromoteTo = &None;
 
-			if ( moveLength != 4 && moveLength != 5 )
+			if ( moveLength != 4 && moveLength != 5 ) //-V112
 			{ abort(); }
 
 			m_Piece = &None;
