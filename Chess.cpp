@@ -10,6 +10,9 @@ const unsigned int MAX_FILES = 8;
 const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
+/** Default search depth */
+const unsigned int SEARCH_DEPTH = 4;
+
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
  **/
@@ -29,6 +32,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <chrono>
 #include <climits>
 #include <ratio>
+#include <atomic>
 
 using namespace std;
 
@@ -55,6 +59,7 @@ enum PieceType
 
 class PieceInitializer;
 class Board;
+class Move;
 class Moves;
 class Square;
 class Interface;
@@ -113,15 +118,15 @@ class Clock : Object
 
 		void Test()
 		{
-			for (int t = 0; t < 100; t++ )
+			for ( int t = 0; t < 100; t++ )
 			{
-				chrono::milliseconds delay( 500 ); 
+				chrono::milliseconds delay( 500 );
 				this_thread::sleep_for( delay );
 
 				cout << "Duration is now: " << Get().count() << endl;
 			}
 		}
-		
+
 	protected:
 		NativeClockType m_Clock;
 		NativeTimePointType m_Start;
@@ -168,7 +173,7 @@ class Piece : Object
 		{
 			// in Forsyth-Edwards notation, white pieces are uppercase
 			if ( m_Color == BLACK )
-				return m_Letter;
+			{ return m_Letter; }
 
 			return ( char ) toupper( m_Letter );
 		}
@@ -226,6 +231,7 @@ class Pawn : public Piece
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
+		virtual void AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const;
 };
 
 class Bishop : public Piece
@@ -343,36 +349,38 @@ class Board : public Object
 			for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{
-					Set( i, j, &None); 
+					Set( i, j, &None );
 				}
 
 		}
 
-		Piece* Set( int i, int j, Piece* piece )
+		const Piece* Set( int i, int j, const Piece* piece )
 		{
 			return ( Set( i + ( j << 3 ), piece ) );
 		}
 
-		Piece *Set( int index, Piece *piece )
+		const Piece* Set( int index, const Piece* piece )
 		{
 			return( m_Piece[ index ] = piece );
 		}
 
-		Piece* Get( int i, int j ) const
+		const Piece* Get( int i, int j ) const
 		{
-			return Get( i + ( j << 3 ));
+			return Get( i + ( j << 3 ) );
 		}
 
-		Piece *Get( int index ) const
+		const Piece* Get( int index ) const
 		{
-			return ( m_Piece[ index ]);
+			return ( m_Piece[ index ] );
 		}
 
-		Piece* Set( const Square& s, Piece* piece );
-		Piece* Get( const Square& s ) const;
+		const Piece* Set( const Square& s, const Piece* piece );
+		const Piece* Get( const Square& s ) const;
 
 		void Setup()
 		{
+			Initialize();
+
 			for ( unsigned int i = 0 ; i < MAX_FILES; i ++ )
 			{
 				Set( i, 1, &WhitePawn );
@@ -402,13 +410,13 @@ class Board : public Object
 
 		void Flip()
 		{
-			Piece* pTemp;
+			const Piece* pTemp;
 
 			for ( unsigned int j = 0 ; j < ( MAX_FILES / 2 ); j++ )
 				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pTemp = Get( i, j );
-					Set( i, j, Get( HIGHEST_FILE - i, HIGHEST_FILE - j));
+					Set( i, j, Get( HIGHEST_FILE - i, HIGHEST_FILE - j ) );
 					Set( HIGHEST_FILE - i, HIGHEST_FILE - j, pTemp );
 				}
 		}
@@ -418,7 +426,7 @@ class Board : public Object
 		void Dump() const
 		{
 			/* Note this weird for loop, which terminates when an unsigned int
-			 * goes below 0, i.e. gets real big 
+			 * goes below 0, i.e. gets real big
 			 */
 			for ( unsigned int j = ( MAX_FILES - 1 ); j < MAX_FILES; j-- ) //-V621
 			{
@@ -442,7 +450,7 @@ class Board : public Object
 		}
 
 	protected:
-		Piece* m_Piece[ MAX_FILES * MAX_FILES ];
+		const Piece* m_Piece[ MAX_FILES* MAX_FILES ];
 };
 
 class Square : public Object
@@ -585,8 +593,10 @@ class Move : Object
 		{
 			unsigned int moveLength = sMove.length();
 
+			m_PromoteTo = &None;
+
 			if ( moveLength != 4 && moveLength != 5 )
-				abort();
+			{ abort(); }
 
 			m_Piece = &None;
 			m_Source.I( sMove[0] - 'a' );
@@ -594,7 +604,13 @@ class Move : Object
 			m_Dest.I( sMove[2] - 'a' );
 			m_Dest.J( sMove[3] - '1' );
 
-			// TODO: handle piece promotion
+			/* TODO: handle piece promotion -- we have to know this somehow
+			 * from the color doing the moving
+			 */
+			if ( moveLength == 5 )
+			{
+				
+			}
 
 		}
 
@@ -602,8 +618,9 @@ class Move : Object
 		void SetPiece( const Piece* val ) { m_Piece = val; }
 		const Piece* GetPromoteTo() const { return m_PromoteTo; }
 
-		void SetPromoteTo(const Piece* val) { 
-			m_PromoteTo = val; 
+		void SetPromoteTo( const Piece* val )
+		{
+			m_PromoteTo = val;
 			m_Score = val->PieceValue() ;
 		}
 
@@ -652,7 +669,7 @@ class Move : Object
 		Square m_Source, m_Dest;
 		int m_Score;
 		const Piece* m_PromoteTo;
-	};
+};
 
 bool operator< ( const Move& left, const Move& right )
 {
@@ -752,10 +769,10 @@ class Moves : Object
 		{
 			m_Moves.clear();
 		}
-														
+
 		void Dump()
 		{
-			for ( auto move: m_Moves ) 
+			for ( auto move : m_Moves )
 			{
 				move.Dump();
 				cout << " ";
@@ -766,7 +783,7 @@ class Moves : Object
 		{
 			string s;
 
-			for ( auto move: m_Moves )
+			for ( auto move : m_Moves )
 			{
 				s += ( string ) move;
 				s += " ";
@@ -900,7 +917,14 @@ class Position : Object
 								   move.Dest() )->PieceValue() ) *
 							   ( m_ColorToMove ? -1 : 1 );
 
-			m_Board.Set( move.Dest().I(), move.Dest().J(), m_Board.Get( move.Source() ) );
+			/* Move piece and optionally promote */						
+			if ( move.GetPromoteTo() == &None )
+				m_Board.Set( move.Dest().I(), move.Dest().J(), 
+					m_Board.Get( move.Source() ) );
+			else
+				m_Board.Set( move.Dest().I(), move.Dest().J(), 
+					move.GetPromoteTo() );
+
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
 
 			m_ColorToMove = !position.m_ColorToMove;
@@ -908,7 +932,7 @@ class Position : Object
 
 		Moves GenerateMoves() const
 		{
-			Piece* pPiece;
+			const Piece* pPiece;
 			Moves moves;
 
 			for ( unsigned int j = 0; j < MAX_FILES; j++ )
@@ -925,7 +949,7 @@ class Position : Object
 			return moves;
 		}
 
-		const Board &GetBoard() const
+		const Board& GetBoard() const
 		{
 			return m_Board;
 		}
@@ -942,9 +966,11 @@ class Position : Object
 			m_ColorToMove = WHITE;
 		}
 
-		void Dump()
+		void Dump() const
 		{
 			m_Board.Dump();
+
+			cout << "FEN: " << GetFEN() << endl;
 
 			stringstream ss;
 
@@ -1089,7 +1115,7 @@ class Position : Object
 		string GetFEN() const
 		{
 			string s;
-			Piece* pPiece;
+			const Piece* pPiece;
 			int nSpaces = 0;
 
 			for ( unsigned int j = MAX_FILES - 1; j != 0; j-- )
@@ -1197,7 +1223,7 @@ class EvaluatorMaterial : public EvaluatorBase
 		virtual int Evaluate( const Position& pos ) const
 		{
 			Board board = pos.GetBoard();
-			Piece* piece;
+			const Piece* piece;
 
 			int nScore = 0;
 
@@ -1207,11 +1233,14 @@ class EvaluatorMaterial : public EvaluatorBase
 				if ( piece != &None )
 				{
 					nScore += ( piece->PieceValue() *
-						( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
+								( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
 				}
 			}
 
-			return nScore;
+			if ( pos.ColorToMove() == WHITE )
+			{ return nScore; }
+
+			return -nScore;
 		}
 };
 
@@ -1275,12 +1304,12 @@ typedef EvaluatorStandard Evaluator;
 class SearcherBase : Object
 {
 	public:
-		SearcherBase( Interface &interface ) :
-			m_nNodesSearched( 0 ),
-			m_bTerminated( false )
-			{
-				m_pInterface = &interface;
-			}
+		SearcherBase( Interface& interface ) :
+			m_nNodesSearched( 0 )
+		{
+			m_bTerminated = true;
+			m_pInterface = &interface;
+		}
 
 		~SearcherBase()
 		{
@@ -1288,15 +1317,14 @@ class SearcherBase : Object
 		}
 
 		virtual void Start( const Position& /*pos*/,
-			Moves& /*mPrincipalVariation*/  )
-		{		
+							Moves& /*mPrincipalVariation*/  )
+		{
 
 		}
 
-		virtual int Stop()
+		virtual void Stop()
 		{
-			
-			return 0;
+
 		}
 
 		virtual int Evaluate( const Position& pos )
@@ -1305,27 +1333,29 @@ class SearcherBase : Object
 		}
 
 	protected:
-		void Notify( const string &s) const;
-		void Instruct( const string &s) const;
+		void Notify( const string& s ) const;
+		void Instruct( const string& s ) const;
 
-		void SearchComplete( ) const
+		void SearchComplete( )
 		{
 			stringstream ss;
 
-			ss << "Principal variation found: " << (string) m_Result;
+			ss << "Principal variation found: " << ( string ) m_Result;
 			Notify( ss.str() );
 
-			ss.str("");
-			ss << "bestmove " << (string) m_Result.GetFirst();
+			ss.str( "" );
+			ss << "bestmove " << ( string ) m_Result.GetFirst();
 			Instruct( ss.str() );
+
+			m_bTerminated = true;
 		}
-		
+
 		virtual int Search( const Position& pos ) = 0;
 
 		int m_nNodesSearched;
 		mutex m_Lock;
-		bool m_bTerminated;
-		Interface *m_pInterface;
+		atomic_bool m_bTerminated;
+		Interface* m_pInterface;
 		thread m_Thread;
 		Evaluator m_Evaluator;
 		Clock m_Clock;
@@ -1333,56 +1363,66 @@ class SearcherBase : Object
 		Moves m_Result;
 		int m_Score;
 
-		SearcherBase( const SearcherBase & ) {};
+		SearcherBase( const SearcherBase& ) {};
 		SearcherBase() {};
 };
 
 class SearcherReporting : public SearcherBase
 {
-public:
-	SearcherReporting( Interface &interface ) :
-		SearcherBase( interface ) {};
+	public:
+		SearcherReporting( Interface& interface ) :
+			SearcherBase( interface ) {};
 
-	virtual void Report() const
-	{
+		virtual void Report() const
+		{
 
-	}
-	
+		}
+
 };
 
 class SearcherAlphaBeta : public SearcherReporting
 {
 	public:
-		SearcherAlphaBeta( Interface &interface ) :
+		typedef lock_guard< mutex > SearchLockType;
+
+		SearcherAlphaBeta( Interface& interface ) :
 			SearcherReporting( interface )
-			{ }
+		{ }
 
 		virtual void Start( const Position& pos )
 		{
-			lock_guard< mutex > guard( m_Lock );
+			Stop();
+
+			SearchLockType guard( m_Lock );
+
+			if ( m_bTerminated == false )
+			{ return; }
 
 			m_Result.Clear();
+			m_bTerminated = false;
 			m_Thread = thread( &SearcherAlphaBeta::Search, this, pos );
+		}
+
+		virtual void Stop()
+		{
+			SearchLockType guard( m_Lock );
+
+			bool bCanJoin = m_Thread.joinable();
+			m_bTerminated = true;
+			if ( bCanJoin )
+			{ m_Thread.join(); }
 		}
 
 	protected:
 
 		virtual int Search( const Position& pos )
 		{
-			const int depth = 6;
-
 			Moves PV;
 
-			if ( pos.ColorToMove() == BLACK )
-			{
-				m_Score = alphaBetaMax( INT_MIN, INT_MAX, depth, pos,
-									 PV );
-			}
-			else
-			{
-				m_Score = alphaBetaMin( INT_MIN, INT_MAX, depth, pos,
-									 PV );
-			}
+			pos.Dump();
+
+			m_Score = alphaBetaMax( INT_MIN, INT_MAX, SEARCH_DEPTH, pos,
+									PV );
 
 			m_Result = PV;
 			SearchComplete();
@@ -1394,7 +1434,7 @@ class SearcherAlphaBeta : public SearcherReporting
 		{
 			if ( depthleft == 0 )
 			{
-				return -Evaluate( pos );
+				return Evaluate( pos );
 			}
 
 			Moves bestPV, currentPV;
@@ -1408,8 +1448,8 @@ class SearcherAlphaBeta : public SearcherReporting
 				return beta;
 			}
 
-			for ( auto &move: myMoves )
-				{
+			for ( auto& move : myMoves )
+			{
 				currentPV = pv;
 				currentPV.Make( move );
 				Position nextPos( pos, move );
@@ -1456,7 +1496,7 @@ class SearcherAlphaBeta : public SearcherReporting
 				return alpha;
 			}
 
-			for ( auto &move: myMoves )
+			for ( auto& move : myMoves )
 			{
 				currentPV = pv;
 				currentPV.Make( move );
@@ -1484,19 +1524,19 @@ class SearcherAlphaBeta : public SearcherReporting
 			return beta;
 		}
 
-protected:
-	SearcherAlphaBeta();
+	protected:
+		SearcherAlphaBeta();
 
 };
 
 typedef SearcherAlphaBeta Searcher;
 
-Piece* Board::Set( const Square& s, Piece* piece )
+const Piece* Board::Set( const Square& s, const Piece* piece )
 {
 	return Set( s.I(), s.J(), piece );
 }
 
-Piece* Board::Get( const Square& s ) const
+const Piece* Board::Get( const Square& s ) const
 {
 	return Get( s.I(), s.J() );
 }
@@ -1508,7 +1548,7 @@ bool Board::IsEmpty( const Square& square ) const
 
 bool Piece::IsDifferent( const Square& dest, const Board& board ) const
 {
-	Piece* piece = board.Get( dest );
+	const Piece* piece = board.Get( dest );
 
 	if ( piece == &None )
 	{ return false; }
@@ -1518,7 +1558,7 @@ bool Piece::IsDifferent( const Square& dest, const Board& board ) const
 
 bool Piece::IsDifferentOrEmpty( const Square& dest, const Board& board ) const
 {
-	Piece* piece = board.Get( dest );
+	const Piece* piece = board.Get( dest );
 
 	if ( piece == &None )
 	{ return true; }
@@ -1533,6 +1573,38 @@ Moves NoPiece::GenerateMoves( const Square& /*source*/,
 	return moves;
 }
 
+void Pawn::AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const
+{
+	if ( bIsPromote )
+	{
+		Color color = m.GetPiece()->GetColor();
+		if ( color == WHITE )
+		{
+			m.SetPromoteTo( &WhiteQueen );
+			moves.Add( m );
+			m.SetPromoteTo( &WhiteKnight );
+			moves.Add( m );
+			m.SetPromoteTo( &WhiteBishop );
+			moves.Add( m );
+			m.SetPromoteTo( &WhiteRook );
+			moves.Add( m );
+		}
+		else
+		{
+			m.SetPromoteTo( &BlackQueen );
+			moves.Add( m );
+			m.SetPromoteTo( &BlackKnight );
+			moves.Add( m );
+			m.SetPromoteTo( &BlackBishop );
+			moves.Add( m );
+			m.SetPromoteTo( &BlackRook );
+			moves.Add( m );
+		}
+	}
+	else
+	{ moves.Add( m ); }
+}
+
 Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 {
 	Moves moves;
@@ -1543,7 +1615,9 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	sourceI = source.I();
 	sourceJ = source.J();
 
-	int d = m_Color ? 1 : -1;
+	const int d = m_Color ? 1 : -1;
+	const bool bIsPromote = ( ( sourceJ == 1 ) && ( movingColor == BLACK ) ) ||
+							( ( sourceJ == 6 ) && ( movingColor == WHITE ) );
 
 	Move m( this, source, source );
 
@@ -1551,9 +1625,9 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	dest.Change( 0, d );
 	m.Dest( dest );
 
-	if ( board.IsEmpty( m.Dest() ) )
+	if ( dest.IsOnBoard() && board.IsEmpty( m.Dest() ) )
 	{
-		moves.Add( m );
+		AddAndPromote( moves, m, bIsPromote );
 
 		// Two-square slide only from initial square
 		if ( ( ( sourceJ == 1 ) && ( movingColor == WHITE ) ) ||
@@ -1563,7 +1637,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 			m.Dest( dest );
 
 			if ( board.IsEmpty( m.Dest() ) )
-			{ moves.Add( m ); }
+				AddAndPromote( moves, m, bIsPromote );
 		}
 	}
 
@@ -1573,45 +1647,14 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	{
 		m.Dest( dest );
 		moves.Add( m );
+		AddAndPromote( moves, m, bIsPromote );
 	}
 
 	dest = source.Add( 1, d );
 	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
 	{
 		m.Dest( dest );
-		moves.Add( m );
-	}
-
-	/* Promotion rules */
-	if ( ( ( sourceJ == 7 ) && ( movingColor == WHITE ) ) )
-	{
-		dest = source.Add( 1, d );
-		m.Dest( dest );
-
-		m.SetPromoteTo( &WhiteQueen );
-		moves.Add( m );
-		m.SetPromoteTo( &WhiteKnight );
-		moves.Add( m );
-		m.SetPromoteTo( &WhiteBishop );
-		moves.Add( m );
-		m.SetPromoteTo( &WhiteRook );
-		moves.Add( m );
-	}
-
-	/* Promotion rules */
-	if ( ( ( sourceJ == 1 ) && ( movingColor == BLACK ) ) )
-	{
-		dest = source.Add( 1, d );
-		m.Dest( dest );
-
-		m.SetPromoteTo( &BlackQueen );
-		moves.Add( m );
-		m.SetPromoteTo( &BlackKnight );
-		moves.Add( m );
-		m.SetPromoteTo( &BlackBishop );
-		moves.Add( m );
-		m.SetPromoteTo( &BlackRook );
-		moves.Add( m );
+		AddAndPromote( moves, m, bIsPromote );
 	}
 
 	return moves;
@@ -1741,7 +1784,7 @@ class Interface : Object
 			m_bShowThinking( false ),
 			m_pGame( new Game )
 		{
-			m_pSearcher = shared_ptr< Searcher >( new Searcher( *this ));
+			m_pSearcher = shared_ptr< Searcher >( new Searcher( *this ) );
 		}
 
 		~Interface()
@@ -1777,15 +1820,15 @@ class Interface : Object
 
 		typedef lock_guard< mutex > LockGuardType;
 
-		mutex &GetLock()
+		mutex& GetLock()
 		{
 			return m_Lock;
 		}
 
 		INTERFACE_PROTOTYPE( Notify )
-			{
+		{
 			switch ( m_Protocol )
-				{
+			{
 				case PROTOCOL_XBOARD:
 					( *m_Out ) << "# " << sParams << endl;
 					break;
@@ -1796,13 +1839,13 @@ class Interface : Object
 
 				default:
 					( *m_Out ) << sParams << endl;
-				}
 			}
+		}
 
 		INTERFACE_PROTOTYPE( Instruct )
-			{
+		{
 			( *m_Out ) << sParams << endl;
-			}
+		}
 
 	protected:
 
@@ -1863,7 +1906,7 @@ class Interface : Object
 			ss << "Go parameters: " << sParams;
 			Notify( ss.str() );
 
-			m_pSearcher->Start( *(m_pGame->GetPosition()) );
+			m_pSearcher->Start( *( m_pGame->GetPosition() ) );
 
 			/*
 			Notify( ( string ) moves );
@@ -2016,16 +2059,16 @@ class Interface : Object
 		unordered_map< string, InterfaceFunctionType > m_CommandMap;
 };
 
-void SearcherBase::Notify( const string &s)	const
+void SearcherBase::Notify( const string& s ) const
 {
 	Interface::LockGuardType guard( m_pInterface->GetLock() );
-	m_pInterface->Notify( s );			
+	m_pInterface->Notify( s );
 }
 
-void SearcherBase::Instruct( const string &s) const
+void SearcherBase::Instruct( const string& s ) const
 {
 	Interface::LockGuardType guard( m_pInterface->GetLock() );
-	m_pInterface->Instruct( s );			
+	m_pInterface->Instruct( s );
 }
 
 int main( int , char** )
