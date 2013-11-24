@@ -1637,8 +1637,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	Square dest = source;
 	Color movingColor = GetColor();
 
-	int sourceI, sourceJ;
-	sourceI = source.I();
+	int sourceJ;
 	sourceJ = source.J();
 
 	const int d = m_Color ? 1 : -1;
@@ -2071,8 +2070,8 @@ class Interface : Object
 		}
 
 	protected:
-		ostream* m_Out;
 		istream* m_In;
+		ostream* m_Out;
 
 		mutex m_Lock;
 
