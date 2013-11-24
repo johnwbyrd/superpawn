@@ -11,7 +11,7 @@ const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 4; //-V112
+const unsigned int SEARCH_DEPTH = 6; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -589,7 +589,7 @@ class Move : Object
 			m_Score = 0;
 		}
 
-		Move( string sMove )
+		Move( string sMove, Color color )
 		{
 			size_t moveLength = sMove.length();
 
@@ -609,6 +609,30 @@ class Move : Object
 			 */
 			if ( moveLength == 5 )
 			{
+				char cPromote = (char) tolower( (int ) sMove[ 4 ]);
+
+				switch ( cPromote )
+				{
+
+				case 'q' :
+					m_PromoteTo = ( color == WHITE ) ? &WhiteQueen : &BlackQueen;
+					break;
+
+				case 'n' :
+					m_PromoteTo = ( color == WHITE ) ? &WhiteKnight : &BlackKnight;
+					break;
+
+				case 'b' :
+					m_PromoteTo = ( color == WHITE ) ? &WhiteBishop : &BlackBishop;
+					break;
+
+				case 'r' :
+					m_PromoteTo = ( color == WHITE ) ? &WhiteRook : &BlackRook;
+					break;
+
+				default:
+					break;
+				}
 				
 			}
 
@@ -1335,6 +1359,8 @@ class SearcherBase : Object
 	protected:
 		void Notify( const string& s ) const;
 		void Instruct( const string& s ) const;
+		void Bestmove( const string& s ) const;
+
 
 		void SearchComplete( )
 		{
@@ -1344,8 +1370,8 @@ class SearcherBase : Object
 			Notify( ss.str() );
 
 			ss.str( "" );
-			ss << "bestmove " << ( string ) m_Result.GetFirst();
-			Instruct( ss.str() );
+			ss << ( string ) m_Result.GetFirst();
+			Bestmove( ss.str() );
 
 			m_bTerminated = true;
 		}
@@ -1847,6 +1873,14 @@ class Interface : Object
 			( *m_Out ) << sParams << endl;
 		}
 
+		INTERFACE_PROTOTYPE( Bestmove )
+			{
+			stringstream ss;
+
+			ss << "bestmove " << sParams;
+			Instruct( ss.str() );
+			}
+
 	protected:
 
 		void RegisterCommand( const string& sCommand,
@@ -1894,8 +1928,11 @@ class Interface : Object
 			Instruct( "readyok" );
 		}
 
-		INTERFACE_PROTOTYPE_NO_PARAMS( SetOption )
+		INTERFACE_PROTOTYPE( SetOption )
 		{
+			stringstream ss;
+			ss << "SetOption parameters: " << sParams;
+
 			Notify( "SetOption not yet implemented" );
 		}
 
@@ -1907,13 +1944,6 @@ class Interface : Object
 			Notify( ss.str() );
 
 			m_pSearcher->Start( *( m_pGame->GetPosition() ) );
-
-			/*
-			Notify( ( string ) moves );
-			stringstream ss;
-			ss << "bestmove " << ( string )( moves.GetFirst() );
-			Instruct( ss.str() );
-			*/
 		}
 
 		INTERFACE_PROTOTYPE( UCIPosition )
@@ -1958,9 +1988,9 @@ class Interface : Object
 
 					while ( ss >> sMove )
 					{
-						Move nextMove( sMove );
-
 						Position* pLast = m_pGame->GetPosition();
+						Move nextMove( sMove, pLast->ColorToMove() );
+
 						Position nextPos( *pLast, nextMove );
 						m_pGame->SetPosition( nextPos );
 					}
@@ -2070,6 +2100,13 @@ void SearcherBase::Instruct( const string& s ) const
 	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Instruct( s );
 }
+
+void SearcherBase::Bestmove( const string& s ) const
+	{
+	Interface::LockGuardType guard( m_pInterface->GetLock() );
+	m_pInterface->Bestmove( s );
+	}
+
 
 int main( int , char** )
 {
