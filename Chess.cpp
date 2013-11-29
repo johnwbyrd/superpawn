@@ -5,6 +5,18 @@
  ** http://creativecommons.org/licenses/by/3.0/
  **/
 
+/** \todo Check
+ ** \todo Checkmate
+ ** \todo Castling
+ ** \todo Timers
+ ** \todo En passant
+ ** \todo Stalemate
+ ** \todo Fifty-move clock
+ ** \todo Threefold repetition
+ ** \todo Draw due to material
+ ** \todo Resignation?
+ **/
+
 /** Number of rows and columns on the board */
 const unsigned int MAX_FILES = 8;
 const unsigned int HIGHEST_FILE = MAX_FILES - 1;
@@ -64,7 +76,7 @@ class Moves;
 class Square;
 class Interface;
 
-/* Definitions specifically to speed along definitions in the Interface class. */
+/* Definitions specifically to speed along function creation in the Interface class. */
 #define INTERFACE_FUNCTION_PARAMS const string &sParams
 #define INTERFACE_FUNCTION_NO_PARAMS const string &
 #define INTERFACE_FUNCTION_RETURN_TYPE void
@@ -231,7 +243,8 @@ class Pawn : public Piece
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
-		virtual void AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const;
+		virtual void AddAndPromote( Moves& moves, Move& m,
+									const bool bIsPromote ) const;
 };
 
 class Bishop : public Piece
@@ -609,31 +622,31 @@ class Move : Object
 			 */
 			if ( moveLength == 5 )
 			{
-				char cPromote = (char) tolower( (int ) sMove[ 4 ]);
+				char cPromote = ( char ) tolower( ( int ) sMove[ 4 ] );
 
 				switch ( cPromote )
 				{
 
-				case 'q' :
-					m_PromoteTo = ( color == WHITE ) ? &WhiteQueen : &BlackQueen;
-					break;
+					case 'q' :
+						m_PromoteTo = ( color == WHITE ) ? &WhiteQueen : &BlackQueen;
+						break;
 
-				case 'n' :
-					m_PromoteTo = ( color == WHITE ) ? &WhiteKnight : &BlackKnight;
-					break;
+					case 'n' :
+						m_PromoteTo = ( color == WHITE ) ? &WhiteKnight : &BlackKnight;
+						break;
 
-				case 'b' :
-					m_PromoteTo = ( color == WHITE ) ? &WhiteBishop : &BlackBishop;
-					break;
+					case 'b' :
+						m_PromoteTo = ( color == WHITE ) ? &WhiteBishop : &BlackBishop;
+						break;
 
-				case 'r' :
-					m_PromoteTo = ( color == WHITE ) ? &WhiteRook : &BlackRook;
-					break;
+					case 'r' :
+						m_PromoteTo = ( color == WHITE ) ? &WhiteRook : &BlackRook;
+						break;
 
-				default:
-					break;
+					default:
+						break;
 				}
-				
+
 			}
 
 		}
@@ -840,6 +853,7 @@ class Moves : Object
 				}
 				else if ( board.IsEmpty( myMove.Dest() ) )
 				{
+					myMove.Score( None.PieceValue() );
 					Add( myMove );
 					return true;
 				}
@@ -941,13 +955,13 @@ class Position : Object
 								   move.Dest() )->PieceValue() ) *
 							   ( m_ColorToMove ? -1 : 1 );
 
-			/* Move piece and optionally promote */						
+			/* Move piece and optionally promote */
 			if ( move.GetPromoteTo() == &None )
-				m_Board.Set( move.Dest().I(), move.Dest().J(), 
-					m_Board.Get( move.Source() ) );
+				m_Board.Set( move.Dest().I(), move.Dest().J(),
+							 m_Board.Get( move.Source() ) );
 			else
-				m_Board.Set( move.Dest().I(), move.Dest().J(), 
-					move.GetPromoteTo() );
+				m_Board.Set( move.Dest().I(), move.Dest().J(),
+							 move.GetPromoteTo() );
 
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
 
@@ -969,6 +983,8 @@ class Position : Object
 						moves = moves + pPiece->GenerateMoves( Square( i, j ), m_Board );
 					}
 				}
+
+			moves.Sort();
 
 			return moves;
 		}
@@ -1662,7 +1678,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 			m.Dest( dest );
 
 			if ( board.IsEmpty( m.Dest() ) )
-				AddAndPromote( moves, m, bIsPromote );
+			{ AddAndPromote( moves, m, bIsPromote ); }
 		}
 	}
 
@@ -1873,12 +1889,12 @@ class Interface : Object
 		}
 
 		INTERFACE_PROTOTYPE( Bestmove )
-			{
+		{
 			stringstream ss;
 
 			ss << "bestmove " << sParams;
 			Instruct( ss.str() );
-			}
+		}
 
 	protected:
 
@@ -2101,10 +2117,10 @@ void SearcherBase::Instruct( const string& s ) const
 }
 
 void SearcherBase::Bestmove( const string& s ) const
-	{
+{
 	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Bestmove( s );
-	}
+}
 
 
 int main( int , char** )
@@ -2112,22 +2128,6 @@ int main( int , char** )
 	Clock c;
 	PieceInitializer pieceInitializer;
 	Interface i;
-
-	/*
-	stringstream ss;
-
-
-	    ss << "uci\nisready\nucinewgame\nisready\nposition fen ";
-	    // ss << "7k/Q7/7K/8/8/8/8/8 w - - 0 1";
-	    ss << "1r3bnr/7p/3RBk2/6p1/Np3p2/pP3P2/P1P2KPP/4R3 b - - 5 24";
-	    // ss << "1k6/6q1/1n6/8/2Q5/8/8/1K4R1 w - - 0 1 ";
-	    ss << "\ngo infinite\n";
-	    i.SetIn( &ss );
-	*/
-
-	/*
-	 * problem position:  rn2k1nr/2N5/b1pP1bpp/8/1qPBpP2/pP5Q/P1P3PP/3R1RK1 b kq - 1 4
-	 */
 
 	i.Run();
 
