@@ -30,7 +30,6 @@ const unsigned int SEARCH_DEPTH = 6; //-V112
  **/
 const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 
-
 #include <time.h>
 #include <string>
 #include <iostream>
@@ -760,6 +759,11 @@ class Moves : Object
 			m_Moves.push_back( move );
 		}
 
+		size_t Count() const
+		{
+			return m_Moves.size();
+		}
+
 		void Make( const Move& move )
 		{
 			m_Moves.push_back( move );
@@ -924,6 +928,7 @@ class Position : Object
 			m_nHalfMoves = 0;
 			m_bBKR = m_bBQR = m_bWKR = m_bWQR = true;
 			m_sEnPassant.Set( -1, -1 );
+			m_Moves.Clear();
 		}
 
 		Position( bool colorToMove )
@@ -944,34 +949,60 @@ class Position : Object
 		 **/
 		Position( const Position& position, const Move& move )
 		{
+		    /*
+			m_Board = position.m_Board;
+			m_ColorToMove = !(position.m_ColorToMove);
+			m_nPly = position.m_nPly;
+			m_nPly++;
+			m_nLowerBound = position.m_nLowerBound;
+			m_nUpperBound = position.m_nUpperBound;
+			m_nMaterialScore = position.m_nMaterialScore;
+			
+			m_bWKR = position.m_bWKR;
+			m_bWQR = position.m_bWQR;
+			m_bBKR = position.m_bBKR;
+			m_bBQR = position.m_bBQR;
+			*/
 			*this = position;
 
-			++m_nPly;
+			m_Moves.Clear();
+			m_nPly++;
 
 			if ( &move == &NullMove )
-			{ return; }
-
-			m_nMaterialScore = position.GetScore() + ( m_Board.Get(
-								   move.Dest() )->PieceValue() ) *
-							   ( m_ColorToMove ? -1 : 1 );
+			{ 
+				return;
+			}
 
 			/* Move piece and optionally promote */
 			if ( move.GetPromoteTo() == &None )
+		    {
+				m_nMaterialScore = position.GetScore() + ( m_Board.Get(
+					move.Dest() )->PieceValue() ) *
+					( m_ColorToMove == WHITE ? 1 : -1 );
+
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
-							 m_Board.Get( move.Source() ) );
+					m_Board.Get( move.Source() ) );
+
+			}
 			else
+			{
+				m_nMaterialScore = position.GetScore() + 
+					( move.GetPromoteTo()->PieceValue() + 
+					m_Board.Get( move.Dest() )->PieceValue() ) *
+					( m_ColorToMove == WHITE ? 1 : -1 );
+
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
-							 move.GetPromoteTo() );
+					move.GetPromoteTo() );
+			}
 
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
 
-			m_ColorToMove = !position.m_ColorToMove;
+			m_ColorToMove = !m_ColorToMove;
 		}
 
-		Moves GenerateMoves() const
+		void GenerateMoves()
 		{
 			const Piece* pPiece;
-			Moves moves;
 
 			for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				for ( unsigned int i = 0; i < MAX_FILES; i++ )
@@ -980,13 +1011,26 @@ class Position : Object
 
 					if ( ( pPiece != &None ) && ( pPiece->GetColor() == m_ColorToMove ) )
 					{
-						moves = moves + pPiece->GenerateMoves( Square( i, j ), m_Board );
+						m_Moves = m_Moves + pPiece->GenerateMoves( Square( i, j ), m_Board );
 					}
 				}
 
-			moves.Sort();
+			m_Moves.Sort();
+		}
 
-			return moves;
+		const Moves &GetMoves()
+		{
+			if ( m_Moves.IsEmpty() )
+				GenerateMoves();
+
+			return m_Moves;
+		}
+
+		size_t CountMoves()
+		{
+			GetMoves();
+			return m_Moves.Count();
+		
 		}
 
 		const Board& GetBoard() const
@@ -1149,8 +1193,16 @@ class Position : Object
 			m_sEnPassant = s;
 			m_nPly = ( nMoves - 1 ) * 2 + ( m_ColorToMove ? 0 : 1 );
 
+			UpdateScore();
+
 			return 0;
 		}
+
+		/** Cause the material score for this Position to be recalculated from
+		 ** the material on the Board (not from a delta from a previous
+		 ** Position).
+		 **/
+		void UpdateScore();
 
 		string GetFEN() const
 		{
@@ -1249,18 +1301,26 @@ class Position : Object
 		// Virgin rooks; can tell whether any of the four rooks has been moved
 		bool m_bWKR, m_bWQR, m_bBKR, m_bBQR;
 		Square m_sEnPassant;
+		/** Cached generated moves. */
+		Moves m_Moves;
 };
 
 class EvaluatorBase : public Object
 {
 	public:
-		virtual int Evaluate( const Position& pos ) const = 0;
+		virtual int Evaluate( Position& pos ) const = 0;
+
+	protected:
+		virtual int Bias( const Position &pos, int nResult ) const
+		{
+			return ( pos.ColorToMove() == WHITE ? nResult : -nResult );
+		}
 };
 
-class EvaluatorMaterial : public EvaluatorBase
+class EvaluatorSlowMaterial : public EvaluatorBase
 {
 	public:
-		virtual int Evaluate( const Position& pos ) const
+		virtual int Evaluate( Position& pos ) const
 		{
 			Board board = pos.GetBoard();
 			const Piece* piece;
@@ -1277,17 +1337,23 @@ class EvaluatorMaterial : public EvaluatorBase
 				}
 			}
 
-			if ( pos.ColorToMove() == WHITE )
-			{ return nScore; }
+			return Bias( pos, nScore );
+		}
+};
 
-			return -nScore;
+class EvaluatorMaterial : public EvaluatorSlowMaterial
+{
+	public:
+		virtual int Evaluate( Position& pos ) const
+		{
+			return Bias( pos, pos.GetScore() );
 		}
 };
 
 class EvaluatorWeighted : public EvaluatorBase
 {
 	public:
-		virtual int Evaluate( const Position& pos ) const
+		virtual int Evaluate( Position& pos ) const
 		{
 			if ( m_Evaluators.empty() )
 			{ abort(); }
@@ -1322,24 +1388,41 @@ class EvaluatorWeighted : public EvaluatorBase
 		EvaluatorsType m_Evaluators;
 };
 
+class EvaluatorSimpleMobility : public EvaluatorBase
+{
+	virtual int Evaluate( Position& pos ) const
+	{
+		return pos.CountMoves() ;
+	}
+	
+};
+
 class EvaluatorStandard : public EvaluatorWeighted
 {
 	public:
 		EvaluatorStandard()
 		{
 			m_Weighted.Add( m_Material );
+			m_Weighted.Add( m_SimpleMobility );
 		}
 
-		virtual int Evaluate( const Position& pos ) const
+		virtual int Evaluate( Position& pos ) const
 		{
 			return m_Weighted.Evaluate( pos );
 		}
 
 		EvaluatorMaterial m_Material;
+		EvaluatorSimpleMobility m_SimpleMobility;
 		EvaluatorWeighted m_Weighted;
 };
 
 typedef EvaluatorStandard Evaluator;
+
+void Position::UpdateScore()
+{
+	EvaluatorSlowMaterial slow;
+	SetScore( slow.Evaluate( *this ));
+}
 
 class SearcherBase : Object
 {
@@ -1367,7 +1450,7 @@ class SearcherBase : Object
 
 		}
 
-		virtual int Evaluate( const Position& pos )
+		virtual int Evaluate( Position& pos )
 		{
 			return m_Evaluator.Evaluate( pos );
 		}
@@ -1392,7 +1475,7 @@ class SearcherBase : Object
 			m_bTerminated = true;
 		}
 
-		virtual int Search( const Position& pos ) = 0;
+		virtual int Search( Position& pos ) = 0;
 
 		int m_nNodesSearched;
 		mutex m_Lock;
@@ -1457,7 +1540,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 	protected:
 
-		virtual int Search( const Position& pos )
+		virtual int Search( Position& pos )
 		{
 			Moves PV;
 
@@ -1472,7 +1555,7 @@ class SearcherAlphaBeta : public SearcherReporting
 		}
 
 		virtual int alphaBetaMax( int alpha, int beta, int depthleft,
-								  const Position& pos, Moves& pv )
+								  Position& pos, Moves& pv )
 		{
 			if ( depthleft == 0 )
 			{
@@ -1481,7 +1564,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			Moves bestPV, currentPV;
 
-			Moves myMoves = pos.GenerateMoves();
+			const Moves myMoves = pos.GetMoves();
 
 			if ( myMoves.IsEmpty() )
 			{
@@ -1519,7 +1602,7 @@ class SearcherAlphaBeta : public SearcherReporting
 		}
 
 		virtual int alphaBetaMin( int alpha, int beta, int depthleft,
-								  const Position& pos, Moves& pv )
+								  Position& pos, Moves& pv )
 		{
 			if ( depthleft == 0 )
 			{
@@ -1528,7 +1611,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			Moves bestPV, currentPV;
 
-			Moves myMoves = pos.GenerateMoves();
+			Moves myMoves = pos.GetMoves();
 
 			if ( myMoves.IsEmpty() )
 			{
@@ -1687,7 +1770,6 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
 	{
 		m.Dest( dest );
-		moves.Add( m );
 		AddAndPromote( moves, m, bIsPromote );
 	}
 
@@ -2129,7 +2211,19 @@ int main( int , char** )
 	PieceInitializer pieceInitializer;
 	Interface i;
 
+
+	/* 
+	stringstream ss;
+
+	ss.str("uci\nucinewgame\ngo\n");
+	i.SetIn( &ss ); */
+
 	i.Run();
+
+	/*
+	chrono::seconds um( 60 );
+	this_thread::sleep_for( um );
+	*/
 
 	return 0;
 }
