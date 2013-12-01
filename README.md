@@ -3,25 +3,26 @@ Ippon
 
 Ippon is a trivial, pedantic, and somewhat silly chess
 engine.  As of this writing, it is capable of only playing
-a pseudo-legal game of chess. 
+a pseudo-legal game of chess.
 
-Current features
-----------------
+Features
+--------
 
 - Implements a subset of UCI protocol sufficient to permit play 
   with Arena 3.0
 - Pluggable architecture permits easy experimentation with 
   new algorithms for search and evaluation  
 - Alpha-beta search of fixed depth
-- Material evaluator
+- Basic material evaluator
+- Basic mobility evaluator
 - Uses C++11 features, as well as some gratuitous functional
   programming concepts
 - All the code exists within a single C++ source file
 - Vaguely const-correct
 
 
-Anti-features (things the engine doesn't do)
---------------------------------------------
+Things it doesn't do
+--------------------
 
 - Check
 - Checkmate
