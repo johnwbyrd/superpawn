@@ -22,6 +22,9 @@ const unsigned int MAX_FILES = 8;
 const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
+/** Maximum command length for UCI commands. */
+const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
+
 /** Default search depth */
 const unsigned int SEARCH_DEPTH = 6; //-V112
 
@@ -48,7 +51,6 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 using namespace std;
 
 typedef bool Color;
-
 const Color BLACK = false;
 const Color WHITE = true;
 
@@ -2102,7 +2104,7 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( Stop )
 		{
-			Notify( "Stop not yet implemented" );
+			m_pSearcher->Stop();
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( Ponderhit )
@@ -2151,7 +2153,7 @@ class Interface : Object
 			ss >> sVerb;
 
 			if ( sVerb.length() < sCommand.length() )
-			{ sParams = sCommand.substr( sVerb.length() + 1, 16384 ); }
+			{ sParams = sCommand.substr( sVerb.length() + 1, MAX_COMMAND_LENGTH ); }
 
 			InterfaceFunctionType ic = m_CommandMap[ sVerb ];
 

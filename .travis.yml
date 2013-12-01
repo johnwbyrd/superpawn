@@ -1,6 +1,7 @@
 language: cpp
 compiler:
   - gcc
+  - llvm
 before_script:
   - git clone https://github.com/johnwbyrd/ippon.git
   - mkdir build
