@@ -101,7 +101,7 @@ class Clock : Object
 		typedef NativeClockType::time_point NativeTimePointType;
 
 		typedef int64_t ChessTickType;
-		typedef chrono::duration< ChessTickType, centi > Duration;
+		typedef chrono::duration< ChessTickType, milli > Duration;
 
 		Clock()
 		{
@@ -113,7 +113,7 @@ class Clock : Object
 			m_Start = m_Clock.now();
 		}
 
-		Duration Get() const
+		ChessTickType Get() const
 		{
 			NativeTimePointType timeNow;
 			timeNow = m_Clock.now();
@@ -121,7 +121,7 @@ class Clock : Object
 			Duration dur;
 			dur = chrono::duration_cast< Duration >( timeNow - m_Start );
 
-			return dur;
+			return dur.count();
 		}
 
 		void Start()
@@ -136,7 +136,7 @@ class Clock : Object
 				chrono::milliseconds delay( 500 );
 				this_thread::sleep_for( delay );
 
-				cout << "Duration is now: " << Get().count() << endl;
+				cout << "Duration is now: " << Get() << endl;
 			}
 		}
 
@@ -924,7 +924,7 @@ class Position : Object
 
 		void Initialize()
 		{
-			m_ColorToMove = WHITE;
+			SetColorToMove( WHITE );
 			m_nPly = 0;
 			m_nMaterialScore = 0;
 			m_nHalfMoves = 0;
@@ -936,13 +936,18 @@ class Position : Object
 		Position( bool colorToMove )
 		{
 			Initialize();
-			m_ColorToMove = colorToMove;
+			SetColorToMove( colorToMove );
 		}
 
 		Position( const string& sFEN )
 		{
 			Initialize();
 			SetFEN( sFEN );
+		}
+
+		int GetColorBias() const
+		{
+			return ( m_ColorToMove == WHITE ? 1 : -1 );
 		}
 
 		/** Generates a new Position based on a previous, existing Position
@@ -980,7 +985,7 @@ class Position : Object
 		    {
 				m_nMaterialScore = position.GetScore() + ( m_Board.Get(
 					move.Dest() )->PieceValue() ) *
-					( m_ColorToMove == WHITE ? 1 : -1 );
+					GetColorBias();
 
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
 					m_Board.Get( move.Source() ) );
@@ -991,7 +996,7 @@ class Position : Object
 				m_nMaterialScore = position.GetScore() + 
 					( move.GetPromoteTo()->PieceValue() + 
 					m_Board.Get( move.Dest() )->PieceValue() ) *
-					( m_ColorToMove == WHITE ? 1 : -1 );
+					GetColorBias();
 
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
 					move.GetPromoteTo() );
@@ -999,7 +1004,7 @@ class Position : Object
 
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
 
-			m_ColorToMove = !m_ColorToMove;
+			SetColorToMove( !GetColorToMove() );
 		}
 
 		void GenerateMoves()
@@ -1160,7 +1165,7 @@ class Position : Object
 				}
 			}
 
-			m_ColorToMove = ( sToMove == "w" );
+			SetColorToMove( sToMove == "w" ? WHITE : BLACK );
 
 			stringstream ssVirgins( sVirgins );
 
@@ -1239,7 +1244,7 @@ class Position : Object
 				{ s += '/'; }
 			}
 
-			if ( m_ColorToMove )
+			if ( GetColorToMove() == WHITE  )
 			{ s += " w "; }
 			else
 			{ s += " b "; }
@@ -1280,8 +1285,8 @@ class Position : Object
 		unsigned int LowerBound() const { return m_nLowerBound; }
 		void LowerBound( unsigned int val ) { m_nLowerBound = val; }
 
-		Color ColorToMove() const { return m_ColorToMove; }
-		void ColorToMove( Color val ) { m_ColorToMove = val; }
+		Color GetColorToMove() const { return m_ColorToMove; }
+		void SetColorToMove( Color val ) { m_ColorToMove = val; }
 
 		int GetScore() const
 		{
@@ -1315,7 +1320,7 @@ class EvaluatorBase : public Object
 	protected:
 		virtual int Bias( const Position &pos, int nResult ) const
 		{
-			return ( pos.ColorToMove() == WHITE ? nResult : -nResult );
+			return ( pos.GetColorToMove() == WHITE ? nResult : -nResult );
 		}
 };
 
@@ -1441,10 +1446,11 @@ class SearcherBase : Object
 			Stop();
 		}
 
-		virtual void Start( const Position& /*pos*/,
-							Moves& /*mPrincipalVariation*/  )
+		virtual void Start( const Position& /*pos*/ )
 		{
-
+			m_nNodesSearched = 0;
+			m_Clock.Reset();
+			m_Clock.Start();
 		}
 
 		virtual void Stop()
@@ -1461,7 +1467,6 @@ class SearcherBase : Object
 		void Notify( const string& s ) const;
 		void Instruct( const string& s ) const;
 		void Bestmove( const string& s ) const;
-
 
 		void SearchComplete( )
 		{
@@ -1500,9 +1505,25 @@ class SearcherReporting : public SearcherBase
 		SearcherReporting( Interface& interface ) :
 			SearcherBase( interface ) {};
 
-		virtual void Report() const
+		virtual void Report( const Position & )
 		{
+			static int sReportDelay = 0;
 
+			if ( ++sReportDelay < 1000 )
+				return;
+
+			sReportDelay = 0;
+
+			Clock::ChessTickType tMilliSinceStart = m_Clock.Get();
+			uint64_t nodesPerSec = m_nNodesSearched * 1000 / tMilliSinceStart;
+
+			stringstream ss;
+
+			ss << "info time " << tMilliSinceStart
+			    << " nodes " << m_nNodesSearched
+				<< " nps " << nodesPerSec;				
+
+			Instruct( ss.str() );
 		}
 
 };
@@ -1519,6 +1540,7 @@ class SearcherAlphaBeta : public SearcherReporting
 		virtual void Start( const Position& pos )
 		{
 			Stop();
+			SearcherReporting::Start( pos );
 
 			SearchLockType guard( m_Lock );
 
@@ -1559,8 +1581,11 @@ class SearcherAlphaBeta : public SearcherReporting
 		virtual int alphaBetaMax( int alpha, int beta, int depthleft,
 								  Position& pos, Moves& pv )
 		{
+			m_nNodesSearched++;
+
 			if ( depthleft == 0 )
 			{
+				Report( pos );
 				return Evaluate( pos );
 			}
 
@@ -1606,8 +1631,12 @@ class SearcherAlphaBeta : public SearcherReporting
 		virtual int alphaBetaMin( int alpha, int beta, int depthleft,
 								  Position& pos, Moves& pv )
 		{
+
+			m_nNodesSearched++;
+
 			if ( depthleft == 0 )
 			{
+				Report( pos );
 				return Evaluate( pos );
 			}
 
@@ -2088,7 +2117,7 @@ class Interface : Object
 					while ( ss >> sMove )
 					{
 						Position* pLast = m_pGame->GetPosition();
-						Move nextMove( sMove, pLast->ColorToMove() );
+						Move nextMove( sMove, pLast->GetColorToMove() );
 
 						Position nextPos( *pLast, nextMove );
 						m_pGame->SetPosition( nextPos );
