@@ -1537,6 +1537,11 @@ class SearcherAlphaBeta : public SearcherReporting
 			SearcherReporting( interface )
 		{ }
 
+		virtual ~SearcherAlphaBeta() 
+		{
+			Stop();
+		}
+
 		virtual void Start( const Position& pos )
 		{
 			Stop();
@@ -2219,22 +2224,18 @@ class Interface : Object
 
 void SearcherBase::Notify( const string& s ) const
 {
-	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Notify( s );
 }
 
 void SearcherBase::Instruct( const string& s ) const
 {
-	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Instruct( s );
 }
 
 void SearcherBase::Bestmove( const string& s ) const
 {
-	Interface::LockGuardType guard( m_pInterface->GetLock() );
 	m_pInterface->Bestmove( s );
 }
-
 
 int main( int , char** )
 {
