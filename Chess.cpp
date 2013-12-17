@@ -26,7 +26,7 @@ const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -785,6 +785,13 @@ class Moves : Object
 			return *this;
 		}
 
+		void Append( const Moves &&otherMoves )
+		{
+			m_Moves.insert( m_Moves.end(),
+				otherMoves.m_Moves.begin(),
+				otherMoves.m_Moves.end() );
+		}
+
 		void Sort()
 		{
 			sort( m_Moves.begin(), m_Moves.end() );
@@ -1018,7 +1025,7 @@ class Position : Object
 
 					if ( ( pPiece != &None ) && ( pPiece->GetColor() == m_ColorToMove ) )
 					{
-						m_Moves = m_Moves + pPiece->GenerateMoves( Square( i, j ), m_Board );
+						m_Moves.Append( pPiece->GenerateMoves( Square( i, j ), m_Board ) );
 					}
 				}
 
@@ -1399,7 +1406,7 @@ class EvaluatorSimpleMobility : public EvaluatorBase
 {
 	virtual int Evaluate( Position& pos ) const
 	{
-		return pos.CountMoves() ;
+		return (int) pos.CountMoves() ;
 	}
 	
 };
