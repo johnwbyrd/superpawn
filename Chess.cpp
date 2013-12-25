@@ -669,6 +669,11 @@ class Square : public Object
 			return s1;
 		}
 
+		bool operator== (const Square &right)
+		{
+			return ( ( i == right.i ) && (j == right.j ));
+		}
+
 	protected:
 		int i; // file
 		int j; // rank
@@ -744,9 +749,7 @@ class Move : Object
 					default:
 						break;
 				}
-
 			}
-
 		}
 
 		const Piece* GetPiece() const { return m_Piece; }
@@ -795,6 +798,14 @@ class Move : Object
 
 			return ( letter ) + ( string )m_Source + ( string )m_Dest;
 		}
+
+		bool operator== ( const Move& right )
+			{
+			return ( ( m_Piece == right.m_Piece ) && 
+				( m_Source == right.m_Source ) &&
+				( m_Dest == right.m_Dest ) && 
+				( m_PromoteTo == right.m_PromoteTo ));
+			}
 
 		int Score() const { return m_Score; }
 		void Score( int val ) { m_Score = val; }
@@ -856,6 +867,34 @@ class Moves : Object
 		void Add( const Move& move )
 		{
 			m_Moves.push_back( move );
+		}
+
+		/** Find the move in the moves list, remove it and push it onto the
+		 ** front of the list.
+		 **/
+		void Bump( const Move& bump )
+		{
+			MovesInternalType::iterator it;
+
+			it = m_Moves.begin();
+			while ( it != m_Moves.end() )
+			{
+				if ( *it == bump ) 
+				{
+					Move tmp;
+					tmp = *( m_Moves.begin() );
+					*( m_Moves.begin() ) = *it;
+					*it = tmp;
+					return;
+				}
+				it++;
+			}
+
+			/* Expected to find the bump element in the array, but it 
+			 * didn't exist -- bad hash table entry?
+			 */
+			 abort();
+			
 		}
 
 		size_t Count() const
@@ -1043,24 +1082,32 @@ class PositionHasher : Object
 		PositionHasher();
 };
 
-enum {
-	HET_EVALUATION,
-	HET_LOWER_BOUND,
-	HET_UPPER_BOUND,
-	HET_UPPER_AND_LOWER_BOUND
-
-} HashEntryType;
+enum HashEntryType {
+	HET_NONE = 0x0,
+	HET_EXACT = 0x1,
+	HET_LOWER_BOUND = 0x2,
+	HET_UPPER_BOUND = 0x4,
+};
 
 class PositionHashEntry : public Object
 {
 	public :
+		HashEntryType m_TypeBits;
 		HashValue m_Hash;
 		Move m_BestMove;
 		int m_Depth;
 		int m_Ply;
-		int m_ScoreExact;
-		int m_ScoreLowerBound;
-		int m_ScoreUpperBound;
+		int m_Score;
+
+	PositionHashEntry()	:
+		m_Hash( 0 ),
+		m_BestMove( 0 ),
+		m_Depth( 0 ),
+		m_Ply( 0 ),
+		m_Score( 0 )
+	{
+		m_TypeBits = HET_NONE;
+	}
 };
 
 class PositionHashTable;
@@ -1085,7 +1132,7 @@ class PositionHashTable : public Object
 
 		virtual void Insert( const PositionHashEntry& entry )
 		{
-			size_t loc = entry.m_Hash & m_SizeBytesMask;
+			size_t loc = entry.m_Hash % m_SizeEntries;
 			/** todo Insert logic for different strategies */
 			m_pEntries[ loc ] = entry;
 		}
@@ -1093,7 +1140,7 @@ class PositionHashTable : public Object
 		virtual const PositionHashEntry* LookUp( const HashValue& val )
 		{
 			m_CacheLookups++;
-			size_t loc = val & m_SizeBytesMask;
+			size_t loc = val % m_SizeEntries;
 			PositionHashEntry* pEntry = m_pEntries + loc;
 			if ( val == pEntry->m_Hash )
 			{
@@ -1565,6 +1612,16 @@ class Position : Object
 			m_nMaterialScore = val;
 		}
 
+		unsigned int GetPly() const
+		{
+			return m_nPly;
+		}
+
+		void SetPly( int val )
+		{
+			m_nPly = val;
+		}
+
 	protected:
 		Board   m_Board;
 		Color   m_ColorToMove;
@@ -1858,7 +1915,6 @@ class SearcherAlphaBeta : public SearcherReporting
 		{
 			Moves PV;
 			pos.Dump();
-
 			m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
 									m_nDepth, pos, PV );
 
@@ -2004,8 +2060,54 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 							  Position& pos, Moves& pv )
 		{
 			/* Structure lifted egregiously from http://chessprogramming.wikispaces.com/Principal+Variation+Search */
+			/* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
 			int score = 0;
 			m_nNodesSearched++;
+
+			const PositionHashEntry *pEntry = pos.LookUp();
+
+			/* See if an entry in the hash table exists at this depth for this
+			 * position...
+			 */
+			if ( pEntry && ( depth <= pEntry->m_Depth ))
+			{
+				/* We got a hash table hit */
+				switch( pEntry->m_TypeBits ) 
+				{
+					case HET_EXACT :
+						pv.Add( pEntry->m_BestMove );
+						return pEntry->m_Score;
+
+					case HET_LOWER_BOUND :
+						 /* If the value from the table, which is a "lower bound" 
+						  * (but is actually beta at the time the entry was stored) 
+						  * is >= beta, return a "fail high" indication to search
+						  * which says "just return beta, no need to do a search."
+						  */
+						if ( pEntry->m_Score >= beta )
+							return beta;
+
+						break;							
+						
+					case HET_UPPER_BOUND :
+						/*  If the value from the table, which is an "upper bound" 
+						 *  (but is actually alpha at the time the entry was stored)
+						 *  is less than or equal to the current alpha value, return a
+						 *  "fail low" indication to search which says "just return alpha,
+						 *  no need to search". This test ensures that the stored 
+						 * "upper bound" is <= the current alpha value, otherwise
+						 * we don't know whether to fail low or not.
+						 */
+						 if ( pEntry->m_Score <= alpha )
+							return alpha;
+
+						 break;
+
+					default :
+						/* Unknown PositionHashEntry type!  Was the transposition table corrupted? */
+						abort();
+				};
+			}
 
 			if( depth == 0 )
 			{
@@ -2015,12 +2117,21 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 
 			Moves bestPV, currentPV;
 			Moves myMoves = pos.GetMoves();
+
 			if ( myMoves.IsEmpty() )
 			{
 				/* pretend this is a cutoff */
 				Move nullMove;
 				pv.Make( nullMove );
 				return beta;
+			}
+
+			/* Okay, we didn't get an exact match but it might be useful for 
+			 * choosing the way to search first...
+			 */
+			if ( pEntry && ( pEntry->m_TypeBits == HET_EXACT ))
+			{
+				myMoves.Bump( pEntry->m_BestMove );				
 			}
 
 			bool bSearchPv = true;
@@ -2046,15 +2157,27 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 				}
 				if( score >= beta )
 				{
-					/* Hard beta cutoff of the search now.  No move is chosen. */
+					/* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry 
+					 * is called "LOWER" because the score you have is a lower bound, where the 
+					 * real score is greater than or equal to beta... */
 					Move nullMove;
 					pv.Make( nullMove );
-					return beta;   // fail-hard beta-cutoff
+
+					PositionHashEntry phe;
+					phe.m_Depth = depth;
+					phe.m_Score = beta;
+					phe.m_TypeBits = HET_LOWER_BOUND;
+					phe.m_Ply = pos.GetPly();
+					pos.Insert( phe ); 
+
+					return beta;   // fail-high beta-cutoff
 				}
 
 				if( score > alpha )
 				{
-					/* We have a new best move */
+					/* We have a new best move.  This should be an exact entry in the
+					 * hash table.
+					 */
 					alpha = score; // alpha acts like max in MiniMax
 					bestPV = currentPV;
 					bSearchPv = false;  // *1)
@@ -2063,7 +2186,32 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 
 			/* If we got a best move then report it */
 			if ( !bSearchPv )
+			{
 				pv = bestPV;
+				/* This is a PV or exact node. */
+				PositionHashEntry phe;
+				phe.m_BestMove = bestPV.GetFirst();
+				phe.m_Depth = depth;
+				phe.m_Score = alpha;
+				phe.m_TypeBits = HET_EXACT;
+				phe.m_Ply = pos.GetPly();
+				pos.Insert( phe );
+			}
+			else
+			{
+				/* This is an ALL node. And the hash entry is an Upper type because
+				 * the score is an upper bound on the bad side 
+				 * (the score could actually be worse than alpha, but 
+				 * it can not be greater than alpha).
+				 */
+				PositionHashEntry phe;
+				phe.m_Depth = depth;
+				phe.m_Score = alpha;
+				phe.m_TypeBits = HET_UPPER_BOUND;
+				phe.m_Ply = pos.GetPly();
+				pos.Insert( phe ); 
+				// fail-low alpha cutoff
+			}
 
 			return alpha; // fail-hard
 		}
