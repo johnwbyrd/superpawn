@@ -14,19 +14,24 @@
  ** \todo Fifty-move clock
  ** \todo Threefold repetition
  ** \todo Draw due to material
+ ** \todo Take castling into account in computing hashes
  ** \todo Resignation?
  **/
 
 /** Number of rows and columns on the board */
 const unsigned int MAX_FILES = 8;
+const unsigned int NUM_PIECES = 7;
 const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
+
+/** Amount of memory to dedicate to position hash table, must be a power of 2, currently max 2 GB */
+const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
 
 /** Maximum command length for UCI commands. */
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 4; //-V112
+const unsigned int SEARCH_DEPTH = 2; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -47,6 +52,10 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <climits>
 #include <ratio>
 #include <atomic>
+#include <random>
+
+/** A number which is large for int's but for which is idempotent under double negation */
+const int BIG_NUMBER = INT_MAX - 1000;
 
 using namespace std;
 
@@ -167,6 +176,8 @@ class Piece : Object
 		}
 
 		virtual int PieceValue() const = 0;
+		/** A unique index value for each piece. */
+		virtual int Index() const = 0;
 		virtual Moves GenerateMoves( const Square& source,
 									 const Board& board ) const = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
@@ -219,6 +230,11 @@ class NoPiece : public Piece
 			m_pOtherColor = this;
 		}
 
+		int Index() const
+		{
+			return 0;
+		}
+
 		int PieceValue() const
 		{
 			return 0;
@@ -235,6 +251,11 @@ class Pawn : public Piece
 		{
 			m_PieceType = PAWN;
 			m_Letter = 'p';
+		}
+
+		int Index() const
+		{
+			return 1;
 		}
 
 		int PieceValue() const
@@ -261,6 +282,11 @@ class Bishop : public Piece
 			return 300;
 		}
 
+		int Index() const
+		{
+			return 2;
+		}
+
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
@@ -277,6 +303,11 @@ class Knight : public Piece
 		int PieceValue() const
 		{
 			return 300;
+		}
+
+		int Index() const
+		{
+			return 3;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -297,6 +328,11 @@ class Rook : public Piece
 			return 500;
 		}
 
+		int Index() const
+		{
+			return 4; //-V112
+		}
+
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
@@ -313,6 +349,11 @@ class Queen : public Piece
 		int PieceValue() const
 		{
 			return 900;
+		}
+
+		int Index() const
+		{
+			return 5;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -333,6 +374,11 @@ class King : public Piece
 			return 1000000;
 		}
 
+		int Index() const
+		{
+			return 6;
+		}
+
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 	private:
@@ -350,42 +396,39 @@ NoPiece None;
 
 class Square;
 
-class Board : public Object
+class BoardBase : public Object
 {
 	public:
-		Board()
+		BoardBase()
 		{
 			Initialize();
 		}
 
-		void Initialize()
-		{
-			for ( unsigned int i = 0; i < MAX_FILES; i++ )
-				for ( unsigned int j = 0; j < MAX_FILES; j++ )
-				{
-					Set( i, j, &None );
-				}
-
-		}
-
-		const Piece* Set( int i, int j, const Piece* piece )
-		{
-			return ( Set( i + ( j << 3 ), piece ) );
-		}
-
-		const Piece* Set( int index, const Piece* piece )
+		virtual const Piece* Set( int index, const Piece* piece )
 		{
 			return( m_Piece[ index ] = piece );
 		}
 
+		virtual const Piece* Get( int index ) const
+		{
+			return ( m_Piece[ index ] );
+		}
+
+		virtual void Initialize()
+		{
+			for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
+			{ Set( i, &None ); }
+		}
+
+		virtual const Piece* Set( int i, int j, const Piece* piece )
+		{
+			return ( Set( i + ( j << 3 ), piece ) );
+		}
+
+
 		const Piece* Get( int i, int j ) const
 		{
 			return Get( i + ( j << 3 ) );
-		}
-
-		const Piece* Get( int index ) const
-		{
-			return ( m_Piece[ index ] );
 		}
 
 		const Piece* Set( const Square& s, const Piece* piece );
@@ -465,6 +508,60 @@ class Board : public Object
 
 	protected:
 		const Piece* m_Piece[ MAX_FILES* MAX_FILES ];
+};
+
+typedef uint64_t HashValue;
+HashValue s_PiecePositionHash[ MAX_SQUARES ][ NUM_PIECES ];
+
+class BoardHashing : public BoardBase
+{
+		typedef BoardBase super;
+	public:
+		BoardHashing() : m_Hash( 0 ), BoardBase()
+		{
+			Initialize();
+		}
+
+		virtual void Initialize() override
+		{
+			super::Initialize();
+		}
+
+		virtual const Piece* Set( int index, const Piece* piece ) override
+		{
+			m_Hash ^= s_PiecePositionHash[ index ][ piece->Index() ];
+			return super::Set( index, piece );
+		}
+
+		/* Because the compiler gets hung up on trying to match the above function
+		 * to the three-argument version of Set... sigh...
+		 */
+		virtual const Piece* Set( int i, int j, const Piece* piece ) override
+		{
+			return super::Set( i, j, piece );
+		}
+
+		HashValue GetHash() const
+		{
+			return m_Hash;
+		}
+
+		HashValue m_Hash;
+};
+
+class Board : public BoardHashing {};
+
+class HashInitializer
+{
+	public:
+		HashInitializer()
+		{
+			mt19937_64 mt;
+			for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
+				for ( unsigned int j = 0; j < NUM_PIECES; j++ )
+				{ s_PiecePositionHash[ i ][ j ] = mt(); }
+
+		}
 };
 
 class Square : public Object
@@ -788,8 +885,8 @@ class Moves : Object
 		void Append( const Moves &&otherMoves )
 		{
 			m_Moves.insert( m_Moves.end(),
-				otherMoves.m_Moves.begin(),
-				otherMoves.m_Moves.end() );
+							otherMoves.m_Moves.begin(),
+							otherMoves.m_Moves.end() );
 		}
 
 		void Sort()
@@ -921,8 +1018,133 @@ class Moves : Object
 		MovesInternalType m_Moves;
 };
 
+class PositionHasher : Object
+{
+		friend class Position;
+		friend class PositionHashTable;
+	protected:
+		PositionHasher( const Position& pPos ) :
+			m_Hash( 0 )
+		{
+			m_pPosition = &pPos;
+		}
+
+		/** \todo Update this hash value based on all relevant
+		 ** position data including castling and other rights
+		 **/
+		HashValue GetHash() const;
+
+		HashValue m_Hash;
+		const Position* m_pPosition;
+
+	private:
+		PositionHasher();
+};
+
+class PositionHashEntry : public Object
+{
+	public :
+		HashValue m_Hash;
+		Move m_BestMove;
+		int m_Depth;
+		int m_Ply;
+		int m_Score;
+};
+
+class PositionHashTable;
+PositionHashTable* s_pPositionHashTable;
+
+class PositionHashTable : public Object
+{
+	public:
+		PositionHashTable() :
+			m_SizeBytes( 0 ), m_SizeEntries( 0 ),
+			m_SizeBytesMask( 0 ), m_pEntries( nullptr ),
+			m_CacheLookups( 0 ), m_CacheMisses( 0 ), m_CacheHits( 0 )
+		{
+			SetSize( HASH_TABLE_SIZE );
+		}
+
+		virtual ~PositionHashTable()
+		{
+			if ( m_SizeBytes )
+			{ delete m_pEntries; }
+		}
+
+		virtual void Insert( const PositionHashEntry& entry )
+		{
+			size_t loc = entry.m_Hash & m_SizeBytesMask;
+			/** todo Insert logic for different strategies */
+			m_pEntries[ loc ] = entry;
+		}
+
+		virtual const PositionHashEntry* LookUp( const HashValue& val )
+		{
+			m_CacheLookups++;
+			size_t loc = val & m_SizeBytesMask;
+			PositionHashEntry* pEntry = m_pEntries + loc;
+			if ( val == pEntry->m_Hash )
+			{
+				m_CacheHits++;
+				return pEntry;
+			}
+
+			m_CacheMisses++;
+			return nullptr;
+		}
+
+		virtual size_t GetSize() const
+		{
+			return m_SizeBytes;
+		}
+
+		virtual void SetSize( size_t size )
+		{
+			if ( m_SizeBytes )
+			{ delete m_pEntries; }
+
+			assert( size );
+
+			/* modified from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 --
+			 * should work to 2 GB */
+			size--;
+			size |= size >> 1;
+			size |= size >> 2;
+			size |= size >> 4;
+			size |= size >> 8;
+			size |= size >> 16;
+			size++;
+
+			m_SizeBytes = size;
+			m_SizeBytesMask = size - 1;
+			m_SizeEntries = m_SizeBytes / sizeof( PositionHashEntry );
+			m_pEntries = new PositionHashEntry[ m_SizeEntries ];
+		}
+
+		PositionHashEntry* m_pEntries;
+		size_t m_SizeBytes, m_SizeEntries, m_SizeBytesMask;
+		uint64_t m_CacheLookups, m_CacheMisses, m_CacheHits;
+};
+
+class HashTableInitializer : public Object
+{
+	public :
+		HashTableInitializer()
+		{
+			s_pPositionHashTable = new PositionHashTable;
+		}
+
+		virtual ~HashTableInitializer()
+		{
+			delete s_pPositionHashTable;
+			s_pPositionHashTable = nullptr;
+		}
+};
+
 class Position : Object
 {
+		friend class PositionHasher;
+
 	public:
 		Position()
 		{
@@ -963,7 +1185,7 @@ class Position : Object
 		 **/
 		Position( const Position& position, const Move& move )
 		{
-		    /*
+			/*
 			m_Board = position.m_Board;
 			m_ColorToMove = !(position.m_ColorToMove);
 			m_nPly = position.m_nPly;
@@ -971,7 +1193,7 @@ class Position : Object
 			m_nLowerBound = position.m_nLowerBound;
 			m_nUpperBound = position.m_nUpperBound;
 			m_nMaterialScore = position.m_nMaterialScore;
-			
+
 			m_bWKR = position.m_bWKR;
 			m_bWQR = position.m_bWQR;
 			m_bBKR = position.m_bBKR;
@@ -983,30 +1205,30 @@ class Position : Object
 			m_nPly++;
 
 			if ( &move == &NullMove )
-			{ 
+			{
 				return;
 			}
 
 			/* Move piece and optionally promote */
 			if ( move.GetPromoteTo() == &None )
-		    {
+			{
 				m_nMaterialScore = position.GetScore() + ( m_Board.Get(
-					move.Dest() )->PieceValue() ) *
-					GetColorBias();
+									   move.Dest() )->PieceValue() ) *
+								   GetColorBias();
 
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
-					m_Board.Get( move.Source() ) );
+							 m_Board.Get( move.Source() ) );
 
 			}
 			else
 			{
-				m_nMaterialScore = position.GetScore() + 
-					( move.GetPromoteTo()->PieceValue() + 
-					m_Board.Get( move.Dest() )->PieceValue() ) *
-					GetColorBias();
+				m_nMaterialScore = position.GetScore() +
+								   ( move.GetPromoteTo()->PieceValue() +
+									 m_Board.Get( move.Dest() )->PieceValue() ) *
+								   GetColorBias();
 
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
-					move.GetPromoteTo() );
+							 move.GetPromoteTo() );
 			}
 
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
@@ -1032,10 +1254,10 @@ class Position : Object
 			m_Moves.Sort();
 		}
 
-		const Moves &GetMoves()
+		const Moves& GetMoves()
 		{
 			if ( m_Moves.IsEmpty() )
-				GenerateMoves();
+			{ GenerateMoves(); }
 
 			return m_Moves;
 		}
@@ -1044,7 +1266,7 @@ class Position : Object
 		{
 			GetMoves();
 			return m_Moves.Count();
-		
+
 		}
 
 		const Board& GetBoard() const
@@ -1052,7 +1274,7 @@ class Position : Object
 			return m_Board;
 		}
 
-		void SetBoard( Board val )
+		void SetBoard( const Board& val )
 		{
 			m_Board = val;
 		}
@@ -1319,13 +1541,25 @@ class Position : Object
 		Moves m_Moves;
 };
 
+HashValue PositionHasher::GetHash() const
+{
+	/* n.b. this hash only updates a few bits at the
+	 * end of the Hash value.  It's not a statistically
+	 * optimal hash.
+	 */
+	return ( m_pPosition->m_Board.GetHash() ^
+			 ( m_pPosition->m_ColorToMove != BLACK ) );
+}
+
+
+
 class EvaluatorBase : public Object
 {
 	public:
 		virtual int Evaluate( Position& pos ) const = 0;
 
 	protected:
-		virtual int Bias( const Position &pos, int nResult ) const
+		virtual int Bias( const Position& pos, int nResult ) const
 		{
 			return ( pos.GetColorToMove() == WHITE ? nResult : -nResult );
 		}
@@ -1404,11 +1638,10 @@ class EvaluatorWeighted : public EvaluatorBase
 
 class EvaluatorSimpleMobility : public EvaluatorBase
 {
-	virtual int Evaluate( Position& pos ) const
-	{
-		return (int) pos.CountMoves() ;
-	}
-	
+		virtual int Evaluate( Position& pos ) const
+		{
+			return ( int ) pos.CountMoves() ;
+		}
 };
 
 class EvaluatorStandard : public EvaluatorWeighted
@@ -1435,7 +1668,7 @@ typedef EvaluatorStandard Evaluator;
 void Position::UpdateScore()
 {
 	EvaluatorSlowMaterial slow;
-	SetScore( slow.Evaluate( *this ));
+	SetScore( slow.Evaluate( *this ) );
 }
 
 class SearcherBase : Object
@@ -1512,12 +1745,12 @@ class SearcherReporting : public SearcherBase
 		SearcherReporting( Interface& interface ) :
 			SearcherBase( interface ) {};
 
-		virtual void Report( const Position & )
+		virtual void Report( const Position& )
 		{
 			static int sReportDelay = 0;
 
 			if ( ++sReportDelay < 1000 )
-				return;
+			{ return; }
 
 			sReportDelay = 0;
 
@@ -1527,8 +1760,8 @@ class SearcherReporting : public SearcherBase
 			stringstream ss;
 
 			ss << "info time " << tMilliSinceStart
-			    << " nodes " << m_nNodesSearched
-				<< " nps " << nodesPerSec;				
+			   << " nodes " << m_nNodesSearched
+			   << " nps " << nodesPerSec;
 
 			Instruct( ss.str() );
 		}
@@ -1544,7 +1777,7 @@ class SearcherAlphaBeta : public SearcherReporting
 			SearcherReporting( interface )
 		{ }
 
-		virtual ~SearcherAlphaBeta() 
+		virtual ~SearcherAlphaBeta()
 		{
 			Stop();
 		}
@@ -1579,15 +1812,20 @@ class SearcherAlphaBeta : public SearcherReporting
 		virtual int Search( Position& pos )
 		{
 			Moves PV;
-
 			pos.Dump();
 
-			m_Score = alphaBetaMax( INT_MIN, INT_MAX, SEARCH_DEPTH, pos,
-									PV );
+			m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
+									SEARCH_DEPTH, pos, PV );
 
 			m_Result = PV;
 			SearchComplete();
 			return m_Score;
+		}
+
+		virtual int InternalSearch( int alpha, int beta, int depthleft,
+									Position& pos, Moves& pv )
+		{
+			return  alphaBetaMax( alpha, beta, depthleft, pos, pv );
 		}
 
 		virtual int alphaBetaMax( int alpha, int beta, int depthleft,
@@ -1607,6 +1845,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			if ( myMoves.IsEmpty() )
 			{
+				/* pretend this is a beta cutoff */
 				Move nullMove;
 				pv.Make( nullMove );
 				return beta;
@@ -1622,12 +1861,14 @@ class SearcherAlphaBeta : public SearcherReporting
 										  nextPos, currentPV );
 				if( score >= beta )
 				{
+					/* we have produced a beta cutoff */
 					Move nullMove;
 					pv.Make( nullMove );
 					return beta;
 				}
 				if( score > alpha )
 				{
+					/* we have improved alpha by raising it */
 					alpha = score;
 					bestPV = currentPV;
 				}
@@ -1658,9 +1899,9 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			if ( myMoves.IsEmpty() )
 			{
+				/* pretend this is an alpha cutoff */
 				Move nullMove;
 				pv.Make( nullMove );
-
 				return alpha;
 			}
 
@@ -1674,12 +1915,14 @@ class SearcherAlphaBeta : public SearcherReporting
 										  nextPos, currentPV );
 				if( score <= alpha )
 				{
+					/* an alpha cutoff is occurring */
 					Move nullMove;
 					pv.Make( nullMove );
 					return alpha;
 				}
 				if( score < beta )
 				{
+					/* we have improved beta by lowering it */
 					beta = score;
 					bestPV = currentPV;
 				}
@@ -1697,19 +1940,95 @@ class SearcherAlphaBeta : public SearcherReporting
 
 };
 
+class SearcherPrincipalVariation : public SearcherAlphaBeta
+{
+	typedef SearcherAlphaBeta super;
+	public:
+		SearcherPrincipalVariation( Interface& interface ) :
+		super( interface )
+	{ }
+
+	protected:
+		virtual int InternalSearch( int , int , int depth,
+									Position& pos, Moves& pv )
+		{
+			return pvSearch( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
+		}
+
+		virtual int pvSearch( int alpha, int beta, int depth,
+							  Position& pos, Moves& pv )
+		{
+			int score = 0;
+			m_nNodesSearched++;
+
+			if( depth == 0 )
+			{
+				Report( pos );
+				return Evaluate( pos );
+			}
+
+			Moves bestPV, currentPV;
+			Moves myMoves = pos.GetMoves();
+			if ( myMoves.IsEmpty() )
+			{
+				/* pretend this is a cutoff */
+				Move nullMove;
+				pv.Make( nullMove );
+				return beta;
+			}
+
+			bool bSearchPv = true;
+			for ( auto& move : myMoves )
+			{
+				currentPV = pv;
+				currentPV.Make( move );
+				Position nextPos( pos, move );
+
+				if ( bSearchPv )
+				{
+					score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
+				}
+				else
+				{
+					score = -pvSearch( -alpha - 1, -alpha, depth - 1, nextPos, currentPV );
+					if ( score > alpha ) // in fail-soft ... && score < beta ) is common
+					{ 
+						score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
+					} // re-search
+				}
+				if( score >= beta )
+				{
+					Move nullMove;
+					pv.Make( nullMove );
+					return beta;   // fail-hard beta-cutoff
+				}
+
+				if( score > alpha )
+				{
+					alpha = score; // alpha acts like max in MiniMax
+					bestPV = currentPV;
+					bSearchPv = false;  // *1)
+				}
+			}
+
+			pv = bestPV;
+			return alpha; // fail-hard
+		}
+};
+
 typedef SearcherAlphaBeta Searcher;
 
-const Piece* Board::Set( const Square& s, const Piece* piece )
+const Piece* BoardBase::Set( const Square& s, const Piece* piece )
 {
 	return Set( s.I(), s.J(), piece );
 }
 
-const Piece* Board::Get( const Square& s ) const
+const Piece* BoardBase::Get( const Square& s ) const
 {
 	return Get( s.I(), s.J() );
 }
 
-bool Board::IsEmpty( const Square& square ) const
+bool BoardBase::IsEmpty( const Square& square ) const
 {
 	return ( Get( square.I(), square.J() ) == &None );
 }
@@ -2248,10 +2567,11 @@ int main( int , char** )
 {
 	Clock c;
 	PieceInitializer pieceInitializer;
+	HashInitializer hashInitializer;
+	HashTableInitializer hashTableInitializer;
 	Interface i;
 
-
-	/* 
+	/*
 	stringstream ss;
 
 	ss.str("uci\nucinewgame\ngo\n");
