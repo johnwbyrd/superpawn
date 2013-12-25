@@ -31,7 +31,7 @@ const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 2; //-V112
+const unsigned int SEARCH_DEPTH = 6; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -1041,6 +1041,14 @@ class PositionHasher : Object
 		PositionHasher();
 };
 
+enum {
+	HET_EVALUATION,
+	HET_LOWER_BOUND,
+	HET_UPPER_BOUND,
+	HET_UPPER_AND_LOWER_BOUND
+
+} HashEntryType;
+
 class PositionHashEntry : public Object
 {
 	public :
@@ -1048,11 +1056,13 @@ class PositionHashEntry : public Object
 		Move m_BestMove;
 		int m_Depth;
 		int m_Ply;
-		int m_Score;
+		int m_ScoreExact;
+		int m_ScoreLowerBound;
+		int m_ScoreUpperBound;
 };
 
 class PositionHashTable;
-PositionHashTable* s_pPositionHashTable;
+PositionHashTable* s_pPositionHashTable = nullptr;
 
 class PositionHashTable : public Object
 {
@@ -1177,6 +1187,32 @@ class Position : Object
 		int GetColorBias() const
 		{
 			return ( m_ColorToMove == WHITE ? 1 : -1 );
+		}
+
+		PositionHashTable *GetHashTable() const
+		{
+			return s_pPositionHashTable;
+		}
+
+		/** Looks up this position in the hash table and returns a pointer
+		 ** to the corresponding PositionHashEntry if any.
+		 **/
+		const PositionHashEntry *LookUp() const
+		{
+			PositionHashTable *pHT = GetHashTable();
+			PositionHasher ph( *this );
+			return pHT->LookUp( ph.GetHash() );
+		} 
+
+		/** Inserts this position into the hash table.  Takes care of updating
+		 ** the hash value before insertion. 
+		 **/
+		void Insert( PositionHashEntry &pos )
+		{
+			PositionHashTable *pHT = GetHashTable();
+			PositionHasher ph( *this );
+			pos.m_Hash = ph.GetHash();
+			pHT->Insert( pos );
 		}
 
 		/** Generates a new Position based on a previous, existing Position
@@ -1958,6 +1994,7 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 		virtual int pvSearch( int alpha, int beta, int depth,
 							  Position& pos, Moves& pv )
 		{
+			/* Structure lifted egregiously from http://chessprogramming.wikispaces.com/Principal+Variation+Search */
 			int score = 0;
 			m_nNodesSearched++;
 
@@ -1990,14 +2027,17 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 				}
 				else
 				{
+					/* Search in a null window to see if this beats the pv */
 					score = -pvSearch( -alpha - 1, -alpha, depth - 1, nextPos, currentPV );
 					if ( score > alpha ) // in fail-soft ... && score < beta ) is common
 					{ 
+						/* The null window search did not end up as projected, so do a full re-search */
 						score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
-					} // re-search
+					} 
 				}
 				if( score >= beta )
 				{
+					/* Hard beta cutoff of the search now.  No move is chosen. */
 					Move nullMove;
 					pv.Make( nullMove );
 					return beta;   // fail-hard beta-cutoff
@@ -2005,18 +2045,22 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 
 				if( score > alpha )
 				{
+					/* We have a new best move */
 					alpha = score; // alpha acts like max in MiniMax
 					bestPV = currentPV;
 					bSearchPv = false;  // *1)
 				}
 			}
 
-			pv = bestPV;
+			/* If we got a best move then report it */
+			if ( !bSearchPv )
+				pv = bestPV;
+
 			return alpha; // fail-hard
 		}
 };
 
-typedef SearcherAlphaBeta Searcher;
+typedef SearcherPrincipalVariation Searcher;
 
 const Piece* BoardBase::Set( const Square& s, const Piece* piece )
 {
