@@ -31,7 +31,7 @@ const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -1018,6 +1018,8 @@ class Moves : Object
 		MovesInternalType m_Moves;
 };
 
+class Position;
+
 class PositionHasher : Object
 {
 		friend class Position;
@@ -1113,7 +1115,8 @@ class PositionHashTable : public Object
 			if ( m_SizeBytes )
 			{ delete m_pEntries; }
 
-			assert( size );
+			if ( size == 0 )
+				abort();
 
 			/* modified from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 --
 			 * should work to 2 GB */
@@ -1711,7 +1714,7 @@ class SearcherBase : Object
 {
 	public:
 		SearcherBase( Interface& interface ) :
-			m_nNodesSearched( 0 )
+			m_nNodesSearched( 0 ), m_nDepth( SEARCH_DEPTH )
 		{
 			m_bTerminated = true;
 			m_pInterface = &interface;
@@ -1720,6 +1723,11 @@ class SearcherBase : Object
 		~SearcherBase()
 		{
 			Stop();
+		}
+
+		void SetDepth( int depth = SEARCH_DEPTH )
+		{
+			m_nDepth = depth;
 		}
 
 		virtual void Start( const Position& /*pos*/ )
@@ -1761,6 +1769,7 @@ class SearcherBase : Object
 		virtual int Search( Position& pos ) = 0;
 
 		int m_nNodesSearched;
+		int m_nDepth;
 		mutex m_Lock;
 		atomic_bool m_bTerminated;
 		Interface* m_pInterface;
@@ -1851,7 +1860,7 @@ class SearcherAlphaBeta : public SearcherReporting
 			pos.Dump();
 
 			m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-									SEARCH_DEPTH, pos, PV );
+									m_nDepth, pos, PV );
 
 			m_Result = PV;
 			SearchComplete();
@@ -2441,10 +2450,27 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE( UCIGo )
 		{
-			stringstream ss;
+			stringstream ss( sParams );
+			string sParam;
 
-			ss << "Go parameters: " << sParams;
-			Notify( ss.str() );
+			while ( ss >> sParam ) 
+			{
+				if ( sParam == "depth")
+				{
+					int depth;
+					ss >> depth;
+					m_pSearcher->SetDepth( depth );
+					break;
+				}
+				else
+				{
+					stringstream ssfail;
+					ssfail << "Unknown go parameter: ";
+					ssfail << sParam;
+					Notify( ssfail.str() );
+					break;
+				}
+			}
 
 			m_pSearcher->Start( *( m_pGame->GetPosition() ) );
 		}
