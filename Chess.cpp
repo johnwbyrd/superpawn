@@ -15,7 +15,6 @@
  ** \todo Threefold repetition
  ** \todo Draw due to material
  ** \todo Take castling into account in computing hashes
- ** \todo Resignation?
  **/
 
 /** Number of rows and columns on the board */
@@ -25,7 +24,7 @@ const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
 /** Amount of memory to dedicate to position hash table, must be a power of 2, currently max 2 GB */
-const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
+const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 
 /** Maximum command length for UCI commands. */
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
@@ -58,6 +57,8 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 const int BIG_NUMBER = INT_MAX - 1000;
 
 using namespace std;
+
+void Die( const string& s );
 
 typedef bool Color;
 const Color BLACK = false;
@@ -512,6 +513,7 @@ class BoardBase : public Object
 
 typedef uint64_t HashValue;
 HashValue s_PiecePositionHash[ MAX_SQUARES ][ NUM_PIECES ];
+HashValue s_PieceColorHash[ 2 ];
 
 class BoardHashing : public BoardBase
 {
@@ -560,6 +562,9 @@ class HashInitializer
 			for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
 				for ( unsigned int j = 0; j < NUM_PIECES; j++ )
 				{ s_PiecePositionHash[ i ][ j ] = mt(); }
+
+			for ( unsigned int i = 0; i < 2; i++ )
+				s_PieceColorHash[ i ] = mt();
 
 		}
 };
@@ -669,9 +674,9 @@ class Square : public Object
 			return s1;
 		}
 
-		bool operator== (const Square &right)
+		bool operator== ( const Square& right )
 		{
-			return ( ( i == right.i ) && (j == right.j ));
+			return ( ( i == right.i ) && ( j == right.j ) );
 		}
 
 	protected:
@@ -712,7 +717,9 @@ class Move : Object
 			m_PromoteTo = &None;
 
 			if ( moveLength != 4 && moveLength != 5 ) //-V112
-			{ abort(); }
+			{
+				Die( "Got an incoming Move string that had a weird length " );
+			}
 
 			m_Piece = &None;
 			m_Source.I( sMove[0] - 'a' );
@@ -800,12 +807,12 @@ class Move : Object
 		}
 
 		bool operator== ( const Move& right )
-			{
-			return ( ( m_Piece == right.m_Piece ) && 
-				( m_Source == right.m_Source ) &&
-				( m_Dest == right.m_Dest ) && 
-				( m_PromoteTo == right.m_PromoteTo ));
-			}
+		{
+			return ( ( m_Piece == right.m_Piece ) &&
+					 ( m_Source == right.m_Source ) &&
+					 ( m_Dest == right.m_Dest ) &&
+					 ( m_PromoteTo == right.m_PromoteTo ) );
+		}
 
 		int Score() const { return m_Score; }
 		void Score( int val ) { m_Score = val; }
@@ -879,7 +886,7 @@ class Moves : Object
 			it = m_Moves.begin();
 			while ( it != m_Moves.end() )
 			{
-				if ( *it == bump ) 
+				if ( *it == bump )
 				{
 					Move tmp;
 					tmp = *( m_Moves.begin() );
@@ -887,14 +894,10 @@ class Moves : Object
 					*it = tmp;
 					return;
 				}
-				it++;
+				++it;
 			}
 
-			/* Expected to find the bump element in the array, but it 
-			 * didn't exist -- bad hash table entry?
-			 */
-			 abort();
-			
+			Die( "Expected to find the bump element in the array, but it didn't exist -- bad hash table?" );
 		}
 
 		size_t Count() const
@@ -1082,7 +1085,8 @@ class PositionHasher : Object
 		PositionHasher();
 };
 
-enum HashEntryType {
+enum HashEntryType
+{
 	HET_NONE = 0x0,
 	HET_EXACT = 0x1,
 	HET_LOWER_BOUND = 0x2,
@@ -1099,15 +1103,15 @@ class PositionHashEntry : public Object
 		int m_Ply;
 		int m_Score;
 
-	PositionHashEntry()	:
-		m_Hash( 0 ),
-		m_BestMove( 0 ),
-		m_Depth( 0 ),
-		m_Ply( 0 ),
-		m_Score( 0 )
-	{
-		m_TypeBits = HET_NONE;
-	}
+		PositionHashEntry() :
+			m_Hash( 0 ),
+			m_BestMove( 0 ),
+			m_Depth( 0 ),
+			m_Ply( 0 ),
+			m_Score( 0 )
+		{
+			m_TypeBits = HET_NONE;
+		}
 };
 
 class PositionHashTable;
@@ -1119,7 +1123,8 @@ class PositionHashTable : public Object
 		PositionHashTable() :
 			m_SizeBytes( 0 ), m_SizeEntries( 0 ),
 			m_SizeBytesMask( 0 ), m_pEntries( nullptr ),
-			m_CacheLookups( 0 ), m_CacheMisses( 0 ), m_CacheHits( 0 )
+			m_CacheLookups( 0 ), m_CacheMisses( 0 ), m_CacheHits( 0 ),
+			m_nEntriesInUse( 0 )
 		{
 			SetSize( HASH_TABLE_SIZE );
 		}
@@ -1134,6 +1139,13 @@ class PositionHashTable : public Object
 		{
 			size_t loc = entry.m_Hash % m_SizeEntries;
 			/** todo Insert logic for different strategies */
+			PositionHashEntry *pHE = m_pEntries + loc;
+			if ( pHE->m_Hash == entry.m_Hash )
+			{
+				/* Only overwrite if the search depth is farther */
+				if ( pHE->m_Ply > entry.m_Ply )
+					return;
+			}
 			m_pEntries[ loc ] = entry;
 		}
 
@@ -1163,7 +1175,9 @@ class PositionHashTable : public Object
 			{ delete m_pEntries; }
 
 			if ( size == 0 )
-				abort();
+			{
+				Die( "Size of hash table can't be zero" );
+			}
 
 			/* modified from http://graphics.stanford.edu/~seander/bithacks.html#RoundUpPowerOf2 --
 			 * should work to 2 GB */
@@ -1183,6 +1197,7 @@ class PositionHashTable : public Object
 
 		PositionHashEntry* m_pEntries;
 		size_t m_SizeBytes, m_SizeEntries, m_SizeBytesMask;
+		int m_nEntriesInUse;
 		uint64_t m_CacheLookups, m_CacheMisses, m_CacheHits;
 };
 
@@ -1239,7 +1254,7 @@ class Position : Object
 			return ( m_ColorToMove == WHITE ? 1 : -1 );
 		}
 
-		PositionHashTable *GetHashTable() const
+		PositionHashTable* GetHashTable() const
 		{
 			return s_pPositionHashTable;
 		}
@@ -1247,19 +1262,19 @@ class Position : Object
 		/** Looks up this position in the hash table and returns a pointer
 		 ** to the corresponding PositionHashEntry if any.
 		 **/
-		const PositionHashEntry *LookUp() const
+		const PositionHashEntry* LookUp() const
 		{
-			PositionHashTable *pHT = GetHashTable();
+			PositionHashTable* pHT = GetHashTable();
 			PositionHasher ph( *this );
 			return pHT->LookUp( ph.GetHash() );
-		} 
+		}
 
 		/** Inserts this position into the hash table.  Takes care of updating
-		 ** the hash value before insertion. 
+		 ** the hash value before insertion.
 		 **/
-		void Insert( PositionHashEntry &pos )
+		void Insert( PositionHashEntry& pos )
 		{
-			PositionHashTable *pHT = GetHashTable();
+			PositionHashTable* pHT = GetHashTable();
 			PositionHasher ph( *this );
 			pos.m_Hash = ph.GetHash();
 			pHT->Insert( pos );
@@ -1639,15 +1654,10 @@ class Position : Object
 
 HashValue PositionHasher::GetHash() const
 {
-	/* n.b. this hash only updates a few bits at the
-	 * end of the Hash value.  It's not a statistically
-	 * optimal hash.
-	 */
 	return ( m_pPosition->m_Board.GetHash() ^
-			 ( m_pPosition->m_ColorToMove != BLACK ) );
+		s_PieceColorHash[ ( int )m_pPosition->m_ColorToMove ]
+		);
 }
-
-
 
 class EvaluatorBase : public Object
 {
@@ -1700,7 +1710,9 @@ class EvaluatorWeighted : public EvaluatorBase
 		virtual int Evaluate( Position& pos ) const
 		{
 			if ( m_Evaluators.empty() )
-			{ abort(); }
+			{
+				Die( "No evaluators have been defined" );
+			}
 
 			WeightsType::const_iterator weightIter;
 			weightIter = m_Weights.begin();
@@ -1913,12 +1925,24 @@ class SearcherAlphaBeta : public SearcherReporting
 
 		virtual int Search( Position& pos )
 		{
-			Moves PV;
 			pos.Dump();
-			m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-									m_nDepth, pos, PV );
 
-			m_Result = PV;
+			for ( int nCurrentDepth = 1; nCurrentDepth <= m_nDepth; 
+				nCurrentDepth++ )
+			{
+				Moves PV;
+				m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
+					nCurrentDepth, pos, PV );
+				m_Result = PV;
+				
+				stringstream ss;
+				ss << "depth " << nCurrentDepth;
+				ss << " pv " << (string)PV;
+				ss << " score cps "	<< m_Score;
+
+				Notify(ss.str());
+			}
+
 			SearchComplete();
 			return m_Score;
 		}
@@ -2043,11 +2067,11 @@ class SearcherAlphaBeta : public SearcherReporting
 
 class SearcherPrincipalVariation : public SearcherAlphaBeta
 {
-	typedef SearcherAlphaBeta super;
+		typedef SearcherAlphaBeta super;
 	public:
 		SearcherPrincipalVariation( Interface& interface ) :
-		super( interface )
-	{ }
+			super( interface )
+		{ }
 
 	protected:
 		virtual int InternalSearch( int , int , int depth,
@@ -2059,53 +2083,54 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 		virtual int pvSearch( int alpha, int beta, int depth,
 							  Position& pos, Moves& pv )
 		{
-			/* Structure lifted egregiously from http://chessprogramming.wikispaces.com/Principal+Variation+Search */
-			/* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
+			/* Overall structure lifted egregiously from
+			 * http://chessprogramming.wikispaces.com/Principal+Variation+Search */
+			/* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872
+			 */
 			int score = 0;
 			m_nNodesSearched++;
 
-			const PositionHashEntry *pEntry = pos.LookUp();
+			const PositionHashEntry* pEntry = pos.LookUp();
 
 			/* See if an entry in the hash table exists at this depth for this
 			 * position...
 			 */
-			if ( pEntry && ( depth <= pEntry->m_Depth ))
+			if ( pEntry && ( depth <= pEntry->m_Depth ) )
 			{
 				/* We got a hash table hit */
-				switch( pEntry->m_TypeBits ) 
+				switch( pEntry->m_TypeBits )
 				{
 					case HET_EXACT :
 						pv.Add( pEntry->m_BestMove );
 						return pEntry->m_Score;
 
 					case HET_LOWER_BOUND :
-						 /* If the value from the table, which is a "lower bound" 
-						  * (but is actually beta at the time the entry was stored) 
-						  * is >= beta, return a "fail high" indication to search
-						  * which says "just return beta, no need to do a search."
-						  */
+						/* If the value from the table, which is a "lower bound"
+						 * (but is actually beta at the time the entry was stored)
+						 * is >= beta, return a "fail high" indication to search
+						 * which says "just return beta, no need to do a search."
+						 */
 						if ( pEntry->m_Score >= beta )
-							return beta;
+						{ return beta; }
 
-						break;							
-						
+						break;
+
 					case HET_UPPER_BOUND :
-						/*  If the value from the table, which is an "upper bound" 
+						/*  If the value from the table, which is an "upper bound"
 						 *  (but is actually alpha at the time the entry was stored)
 						 *  is less than or equal to the current alpha value, return a
 						 *  "fail low" indication to search which says "just return alpha,
-						 *  no need to search". This test ensures that the stored 
+						 *  no need to search". This test ensures that the stored
 						 * "upper bound" is <= the current alpha value, otherwise
 						 * we don't know whether to fail low or not.
 						 */
-						 if ( pEntry->m_Score <= alpha )
-							return alpha;
+						if ( pEntry->m_Score <= alpha )
+						{ return alpha; }
 
-						 break;
+						break;
 
 					default :
-						/* Unknown PositionHashEntry type!  Was the transposition table corrupted? */
-						abort();
+						Die( "Unknown PositionHashEntry type; hash table corruption?" );
 				};
 			}
 
@@ -2126,15 +2151,18 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 				return beta;
 			}
 
-			/* Okay, we didn't get an exact match but it might be useful for 
-			 * choosing the way to search first...
+			/* We got an exact match but the search wasn't deep enough to
+			 * simply return.  So seed this search with the exact value
+			 * from the hash table.
 			 */
-			if ( pEntry && ( pEntry->m_TypeBits == HET_EXACT ))
+			if ( pEntry && ( pEntry->m_TypeBits == HET_EXACT ) )
 			{
-				myMoves.Bump( pEntry->m_BestMove );				
+				myMoves.Bump( pEntry->m_BestMove );
 			}
 
 			bool bSearchPv = true;
+			Move bestMove;
+
 			for ( auto& move : myMoves )
 			{
 				currentPV = pv;
@@ -2150,25 +2178,30 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 					/* Search in a null window to see if this beats the pv */
 					score = -pvSearch( -alpha - 1, -alpha, depth - 1, nextPos, currentPV );
 					if ( score > alpha ) // in fail-soft ... && score < beta ) is common
-					{ 
+					{
 						/* The null window search did not end up as projected, so do a full re-search */
 						score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
-					} 
+					}
 				}
 				if( score >= beta )
 				{
-					/* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry 
-					 * is called "LOWER" because the score you have is a lower bound, where the 
+					/* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry
+					 * is called "LOWER" because the score you have is a lower bound, where the
 					 * real score is greater than or equal to beta... */
 					Move nullMove;
 					pv.Make( nullMove );
 
-					PositionHashEntry phe;
-					phe.m_Depth = depth;
-					phe.m_Score = beta;
-					phe.m_TypeBits = HET_LOWER_BOUND;
-					phe.m_Ply = pos.GetPly();
-					pos.Insert( phe ); 
+					/* Only do this if this is not a null window search */
+					if ( beta - alpha > 1 )
+					{
+						/* This was a full search, insert it into the hash table */
+						PositionHashEntry phe;
+						phe.m_Depth = depth;
+						phe.m_Score = beta;
+						phe.m_TypeBits = HET_LOWER_BOUND;
+						phe.m_Ply = pos.GetPly();
+						pos.Insert( phe );
+					}
 
 					return beta;   // fail-high beta-cutoff
 				}
@@ -2176,10 +2209,11 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 				if( score > alpha )
 				{
 					/* We have a new best move.  This should be an exact entry in the
-					 * hash table.
+					 * hash table, if it survives the rest of the search at this level.
 					 */
 					alpha = score; // alpha acts like max in MiniMax
 					bestPV = currentPV;
+					bestMove = move;
 					bSearchPv = false;  // *1)
 				}
 			}
@@ -2189,30 +2223,37 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 			{
 				pv = bestPV;
 				/* This is a PV or exact node. */
-				PositionHashEntry phe;
-				phe.m_BestMove = bestPV.GetFirst();
-				phe.m_Depth = depth;
-				phe.m_Score = alpha;
-				phe.m_TypeBits = HET_EXACT;
-				phe.m_Ply = pos.GetPly();
-				pos.Insert( phe );
+				/* Only do this if this is not a null window search */
+				if ( beta - alpha > 1 )
+				{
+					PositionHashEntry phe;
+					phe.m_BestMove = bestMove;
+					phe.m_Depth = depth;
+					phe.m_Score = alpha;
+					phe.m_TypeBits = HET_EXACT;
+					phe.m_Ply = pos.GetPly();
+					pos.Insert( phe );
+				}
 			}
 			else
 			{
 				/* This is an ALL node. And the hash entry is an Upper type because
-				 * the score is an upper bound on the bad side 
-				 * (the score could actually be worse than alpha, but 
+				 * the score is an upper bound on the bad side
+				 * (the score could actually be worse than alpha, but
 				 * it can not be greater than alpha).
 				 */
-				PositionHashEntry phe;
-				phe.m_Depth = depth;
-				phe.m_Score = alpha;
-				phe.m_TypeBits = HET_UPPER_BOUND;
-				phe.m_Ply = pos.GetPly();
-				pos.Insert( phe ); 
+				/* Only do this if this is not a null window search */
+				if ( beta - alpha > 1 )
+				{
+					PositionHashEntry phe;
+					phe.m_Depth = depth;
+					phe.m_Score = alpha;
+					phe.m_TypeBits = HET_UPPER_BOUND;
+					phe.m_Ply = pos.GetPly();
+					pos.Insert( phe );
+				}
 				// fail-low alpha cutoff
 			}
-
 			return alpha; // fail-hard
 		}
 };
@@ -2455,6 +2496,9 @@ class Game : Object
 		Position m_Position;
 };
 
+class Interface;
+Interface* s_pDefaultInterface = NULL;
+
 class Interface : Object
 {
 	public:
@@ -2471,6 +2515,7 @@ class Interface : Object
 			m_pGame( new Game )
 		{
 			m_pSearcher = shared_ptr< Searcher >( new Searcher( *this ) );
+			s_pDefaultInterface = this;
 		}
 
 		~Interface()
@@ -2561,6 +2606,14 @@ class Interface : Object
 
 			Instruct( "id name Ippon" );
 			Instruct( "id author John Byrd" );
+
+			Instruct( "option name Hash type spin default 1 min 1 max 2048");
+			Instruct( "option name UCI_EngineAbout type string default Ippon by John Byrd, see http://www.github.com/johnwbyrd/ippon");
+
+			stringstream ss;
+			ss << "Built on " << __DATE__ << " " __TIME__;
+			Notify( ss.str() );
+
 			Instruct( "uciok" );
 		}
 
@@ -2590,10 +2643,39 @@ class Interface : Object
 
 		INTERFACE_PROTOTYPE( SetOption )
 		{
-			stringstream ss;
-			ss << "SetOption parameters: " << sParams;
+			stringstream ss( sParams );
+			string sParam, sName;
+			size_t nValue = 1;
 
-			Notify( "SetOption not yet implemented" );
+			while ( ss >> sParam )
+			{
+				if ( sParam == "name")
+				{
+					ss >> sName;
+				}
+				else if ( sParam == "value")
+				{
+					ss >> nValue;
+				}
+				else
+				{
+					stringstream sfail;
+					sfail << "Unrecognized SetOption parameter: " << sParam;
+					Notify( sfail.str() );
+				}
+			}
+
+			if ( !sName.empty() )
+			{
+				if ( sName == "Hash")
+				{
+					s_pPositionHashTable->SetSize( nValue * 1024 * 1024 );
+				}
+			}
+			else
+			{
+				Notify("SetOption: Could not find name of the option to set");
+			}
 		}
 
 		INTERFACE_PROTOTYPE( UCIGo )
@@ -2601,9 +2683,9 @@ class Interface : Object
 			stringstream ss( sParams );
 			string sParam;
 
-			while ( ss >> sParam ) 
+			while ( ss >> sParam )
 			{
-				if ( sParam == "depth")
+				if ( sParam == "depth" )
 				{
 					int depth;
 					ss >> depth;
@@ -2765,6 +2847,16 @@ class Interface : Object
 	protected:
 		unordered_map< string, InterfaceFunctionType > m_CommandMap;
 };
+
+void Die( const string& s )
+{
+	if ( s_pDefaultInterface )
+		s_pDefaultInterface->Notify( s );
+
+	abort();
+}
+
+
 
 void SearcherBase::Notify( const string& s ) const
 {
