@@ -1117,8 +1117,8 @@ class PositionHashTable : public Object
 {
 	public:
 		PositionHashTable() :
-			m_SizeBytes( 0 ), m_SizeEntries( 0 ),
-			m_SizeBytesMask( 0 ), m_pEntries( nullptr ),
+			m_pEntries( nullptr ),
+			m_SizeBytes( 0 ), m_SizeEntries( 0 ), m_SizeBytesMask( 0 ),
 			m_CacheLookups( 0 ), m_CacheMisses( 0 ), m_CacheHits( 0 ),
 			m_nEntriesInUse( 0 )
 		{
