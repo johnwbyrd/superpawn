@@ -488,7 +488,7 @@ class BoardHashing : public BoardBase
 {
 		typedef BoardBase super;
 	public:
-		BoardHashing() : m_Hash( 0 ), BoardBase()
+		BoardHashing() : BoardBase(), m_Hash( 0 )
 		{
 			Initialize();
 		}
@@ -1207,8 +1207,8 @@ class PositionHashTable : public Object
 
 		PositionHashEntry* m_pEntries;
 		size_t m_SizeBytes, m_SizeEntries, m_SizeBytesMask;
-		uint64_t m_nEntriesInUse;
 		uint64_t m_CacheLookups, m_CacheMisses, m_CacheHits;
+		uint64_t m_nEntriesInUse;
 };
 
 class HashTableInitializer : public Object
