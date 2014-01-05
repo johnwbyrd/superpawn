@@ -1789,8 +1789,9 @@ class SearcherBase : Object
 			m_nDepth = depth;
 		}
 
-		virtual void Start( const Position& /*pos*/ )
+		virtual void Start( const Position &pos)
 		{
+			m_Root = pos;
 			m_nNodesSearched = 0;
 			m_Clock.Reset();
 			m_Clock.Start();
@@ -1822,7 +1823,8 @@ class SearcherBase : Object
 			m_bTerminated = true;
 		}
 
-		virtual int Search( Position& pos ) = 0;
+		/** Conducts a search starting at m_Root. */
+		virtual int Search() = 0;
 
 		int m_nNodesSearched;
 		int m_nDepth;
@@ -1838,6 +1840,8 @@ class SearcherBase : Object
 
 		SearcherBase( const SearcherBase& ) {};
 		SearcherBase() {};
+
+		Position m_Root;
 };
 
 class SearcherReporting : public SearcherBase
@@ -1875,6 +1879,7 @@ class SearcherReporting : public SearcherBase
 class SearcherThreaded : public SearcherReporting
 {
 	public:
+		typedef SearcherReporting super;
 		typedef lock_guard< mutex > SearchLockType;
 
 		SearcherThreaded( Interface& interface ) :
@@ -1886,10 +1891,11 @@ class SearcherThreaded : public SearcherReporting
 			Stop();
 		}
 
-		virtual void Start( const Position& pos )
+		virtual void Start( const Position &pos )
 		{
 			Stop();
-			SearcherReporting::Start( pos );
+
+			super::Start( pos );
 
 			SearchLockType guard( m_Lock );
 
@@ -1898,7 +1904,7 @@ class SearcherThreaded : public SearcherReporting
 
 			m_Result.Clear();
 			m_bTerminated = false;
-			m_Thread = thread( &SearcherThreaded::Search, std::ref( *this ), pos );
+			m_Thread = thread( &SearcherThreaded::Search, this );
 		}
 
 		virtual void Stop()
@@ -1913,14 +1919,14 @@ class SearcherThreaded : public SearcherReporting
 
 	protected:
 
-		virtual int Search( Position& pos )
+		virtual int Search( )
 		{
 			for ( int nCurrentDepth = 1; nCurrentDepth <= m_nDepth; 
 				nCurrentDepth++ )
 			{
 				Moves PV;
 				m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-					nCurrentDepth, pos, PV );
+					nCurrentDepth, m_Root, PV );
 				m_Result = PV;
 				
 				stringstream ss;
@@ -2050,7 +2056,6 @@ class SearcherThreaded : public SearcherReporting
 
 	protected:
 		SearcherThreaded();
-
 };
 
 class SearcherPrincipalVariation : public SearcherThreaded
