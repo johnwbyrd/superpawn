@@ -19,7 +19,9 @@
 
 /** Number of rows and columns on the board */
 const unsigned int MAX_FILES = 8;
-const unsigned int NUM_PIECES = 7;
+
+/** See the table in the PieceInitializer() constructor for more details on this */
+const unsigned int NUM_PIECES = 13;
 const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
@@ -178,7 +180,8 @@ class Piece : Object
 
 		virtual int PieceValue() const = 0;
 		/** A unique index value for each piece. */
-		virtual int Index() const = 0;
+		virtual int Index() const { return m_nIndex; };
+		virtual void SetIndex( int i ) { m_nIndex = i; };
 		virtual Moves GenerateMoves( const Square& source,
 									 const Board& board ) const = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
@@ -219,6 +222,7 @@ class Piece : Object
 		Color   m_Color;
 		Piece*   m_pOtherColor;
 		PieceType m_PieceType;
+		int		m_nIndex;
 };
 
 class NoPiece : public Piece
@@ -229,11 +233,6 @@ class NoPiece : public Piece
 			m_Letter = '.';
 			m_PieceType = NONE;
 			m_pOtherColor = this;
-		}
-
-		int Index() const
-		{
-			return 0;
 		}
 
 		int PieceValue() const
@@ -252,11 +251,6 @@ class Pawn : public Piece
 		{
 			m_PieceType = PAWN;
 			m_Letter = 'p';
-		}
-
-		int Index() const
-		{
-			return 1;
 		}
 
 		int PieceValue() const
@@ -283,11 +277,6 @@ class Bishop : public Piece
 			return 300;
 		}
 
-		int Index() const
-		{
-			return 2;
-		}
-
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
@@ -304,11 +293,6 @@ class Knight : public Piece
 		int PieceValue() const
 		{
 			return 300;
-		}
-
-		int Index() const
-		{
-			return 3;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -329,11 +313,6 @@ class Rook : public Piece
 			return 500;
 		}
 
-		int Index() const
-		{
-			return 4; //-V112
-		}
-
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
@@ -352,11 +331,6 @@ class Queen : public Piece
 			return 900;
 		}
 
-		int Index() const
-		{
-			return 5;
-		}
-
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
 
 };
@@ -373,11 +347,6 @@ class King : public Piece
 		int PieceValue() const
 		{
 			return 1000000;
-		}
-
-		int Index() const
-		{
-			return 6;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -532,7 +501,16 @@ class BoardHashing : public BoardBase
 
 		virtual const Piece* Set( int index, const Piece* piece ) override
 		{
-			m_Hash ^= s_PiecePositionHash[ index ][ piece->Index() ];
+			// first, erase the old piece if it is non-null
+			const Piece *curPiece = Get( index );
+
+			if ( curPiece != &None )
+				m_Hash ^= s_PiecePositionHash[ index ][ curPiece->Index() ];
+
+			// next, place the next piece if it is non-null
+			if ( piece != &None )
+				m_Hash ^= s_PiecePositionHash[ index ][ piece->Index() ];
+
 			return super::Set( index, piece );
 		}
 
@@ -854,6 +832,21 @@ class PieceInitializer : Object
 
 			NullMove.Source( Square( -99, -99 ) );
 			NullMove.Dest( Square( -99, -99 ) );
+
+			None.SetIndex( 0 );
+			WhitePawn.SetIndex( 1 );
+			BlackPawn.SetIndex( 2 );
+			WhiteKnight.SetIndex( 3 );
+			BlackKnight.SetIndex( 4 );
+			WhiteBishop.SetIndex( 5 );
+			BlackBishop.SetIndex( 6 );
+			WhiteRook.SetIndex( 7 );
+			BlackRook.SetIndex( 8 );
+			WhiteQueen.SetIndex( 9 );
+			BlackQueen.SetIndex( 10 );
+			WhiteKing.SetIndex( 11 );
+			BlackKing.SetIndex( 12 );
+
 		}
 };
 
@@ -1143,6 +1136,10 @@ class PositionHashTable : public Object
  			size_t loc = entry.m_Hash % m_SizeEntries;
 			/** todo Insert logic for different strategies */
 			PositionHashEntry *pHE = m_pEntries + loc;
+
+			if ( pHE->m_TypeBits == HET_NONE )
+				m_nEntriesInUse++;
+
 			if ( pHE->m_Hash == entry.m_Hash )
 			{
 				/* Only overwrite if the search depth is farther */
@@ -1202,9 +1199,15 @@ class PositionHashTable : public Object
 			m_pEntries = new PositionHashEntry[ m_SizeEntries ];
 		}
 
+		/** Returns a value representing how full the cache is.  0 is empty.  1000 is full.  */
+		virtual unsigned int GetHashFull()
+		{
+			return (unsigned int) ( 1000 * m_nEntriesInUse / m_SizeEntries );
+		}
+
 		PositionHashEntry* m_pEntries;
 		size_t m_SizeBytes, m_SizeEntries, m_SizeBytesMask;
-		int m_nEntriesInUse;
+		uint64_t m_nEntriesInUse;
 		uint64_t m_CacheLookups, m_CacheMisses, m_CacheHits;
 };
 
@@ -1845,7 +1848,7 @@ class SearcherReporting : public SearcherBase
 		SearcherReporting( Interface& interface ) :
 			SearcherBase( interface ) {};
 
-		virtual void Report( const Position& )
+		virtual void Report( const Position& pos)
 		{
 			static int sReportDelay = 0;
 
@@ -1857,11 +1860,14 @@ class SearcherReporting : public SearcherBase
 			Clock::ChessTickType tMilliSinceStart = m_Clock.Get();
 			uint64_t nodesPerSec = m_nNodesSearched * 1000 / tMilliSinceStart;
 
+			int hashFull = pos.GetHashTable()->GetHashFull();
+
 			stringstream ss;
 
 			ss << "info time " << tMilliSinceStart
 			   << " nodes " << m_nNodesSearched
-			   << " nps " << nodesPerSec;
+			   << " nps " << nodesPerSec
+			   << " hashfull " << hashFull ;
 
 			Instruct( ss.str() );
 		}

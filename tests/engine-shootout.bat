@@ -1,0 +1,2 @@
+rem engine-shootout
+..\tools\win32\cutechess-cli.exe -debug -engine tc=inf proto=uci name=Ippon cmd=Ippon.exe dir=..\build\vs2012\x86\RelWithDebInfo -engine tc=inf proto=uci name=Ippon cmd=Ippon.exe dir=..\build\vs2012\x86\RelWithDebInfo
