@@ -2609,6 +2609,9 @@ class Interface : Object
 			ss << "Built on " << __DATE__ << " " __TIME__;
 			Notify( ss.str() );
 
+			string none;
+			New( none );
+
 			Instruct( "uciok" );
 		}
 
