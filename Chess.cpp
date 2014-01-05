@@ -53,7 +53,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <atomic>
 #include <random>
 
-/** A number which is large for int's but for which is idempotent under double negation */
+/** A number which is large and idempotent under double negation */
 const int BIG_NUMBER = INT_MAX - 1000;
 
 using namespace std;
@@ -526,6 +526,7 @@ class BoardHashing : public BoardBase
 
 		virtual void Initialize() override
 		{
+			m_Hash = 0;
 			super::Initialize();
 		}
 
@@ -879,7 +880,7 @@ class Moves : Object
 		/** Find the move in the moves list, remove it and push it onto the
 		 ** front of the list.
 		 **/
-		void Bump( const Move& bump )
+		bool Bump( const Move& bump )
 		{
 			MovesInternalType::iterator it;
 
@@ -892,12 +893,13 @@ class Moves : Object
 					tmp = *( m_Moves.begin() );
 					*( m_Moves.begin() ) = *it;
 					*it = tmp;
-					return;
+					return true;
 				}
 				++it;
 			}
 
 			Die( "Expected to find the bump element in the array, but it didn't exist -- bad hash table?" );
+			return false;
 		}
 
 		size_t Count() const
@@ -1109,6 +1111,7 @@ class PositionHashEntry : public Object
 			m_Depth( 0 ),
 			m_Ply( 0 ),
 			m_Score( 0 )
+			// m_sFEN( "" )
 		{
 			m_TypeBits = HET_NONE;
 		}
@@ -1137,7 +1140,7 @@ class PositionHashTable : public Object
 
 		virtual void Insert( const PositionHashEntry& entry )
 		{
-			size_t loc = entry.m_Hash % m_SizeEntries;
+ 			size_t loc = entry.m_Hash % m_SizeEntries;
 			/** todo Insert logic for different strategies */
 			PositionHashEntry *pHE = m_pEntries + loc;
 			if ( pHE->m_Hash == entry.m_Hash )
@@ -1171,8 +1174,12 @@ class PositionHashTable : public Object
 
 		virtual void SetSize( size_t size )
 		{
+			/*
 			if ( m_SizeBytes )
-			{ delete m_pEntries; }
+			{ 
+				delete m_pEntries;
+			}
+			*/
 
 			if ( size == 0 )
 			{
@@ -1231,10 +1238,10 @@ class Position : Object
 			SetColorToMove( WHITE );
 			m_nPly = 0;
 			m_nMaterialScore = 0;
-			m_nHalfMoves = 0;
 			m_bBKR = m_bBQR = m_bWKR = m_bWQR = true;
 			m_sEnPassant.Set( -1, -1 );
 			m_Moves.Clear();
+			m_Board.Initialize();
 		}
 
 		Position( bool colorToMove )
@@ -1286,20 +1293,6 @@ class Position : Object
 		 **/
 		Position( const Position& position, const Move& move )
 		{
-			/*
-			m_Board = position.m_Board;
-			m_ColorToMove = !(position.m_ColorToMove);
-			m_nPly = position.m_nPly;
-			m_nPly++;
-			m_nLowerBound = position.m_nLowerBound;
-			m_nUpperBound = position.m_nUpperBound;
-			m_nMaterialScore = position.m_nMaterialScore;
-
-			m_bWKR = position.m_bWKR;
-			m_bWQR = position.m_bWQR;
-			m_bBKR = position.m_bBKR;
-			m_bBQR = position.m_bBQR;
-			*/
 			*this = position;
 
 			m_Moves.Clear();
@@ -1404,6 +1397,8 @@ class Position : Object
 
 		int SetFEN( const string& sFEN )
 		{
+			Initialize();
+
 			stringstream ss;
 
 			ss.str( sFEN );
@@ -1411,14 +1406,13 @@ class Position : Object
 			string sBoard, sToMove, sVirgins, sEnPassant;
 			int nMoves;
 
-			ss >> sBoard >> sToMove >> sVirgins >> sEnPassant >> m_nHalfMoves >> nMoves;
+			ss >> sBoard >> sToMove >> sVirgins >> sEnPassant >> m_nPly >> nMoves;
 
 			int j = MAX_FILES - 1;
 			int i = 0;
 			char c;
 
 			stringstream ssBoard( sBoard );
-			m_Board.Initialize();
 
 			while ( ssBoard >> c )
 			{
@@ -1547,8 +1541,10 @@ class Position : Object
 			const Piece* pPiece;
 			int nSpaces = 0;
 
-			for ( unsigned int j = MAX_FILES - 1; j != 0; j-- )
+			for ( unsigned int jj = 1; jj <= MAX_FILES; jj++ )
 			{
+				unsigned int j = MAX_FILES - jj;
+
 				for ( unsigned int i = 0; i < MAX_FILES; i++ )
 				{
 					pPiece = m_Board.Get( i, j );
@@ -1598,7 +1594,7 @@ class Position : Object
 			ss << " ";
 			ss << ( string )m_sEnPassant;
 			ss << " ";
-			ss << m_nHalfMoves;
+			ss << m_nPly;
 			ss << " ";
 			ss << m_nPly / 2 + 1;
 
@@ -1608,12 +1604,6 @@ class Position : Object
 		}
 
 		operator string () { return GetFEN(); }
-
-		unsigned int UpperBound() const { return m_nUpperBound; }
-		void UpperBound( unsigned int val ) { m_nUpperBound = val; }
-
-		unsigned int LowerBound() const { return m_nLowerBound; }
-		void LowerBound( unsigned int val ) { m_nLowerBound = val; }
 
 		Color GetColorToMove() const { return m_ColorToMove; }
 		void SetColorToMove( Color val ) { m_ColorToMove = val; }
@@ -1644,7 +1634,6 @@ class Position : Object
 		int m_nLowerBound;
 		int m_nUpperBound;
 		int m_nMaterialScore;
-		int m_nHalfMoves;
 		// Virgin rooks; can tell whether any of the four rooks has been moved
 		bool m_bWKR, m_bWQR, m_bBKR, m_bBQR;
 		Square m_sEnPassant;
@@ -1825,9 +1814,6 @@ class SearcherBase : Object
 		{
 			stringstream ss;
 
-			ss << "Principal variation found: " << ( string ) m_Result;
-			Notify( ss.str() );
-
 			ss.str( "" );
 			ss << ( string ) m_Result.GetFirst();
 			Bestmove( ss.str() );
@@ -1925,8 +1911,6 @@ class SearcherAlphaBeta : public SearcherReporting
 
 		virtual int Search( Position& pos )
 		{
-			pos.Dump();
-
 			for ( int nCurrentDepth = 1; nCurrentDepth <= m_nDepth; 
 				nCurrentDepth++ )
 			{
@@ -1936,11 +1920,11 @@ class SearcherAlphaBeta : public SearcherReporting
 				m_Result = PV;
 				
 				stringstream ss;
-				ss << "depth " << nCurrentDepth;
+				ss << "info depth " << nCurrentDepth;
 				ss << " pv " << (string)PV;
 				ss << " score cps "	<< m_Score;
 
-				Notify(ss.str());
+				Instruct(ss.str());
 			}
 
 			SearchComplete();
@@ -2089,6 +2073,8 @@ class SearcherPrincipalVariation : public SearcherAlphaBeta
 			 */
 			int score = 0;
 			m_nNodesSearched++;
+
+			string sPosFEN = pos.GetFEN();
 
 			const PositionHashEntry* pEntry = pos.LookUp();
 
@@ -2850,10 +2836,13 @@ class Interface : Object
 
 void Die( const string& s )
 {
+	const bool bAbortOnDie = false;
+
 	if ( s_pDefaultInterface )
 		s_pDefaultInterface->Notify( s );
 
-	abort();
+	if ( bAbortOnDie )
+		abort();
 }
 
 
@@ -2881,18 +2870,7 @@ int main( int , char** )
 	HashTableInitializer hashTableInitializer;
 	Interface i;
 
-	/*
-	stringstream ss;
-
-	ss.str("uci\nucinewgame\ngo\n");
-	i.SetIn( &ss ); */
-
 	i.Run();
-
-	/*
-	chrono::seconds um( 60 );
-	this_thread::sleep_for( um );
-	*/
 
 	return 0;
 }
