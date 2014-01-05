@@ -1634,8 +1634,6 @@ class Position : Object
 		Board   m_Board;
 		Color   m_ColorToMove;
 		unsigned int    m_nPly;
-		int m_nLowerBound;
-		int m_nUpperBound;
 		int m_nMaterialScore;
 		// Virgin rooks; can tell whether any of the four rooks has been moved
 		bool m_bWKR, m_bWQR, m_bBKR, m_bBQR;
@@ -1874,16 +1872,16 @@ class SearcherReporting : public SearcherBase
 
 };
 
-class SearcherAlphaBeta : public SearcherReporting
+class SearcherThreaded : public SearcherReporting
 {
 	public:
 		typedef lock_guard< mutex > SearchLockType;
 
-		SearcherAlphaBeta( Interface& interface ) :
+		SearcherThreaded( Interface& interface ) :
 			SearcherReporting( interface )
 		{ }
 
-		virtual ~SearcherAlphaBeta()
+		virtual ~SearcherThreaded()
 		{
 			Stop();
 		}
@@ -1900,7 +1898,7 @@ class SearcherAlphaBeta : public SearcherReporting
 
 			m_Result.Clear();
 			m_bTerminated = false;
-			m_Thread = thread( &SearcherAlphaBeta::Search, this, pos );
+			m_Thread = thread( &SearcherThreaded::Search, std::ref( *this ), pos );
 		}
 
 		virtual void Stop()
@@ -2051,13 +2049,13 @@ class SearcherAlphaBeta : public SearcherReporting
 		}
 
 	protected:
-		SearcherAlphaBeta();
+		SearcherThreaded();
 
 };
 
-class SearcherPrincipalVariation : public SearcherAlphaBeta
+class SearcherPrincipalVariation : public SearcherThreaded
 {
-		typedef SearcherAlphaBeta super;
+		typedef SearcherThreaded super;
 	public:
 		SearcherPrincipalVariation( Interface& interface ) :
 			super( interface )
