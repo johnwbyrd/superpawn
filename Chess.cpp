@@ -32,7 +32,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 4; //-V112
+const unsigned int SEARCH_DEPTH = 6; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -81,6 +81,14 @@ enum PieceType
 	QUEEN,
 	KING
 };
+
+const int NONE_VALUE = 0;
+const int PAWN_VALUE = 100;
+const int KNIGHT_VALUE = 300;
+const int BISHOP_VALUE = 300;
+const int ROOK_VALUE = 500;
+const int QUEEN_VALUE = 900;
+const int KING_VALUE = 100000;
 
 class PieceInitializer;
 class Board;
@@ -237,7 +245,7 @@ class NoPiece : public Piece
 
 		int PieceValue() const
 		{
-			return 0;
+			return NONE_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -255,7 +263,7 @@ class Pawn : public Piece
 
 		int PieceValue() const
 		{
-			return 100;
+			return PAWN_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -274,7 +282,7 @@ class Bishop : public Piece
 		}
 		int PieceValue() const
 		{
-			return 300;
+			return BISHOP_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -292,7 +300,7 @@ class Knight : public Piece
 
 		int PieceValue() const
 		{
-			return 300;
+			return KNIGHT_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -310,7 +318,7 @@ class Rook : public Piece
 
 		int PieceValue() const
 		{
-			return 500;
+			return ROOK_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -328,7 +336,7 @@ class Queen : public Piece
 
 		int PieceValue() const
 		{
-			return 900;
+			return QUEEN_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -346,7 +354,7 @@ class King : public Piece
 
 		int PieceValue() const
 		{
-			return 1000000;
+			return KING_VALUE;
 		}
 
 		Moves GenerateMoves( const Square& source, const Board& board ) const;
@@ -2146,6 +2154,15 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				return beta;
 			}
 
+			{
+				Move firstMove = myMoves.GetFirst();
+				const Piece *pTarget = pos.GetBoard().Get( firstMove.Dest() );
+
+				if ( pTarget->PieceValue() >= KING_VALUE )
+					return pos.GetColorBias() * KING_VALUE;
+
+			}
+
 			/* We got an exact match but the search wasn't deep enough to
 			 * simply return.  So seed this search with the exact value
 			 * from the hash table.
@@ -2599,11 +2616,11 @@ class Interface : Object
 		{
 			RegisterUCI( sParams );
 
-			Instruct( "id name Ippon" );
+			Instruct( "id name Superpawn" );
 			Instruct( "id author John Byrd" );
 
 			Instruct( "option name Hash type spin default 1 min 1 max 2048");
-			Instruct( "option name UCI_EngineAbout type string default Ippon by John Byrd, see http://www.github.com/johnwbyrd/ippon");
+			Instruct( "option name UCI_EngineAbout type string default See http://www.github.com/johnwbyrd/superpawn");
 
 			stringstream ss;
 			ss << "Built on " << __DATE__ << " " __TIME__;
