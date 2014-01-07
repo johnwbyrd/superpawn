@@ -1314,6 +1314,14 @@ class Position : Object
 				return;
 			}
 
+			if ( GetBoard().Get( move.Source()) == &None )
+			{
+				stringstream ss; 
+				ss << "Illegal move: no piece found at source location for move ";
+				ss << (string)move;
+				Die( ss.str() );
+			}
+
 			/* Move piece and optionally promote */
 			if ( move.GetPromoteTo() == &None )
 			{
@@ -1362,9 +1370,26 @@ class Position : Object
 		const Moves& GetMoves()
 		{
 			if ( m_Moves.IsEmpty() )
-			{ GenerateMoves(); }
+				GenerateMoves();
 
 			return m_Moves;
+		}
+
+		const Moves &GetCaptures()
+		{
+			if ( m_Captures.IsEmpty() )
+			{
+				if ( m_Moves.IsEmpty() )
+					GenerateMoves();
+				
+				for ( auto &move: m_Moves )
+				{
+					if ( move.Score() > 0 )
+						m_Captures.Add( move );
+				}
+			}
+
+			return m_Captures;
 		}
 
 		size_t CountMoves()
@@ -1648,6 +1673,7 @@ class Position : Object
 		Square m_sEnPassant;
 		/** Cached generated moves. */
 		Moves m_Moves;
+		Moves m_Captures;
 };
 
 HashValue PositionHasher::GetHash() const
@@ -2091,8 +2117,6 @@ class SearcherPrincipalVariation : public SearcherThreaded
 			int score = 0;
 			m_nNodesSearched++;
 
-			string sPosFEN = pos.GetFEN();
-
 			const PositionHashEntry* pEntry = pos.LookUp();
 
 			/* See if an entry in the hash table exists at this depth for this
@@ -2154,13 +2178,15 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				return beta;
 			}
 
-			{
+			{			
+				/* If the king has been captured, abort evaluation here.  Don't
+				 * go off and try to evaluate king exchanges and whatnot -- it's 
+				 * the end of the game.
+				 */
 				Move firstMove = myMoves.GetFirst();
 				const Piece *pTarget = pos.GetBoard().Get( firstMove.Dest() );
-
 				if ( pTarget->PieceValue() >= KING_VALUE )
-					return pos.GetColorBias() * KING_VALUE;
-
+					return KING_VALUE;
 			}
 
 			/* We got an exact match but the search wasn't deep enough to
@@ -2770,6 +2796,8 @@ class Interface : Object
 					}
 				}
 			}
+
+			Notify( m_pGame->GetPosition()->GetFEN() );
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( New )
@@ -2865,7 +2893,7 @@ class Interface : Object
 
 void Die( const string& s )
 {
-	const bool bAbortOnDie = false;
+	const bool bAbortOnDie = true;
 
 	if ( s_pDefaultInterface )
 		s_pDefaultInterface->Notify( s );
