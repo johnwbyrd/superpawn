@@ -1308,9 +1308,12 @@ class Position : Object
 		 **/
 		Position( const Position& position, const Move& move )
 		{
+			/** \todo Optimize this -- way too slow. */
 			*this = position;
 
 			m_Moves.Clear();
+			m_Captures.Clear();
+
 			m_nPly++;
 
 			if ( &move == &NullMove )
@@ -1415,6 +1418,8 @@ class Position : Object
 				{
 					if ( move.Score() > 0 )
 						m_Captures.Add( move );
+					else
+						break;
 				}
 			}
 
@@ -2193,14 +2198,27 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				};
 			}
 
-			if( depth == 0 )
-			{
-				Report( pos );
-				return Evaluate( pos );
-			}
-
 			Moves bestPV, currentPV;
-			Moves myMoves = pos.GetMoves();
+			Moves myMoves;
+
+//			bool bCanEnterIntoHashTable = ( ( beta - alpha > 1 ));
+			bool bCanEnterIntoHashTable = (( depth > 0 ) && ( beta - alpha > 1 ));
+
+			if ( depth > 0 )
+			{
+				myMoves = pos.GetMoves();
+			}
+			else
+			{
+				/* quiesce */
+				bCanEnterIntoHashTable = false;
+				myMoves = pos.GetCaptures();
+				if ( myMoves.Count() == 0 )
+				{
+					Report( pos );
+					return Evaluate( pos );
+				}
+			}
 
 			if ( myMoves.IsEmpty() )
 			{
@@ -2262,7 +2280,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 					pv.Make( nullMove );
 
 					/* Only do this if this is not a null window search */
-					if ( beta - alpha > 1 )
+					if ( bCanEnterIntoHashTable )
 					{
 						/* This was a full search, insert it into the hash table */
 						PositionHashEntry phe;
@@ -2294,7 +2312,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				pv = bestPV;
 				/* This is a PV or exact node. */
 				/* Only do this if this is not a null window search */
-				if ( beta - alpha > 1 )
+				if ( bCanEnterIntoHashTable )
 				{
 					PositionHashEntry phe;
 					phe.m_BestMove = bestMove;
@@ -2313,7 +2331,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				 * it can not be greater than alpha).
 				 */
 				/* Only do this if this is not a null window search */
-				if ( beta - alpha > 1 )
+				if ( bCanEnterIntoHashTable )
 				{
 					PositionHashEntry phe;
 					phe.m_Depth = depth;
