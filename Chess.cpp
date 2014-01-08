@@ -96,6 +96,7 @@ class Move;
 class Moves;
 class Square;
 class Interface;
+class Position;
 
 /* Definitions specifically to speed along function creation in the Interface class. */
 #define INTERFACE_FUNCTION_PARAMS const string &sParams
@@ -190,8 +191,7 @@ class Piece : Object
 		/** A unique index value for each piece. */
 		virtual int Index() const { return m_nIndex; };
 		virtual void SetIndex( int i ) { m_nIndex = i; };
-		virtual Moves GenerateMoves( const Square& source,
-									 const Board& board ) const = 0;
+		virtual Moves GenerateMoves( const Square& source, const Position& pos ) const = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
 		virtual bool IsDifferentOrEmpty( const Square& dest, const Board& board ) const;
 
@@ -224,6 +224,10 @@ class Piece : Object
 			m_Color = val;
 		}
 
+		PieceType Type() const
+		{
+			return m_PieceType;
+		}
 
 	protected:
 		char    m_Letter;
@@ -248,7 +252,7 @@ class NoPiece : public Piece
 			return NONE_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 };
 
@@ -266,7 +270,7 @@ class Pawn : public Piece
 			return PAWN_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 		virtual void AddAndPromote( Moves& moves, Move& m,
 									const bool bIsPromote ) const;
@@ -285,7 +289,7 @@ class Bishop : public Piece
 			return BISHOP_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 };
 
@@ -303,7 +307,7 @@ class Knight : public Piece
 			return KNIGHT_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 };
 
@@ -321,7 +325,7 @@ class Rook : public Piece
 			return ROOK_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 };
 
@@ -339,7 +343,7 @@ class Queen : public Piece
 			return QUEEN_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 };
 
@@ -357,7 +361,7 @@ class King : public Piece
 			return KING_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Board& board ) const;
+		Moves GenerateMoves( const Square& source, const Position& pos) const;
 
 	private:
 		King();
@@ -1322,9 +1326,10 @@ class Position : Object
 				Die( ss.str() );
 			}
 
-			/* Move piece and optionally promote */
 			if ( move.GetPromoteTo() == &None )
 			{
+				/* Move piece */
+
 				m_nMaterialScore = position.GetScore() + ( m_Board.Get(
 									   move.Dest() )->PieceValue() ) *
 								   GetColorBias();
@@ -1332,9 +1337,33 @@ class Position : Object
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
 							 m_Board.Get( move.Source() ) );
 
+				/* Handle castling */
+
+				if ( m_Board.Get( move.Source())->Type() == KING )
+				{
+					
+					if ( abs( move.Source().I() - move.Dest().I() ) == 2 )
+					{
+						/* Move rook during castling */
+						int rookISource = 0, rookIDest = 3, rookJ;
+						rookJ = move.Source().J();
+						if ( move.Dest().I() == 6 ) 
+						{
+							rookISource = 7;
+							rookIDest = 5;
+						}
+
+						const Rook *pRook = dynamic_cast< const Rook * >( m_Board.Get( rookISource, rookJ ));
+						m_Board.Set( rookIDest, rookJ, pRook );
+						m_Board.Set( rookISource, rookJ, &None );						
+					}
+				}
+
 			}
 			else
 			{
+				/* Promote piece */
+
 				m_nMaterialScore = position.GetScore() +
 								   ( move.GetPromoteTo()->PieceValue() +
 									 m_Board.Get( move.Dest() )->PieceValue() ) *
@@ -1360,7 +1389,7 @@ class Position : Object
 
 					if ( ( pPiece != &None ) && ( pPiece->GetColor() == m_ColorToMove ) )
 					{
-						m_Moves.Append( pPiece->GenerateMoves( Square( i, j ), m_Board ) );
+						m_Moves.Append( pPiece->GenerateMoves( Square( i, j ), *this ) );
 					}
 				}
 
@@ -1888,12 +1917,16 @@ class SearcherReporting : public SearcherBase
 		{
 			static int sReportDelay = 0;
 
-			if ( ++sReportDelay < 1000 )
+			if ( ++sReportDelay < 2000 )
 			{ return; }
 
 			sReportDelay = 0;
 
 			Clock::ChessTickType tMilliSinceStart = m_Clock.Get();
+
+			if ( tMilliSinceStart == 0 )
+				return;
+
 			uint64_t nodesPerSec = m_nNodesSearched * 1000 / tMilliSinceStart;
 
 			int hashFull = pos.GetHashTable()->GetHashFull();
@@ -1907,7 +1940,6 @@ class SearcherReporting : public SearcherBase
 
 			Instruct( ss.str() );
 		}
-
 };
 
 class SearcherThreaded : public SearcherReporting
@@ -2185,7 +2217,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				 */
 				Move firstMove = myMoves.GetFirst();
 				const Piece *pTarget = pos.GetBoard().Get( firstMove.Dest() );
-				if ( pTarget->PieceValue() >= KING_VALUE )
+				if ( pTarget->Type() == KING )
 					return KING_VALUE;
 			}
 
@@ -2334,7 +2366,7 @@ bool Piece::IsDifferentOrEmpty( const Square& dest, const Board& board ) const
 }
 
 Moves NoPiece::GenerateMoves( const Square& /*source*/,
-							  const Board& /*board*/ ) const
+							  const Position& /*board*/ ) const
 {
 	Moves moves;
 	return moves;
@@ -2372,11 +2404,12 @@ void Pawn::AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const
 	{ moves.Add( m ); }
 }
 
-Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
+Moves Pawn::GenerateMoves( const Square& source, const Position& pos) const
 {
 	Moves moves;
 	Square dest = source;
 	Color movingColor = GetColor();
+	const Board &board = pos.GetBoard();
 
 	int sourceJ;
 	sourceJ = source.J();
@@ -2425,10 +2458,11 @@ Moves Pawn::GenerateMoves( const Square& source, const Board& board ) const
 	return moves;
 }
 
-Moves Knight::GenerateMoves( const Square& source, const Board& board ) const
+Moves Knight::GenerateMoves( const Square& source, const Position& pos) const
 {
 	Move m( this, source, source );
 	Moves moves;
+	const Board &board = pos.GetBoard();
 
 	moves.TryAttack( m, board, 1, 2 );
 	moves.TryAttack( m, board, -1, 2 );
@@ -2443,10 +2477,11 @@ Moves Knight::GenerateMoves( const Square& source, const Board& board ) const
 	return moves;
 }
 
-Moves Bishop::GenerateMoves( const Square& source, const Board& board ) const
+Moves Bishop::GenerateMoves( const Square& source, const Position& pos) const
 {
 	Moves moves;
 	Move m( this, source, source );
+	const Board &board = pos.GetBoard();
 
 	moves.TryRayAttack( m, board, 1, 1 );
 	moves.TryRayAttack( m, board, 1, -1 );
@@ -2456,10 +2491,11 @@ Moves Bishop::GenerateMoves( const Square& source, const Board& board ) const
 	return moves;
 }
 
-Moves Rook::GenerateMoves( const Square& source, const Board& board ) const
+Moves Rook::GenerateMoves( const Square& source, const Position& pos) const
 {
 	Moves moves;
 	Move m( this, source, source );
+	const Board &board = pos.GetBoard();
 
 	moves.TryRayAttack( m, board, 0, 1 );
 	moves.TryRayAttack( m, board, 0, -1 );
@@ -2469,10 +2505,11 @@ Moves Rook::GenerateMoves( const Square& source, const Board& board ) const
 	return moves;
 }
 
-Moves King::GenerateMoves( const Square& source, const Board& board ) const
+Moves King::GenerateMoves( const Square& source, const Position& pos) const
 {
 	Move m( this, source, source );
 	Moves moves;
+	const Board &board = pos.GetBoard();
 
 	moves.TryAttack( m, board, 1, 0 );
 	moves.TryAttack( m, board, -1, 0 );
@@ -2487,10 +2524,11 @@ Moves King::GenerateMoves( const Square& source, const Board& board ) const
 	return moves;
 }
 
-Moves Queen::GenerateMoves( const Square& source, const Board& board ) const
+Moves Queen::GenerateMoves( const Square& source, const Position& pos) const
 {
 	Moves moves;
 	Move m( this, source, source );
+	const Board &board = pos.GetBoard();
 
 	moves.TryRayAttack( m, board, 1, 1 );
 	moves.TryRayAttack( m, board, 1, -1 );
@@ -2796,8 +2834,6 @@ class Interface : Object
 					}
 				}
 			}
-
-			Notify( m_pGame->GetPosition()->GetFEN() );
 		}
 
 		INTERFACE_PROTOTYPE_NO_PARAMS( New )
