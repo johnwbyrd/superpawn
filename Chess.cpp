@@ -817,7 +817,23 @@ class Move : Object
 
 bool operator< ( const Move& left, const Move& right )
 {
-	if  ( left.Score() > right.Score() ) { return true; }
+	int leftscore = left.Score();
+	int rightscore = right.Score();
+
+	if (( leftscore != 0 ) && ( leftscore == rightscore ))
+	{
+		/* Captured values are the same.  Choose the capturing piece with
+		 * the least value, MVV/LVA style.
+		 */
+		if ( left.GetPiece()->PieceValue() < right.GetPiece()->PieceValue() )
+			return true;
+
+		return false;
+	}
+
+	if ( leftscore > rightscore )
+		return true;
+
 	return false;
 }
 
@@ -1341,10 +1357,8 @@ class Position : Object
 							 m_Board.Get( move.Source() ) );
 
 				/* Handle castling */
-
 				if ( m_Board.Get( move.Source())->Type() == KING )
-				{
-					
+				{					
 					if ( abs( move.Source().I() - move.Dest().I() ) == 2 )
 					{
 						/* Move rook during castling */
@@ -1366,7 +1380,6 @@ class Position : Object
 			else
 			{
 				/* Promote piece */
-
 				m_nMaterialScore = position.GetScore() +
 								   ( move.GetPromoteTo()->PieceValue() +
 									 m_Board.Get( move.Dest() )->PieceValue() ) *
@@ -1842,7 +1855,7 @@ class SearcherBase : Object
 	public:
 		SearcherBase( Interface& interface ) :
 			m_nNodesSearched( 0 ), m_nDepth( SEARCH_DEPTH )
-		{
+		{			
 			m_bTerminated = true;
 			m_pInterface = &interface;
 		}
@@ -2006,6 +2019,9 @@ class SearcherThreaded : public SearcherReporting
 				ss << " score cps "	<< m_Score;
 
 				Instruct(ss.str());
+
+				if ( m_bTerminated )
+					break;
 			}
 
 			SearchComplete();
@@ -2201,7 +2217,6 @@ class SearcherPrincipalVariation : public SearcherThreaded
 			Moves bestPV, currentPV;
 			Moves myMoves;
 
-//			bool bCanEnterIntoHashTable = ( ( beta - alpha > 1 ));
 			bool bCanEnterIntoHashTable = (( depth > 0 ) && ( beta - alpha > 1 ));
 
 			if ( depth > 0 )
@@ -2217,6 +2232,11 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				{
 					Report( pos );
 					return Evaluate( pos );
+				}
+				else
+				{
+					int nThisIsACaptureTypeQuiescingMove;
+					nThisIsACaptureTypeQuiescingMove = 1;
 				}
 			}
 
@@ -2241,6 +2261,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 
 			/* We got an exact match but the search wasn't deep enough to
 			 * simply return.  So seed this search with the exact value
+			 * 
 			 * from the hash table.
 			 */
 			if ( pEntry && ( pEntry->m_TypeBits == HET_EXACT ) )
@@ -2248,7 +2269,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				myMoves.Bump( pEntry->m_BestMove );
 			}
 
-			bool bSearchPv = true;
+			bool bFirstSearch = true;
 			Move bestMove;
 
 			for ( auto& move : myMoves )
@@ -2257,7 +2278,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				currentPV.Make( move );
 				Position nextPos( pos, move );
 
-				if ( bSearchPv )
+				if ( bFirstSearch || (depth <= 0))
 				{
 					score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
 				}
@@ -2271,6 +2292,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 						score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
 					}
 				}
+
 				if( score >= beta )
 				{
 					/* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry
@@ -2302,12 +2324,15 @@ class SearcherPrincipalVariation : public SearcherThreaded
 					alpha = score; // alpha acts like max in MiniMax
 					bestPV = currentPV;
 					bestMove = move;
-					bSearchPv = false;  // *1)
+					bFirstSearch = false;
 				}
+
+				if ( m_bTerminated )
+					break;
 			}
 
 			/* If we got a best move then report it */
-			if ( !bSearchPv )
+			if ( !bFirstSearch )
 			{
 				pv = bestPV;
 				/* This is a PV or exact node. */
@@ -2419,7 +2444,7 @@ void Pawn::AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const
 		}
 	}
 	else
-	{ moves.Add( m ); }
+		moves.Add( m ); 
 }
 
 Moves Pawn::GenerateMoves( const Square& source, const Position& pos) const
@@ -2463,6 +2488,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Position& pos) const
 	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
 	{
 		m.Dest( dest );
+		m.Score( board.Get( dest )->PieceValue() );
 		AddAndPromote( moves, m, bIsPromote );
 	}
 
@@ -2470,6 +2496,7 @@ Moves Pawn::GenerateMoves( const Square& source, const Position& pos) const
 	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
 	{
 		m.Dest( dest );
+		m.Score( board.Get( dest )->PieceValue() );
 		AddAndPromote( moves, m, bIsPromote );
 	}
 
