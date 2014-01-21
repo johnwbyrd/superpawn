@@ -43,6 +43,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <string>
 #include <iostream>
 #include <vector>
+#include <array>
 #include <algorithm>
 #include <sstream>
 #include <unordered_map>
@@ -112,6 +113,80 @@ class Position;
 typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
 	INTERFACE_FUNCTION_PARAMS );
 
+typedef std::array< int, MAX_SQUARES > PieceSquareRawTableType;
+
+PieceSquareRawTableType pstDefault = {
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0,
+	0,	0,	0,	0,	0,	0,	0,	0
+};
+
+/* "A knight on the rim is grim." */
+PieceSquareRawTableType pstKnight = {
+	-100,	-50,	-50,	-50,	-50,	-50,	-50,	-100,
+	-50,	-25,	-20,	-10,	-10,	-20,	-50,	-50,
+	-40,	-20,	-5,		0,		0,		-5,		-20,	-40,
+	-50,	-5,		0,		0,		0,		0,		-5,		-50,
+	-50,	-5,		0,		0,		0,		0,		-5,		-50,
+	-40,	-20,	-5,		0,		0,		-5,		-20,	-40,
+	-50,	-25,	-20,	-10,	-10,	-20,	-50,	-50,
+	-100,	-50,	-50,	-50,	-50,	-50,	-50,	-100
+};
+
+PieceSquareRawTableType pstWhitePawn = {
+	0,		0,		0,		0,		0,		0,		0,		0,
+	0,		0,		0,		0,		0,		0,		0,		0,
+	0,		0,		0,		0,		0,		0,		0,		0,
+	0,		0,		5,		10,		10,		5,		0,		0,
+	10,		10,		20,		30,		30,		20,		10,		10,
+	20,		20,		20,		30,		30,		20,		20,		20,
+	40,		40,		40,		40,		40,		40,		40,		40,
+	0,		0,		0,		0,		0,		0,		0,		0,
+};
+
+class PieceSquareTable : public Object
+{
+public:
+	PieceSquareTable()
+	{
+		for ( int i = 0; i < MAX_SQUARES; i++ )
+		{
+			m_Table[ i ] = 0;
+		}
+	}
+
+	PieceSquareTable( const PieceSquareRawTableType &table )
+	{
+		m_Table = table;
+	}
+
+	void InvertColor()
+	{
+		PieceSquareRawTableType temp;
+		temp = m_Table;
+		for ( int i = 0; i < MAX_FILES; i++ )
+			for ( int j = 0; i < MAX_FILES; j++ )
+			{
+				m_Table[ i + j * MAX_FILES ] =
+					temp[ i + ((MAX_FILES - 1 ) - j) * MAX_FILES];
+			}
+	}
+
+	int Get( const Square &s );
+
+	int Get( unsigned int index )
+	{
+		return m_Table[ index ];
+	}
+
+	PieceSquareRawTableType m_Table;
+};
+
 /** A centisecond wall clock. */
 class Clock : Object
 {
@@ -178,6 +253,7 @@ class Piece : Object
 			m_Color = BLACK;
 			m_PieceType = NONE;
 			m_pOtherColor = NULL;
+			m_PieceSquareTable = pstDefault;
 		}
 
 		Piece( Color color )
@@ -185,6 +261,7 @@ class Piece : Object
 			m_Color = color;
 			m_PieceType = NONE;
 			m_pOtherColor = NULL;
+			m_PieceSquareTable = pstDefault;
 		}
 
 		virtual int PieceValue() const = 0;
@@ -229,13 +306,17 @@ class Piece : Object
 			return m_PieceType;
 		}
 
+		const PieceSquareTable &GetPieceSquareTable() const { return m_PieceSquareTable; }
+		void SetPieceSquareTable(const PieceSquareTable &val) { m_PieceSquareTable = val; }
+
 	protected:
 		char    m_Letter;
 		Color   m_Color;
 		Piece*   m_pOtherColor;
 		PieceType m_PieceType;
 		int		m_nIndex;
-};
+		PieceSquareTable m_PieceSquareTable;
+	};
 
 class NoPiece : public Piece
 {
@@ -375,8 +456,6 @@ Rook WhiteRook( WHITE ), BlackRook( BLACK );        //-V601
 Queen WhiteQueen( WHITE ), BlackQueen( BLACK );     //-V601
 King WhiteKing( WHITE ), BlackKing( BLACK );        //-V601
 NoPiece None;
-
-class Square;
 
 class BoardBase : public Object
 {
@@ -675,6 +754,11 @@ class Square : public Object
 		int j; // rank
 };
 
+int PieceSquareTable::Get( const Square &s )
+{
+	return m_Table[ s.I() + s.J() * MAX_FILES ];
+}
+
 class Move : Object
 {
 	public:
@@ -874,6 +958,14 @@ class PieceInitializer : Object
 			BlackQueen.SetIndex( 10 );
 			WhiteKing.SetIndex( 11 );
 			BlackKing.SetIndex( 12 );
+
+			WhitePawn.SetPieceSquareTable( pstWhitePawn );
+			PieceSquareTable pstBlackPawn = pstWhitePawn;
+			pstBlackPawn.InvertColor();
+			BlackPawn.SetPieceSquareTable( pstBlackPawn );
+
+			WhiteKnight.SetPieceSquareTable( pstKnight );
+			BlackKnight.SetPieceSquareTable( pstKnight );
 
 		}
 };
