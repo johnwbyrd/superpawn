@@ -5,7 +5,7 @@
  ** http://creativecommons.org/licenses/by/3.0/
  **/
 
-/** \todo Check
+ /** \todo Check
  ** \todo Checkmate
  ** \todo Castling
  ** \todo Timers
@@ -890,7 +890,6 @@ class Moves : Object
 		void Initialize()
 		{
 			m_Moves.clear();
-			m_Moves.reserve( DEFAULT_MOVES_SIZE );
 		}
 
 		void Add( const Move& move )
@@ -1269,7 +1268,7 @@ class Position : Object
 			SetColorToMove( WHITE );
 			m_nPly = 0;
 			m_nMaterialScore = 0;
-			m_bBKR = m_bBQR = m_bWKR = m_bWQR = true;
+			m_bH8 = m_bA8 = m_bH1 = m_bA1 = true;
 			m_sEnPassant.Set( -1, -1 );
 			m_Moves.Clear();
 			m_Board.Initialize();
@@ -1325,12 +1324,26 @@ class Position : Object
 		Position( const Position& position, const Move& move )
 		{
 			/** \todo Optimize this -- way too slow. */
+			m_Board = position.m_Board;
+			m_ColorToMove = position.m_ColorToMove;
+			m_nMaterialScore = position.m_nMaterialScore;
+			m_nPly = position.m_nPly + 1;
+
+			m_bH1 = position.m_bH1;
+			m_bA1 = position.m_bA1;
+			m_bH8 = position.m_bH8;
+			m_bA8 = position.m_bA8;
+
+			/*
+			Position attemptedPos = *this;
+
 			*this = position;
 
 			m_Moves.Clear();
 			m_Captures.Clear();
 
 			m_nPly++;
+			*/
 
 			if ( &move == &NullMove )
 			{
@@ -1576,7 +1589,7 @@ class Position : Object
 
 			stringstream ssVirgins( sVirgins );
 
-			m_bWKR = m_bWQR = m_bBKR = m_bBQR = false;
+			m_bH1 = m_bA1 = m_bH8 = m_bA8 = false;
 
 			while ( ssVirgins >> c )
 			{
@@ -1586,19 +1599,19 @@ class Position : Object
 						break;
 
 					case 'K':
-						m_bWKR = true;
+						m_bH1 = true;
 						break;
 
 					case 'Q':
-						m_bWQR = true;
+						m_bA1 = true;
 						break;
 
 					case 'k':
-						m_bBKR = true;
+						m_bH8 = true;
 						break;
 
 					case 'q':
-						m_bBQR = true;
+						m_bA8 = true;
 						break;
 				}
 			}
@@ -1654,22 +1667,26 @@ class Position : Object
 			}
 
 			if ( GetColorToMove() == WHITE  )
-			{ s += " w "; }
+				s += " w ";
 			else
-			{ s += " b "; }
+				s += " b "; 
 
-			if ( !( m_bWKR || m_bWQR || m_bBKR || m_bBQR ) )
-			{ s += "-"; }
+			if ( !( m_bH1 || m_bA1 || m_bH8 || m_bA8 ) )
+				 s += "-"; 
+
 			else
 			{
-				if ( m_bWKR )
-				{ s += "K"; }
-				if ( m_bWQR )
-				{ s += "Q"; }
-				if ( m_bBKR )
-				{ s += "k"; }
-				if ( m_bBQR )
-				{ s += "q"; }
+				if ( m_bH1 )
+					s += "K"; 
+
+				if ( m_bA1 )
+					s += "Q";
+
+				if ( m_bH8 )
+					s += "k";
+
+				if ( m_bA8 )
+					s += "q";
 			}
 
 			stringstream ss;
@@ -1716,7 +1733,7 @@ class Position : Object
 		unsigned int    m_nPly;
 		int m_nMaterialScore;
 		// Virgin rooks; can tell whether any of the four rooks has been moved
-		bool m_bWKR, m_bWQR, m_bBKR, m_bBQR;
+		bool m_bH1, m_bA1, m_bH8, m_bA8;
 		Square m_sEnPassant;
 		/** Cached generated moves. */
 		Moves m_Moves;
@@ -2214,32 +2231,16 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				};
 			}
 
+			if ( depth <= 0 )
+				{
+				Report( pos );
+				return Evaluate( pos );
+				}
+
 			Moves bestPV, currentPV;
 			Moves myMoves;
 
-			bool bCanEnterIntoHashTable = (( depth > 0 ) && ( beta - alpha > 1 ));
-
-			if ( depth > 0 )
-			{
-				myMoves = pos.GetMoves();
-			}
-			else
-			{
-				/* quiesce */
-				bCanEnterIntoHashTable = false;
-				myMoves = pos.GetCaptures();
-				if ( myMoves.Count() == 0 )
-				{
-					Report( pos );
-					return Evaluate( pos );
-				}
-				else
-				{
-					int nThisIsACaptureTypeQuiescingMove;
-					nThisIsACaptureTypeQuiescingMove = 1;
-				}
-			}
-
+			myMoves = pos.GetMoves();
 			if ( myMoves.IsEmpty() )
 			{
 				/* pretend this is a cutoff */
@@ -2270,6 +2271,8 @@ class SearcherPrincipalVariation : public SearcherThreaded
 			}
 
 			bool bFirstSearch = true;
+			bool bIsNotNullWindowSearch = ( beta - alpha > 1 );
+
 			Move bestMove;
 
 			for ( auto& move : myMoves )
@@ -2278,7 +2281,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				currentPV.Make( move );
 				Position nextPos( pos, move );
 
-				if ( bFirstSearch || (depth <= 0))
+				if ( bFirstSearch )
 				{
 					score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
 				}
@@ -2302,7 +2305,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 					pv.Make( nullMove );
 
 					/* Only do this if this is not a null window search */
-					if ( bCanEnterIntoHashTable )
+					if ( bIsNotNullWindowSearch )
 					{
 						/* This was a full search, insert it into the hash table */
 						PositionHashEntry phe;
@@ -2337,7 +2340,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				pv = bestPV;
 				/* This is a PV or exact node. */
 				/* Only do this if this is not a null window search */
-				if ( bCanEnterIntoHashTable )
+				if ( bIsNotNullWindowSearch )
 				{
 					PositionHashEntry phe;
 					phe.m_BestMove = bestMove;
@@ -2356,7 +2359,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				 * it can not be greater than alpha).
 				 */
 				/* Only do this if this is not a null window search */
-				if ( bCanEnterIntoHashTable )
+				if ( bIsNotNullWindowSearch )
 				{
 					PositionHashEntry phe;
 					phe.m_Depth = depth;
