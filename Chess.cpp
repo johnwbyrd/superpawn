@@ -5,17 +5,17 @@
  ** http://creativecommons.org/licenses/by/3.0/
  **/
 
- /** \todo Check
- ** \todo Checkmate
- ** \todo Castling
- ** \todo Timers
- ** \todo En passant
- ** \todo Stalemate
- ** \todo Fifty-move clock
- ** \todo Threefold repetition
- ** \todo Draw due to material
- ** \todo Take castling into account in computing hashes
- **/
+/** \todo Check
+** \todo Checkmate
+** \todo Castling
+** \todo Timers
+** \todo En passant
+** \todo Stalemate
+** \todo Fifty-move clock
+** \todo Threefold repetition
+** \todo Draw due to material
+** \todo Take castling into account in computing hashes
+**/
 
 /** Number of rows and columns on the board */
 const unsigned int MAX_FILES = 8;
@@ -115,76 +115,80 @@ typedef INTERFACE_FUNCTION_RETURN_TYPE ( Interface::*InterfaceFunctionType )(
 
 typedef std::array< int, MAX_SQUARES > PieceSquareRawTableType;
 
-PieceSquareRawTableType pstDefault = {
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0,
-	0,	0,	0,	0,	0,	0,	0,	0
+PieceSquareRawTableType pstDefault =
+{
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0,
+	0,  0,  0,  0,  0,  0,  0,  0
 };
+
 
 /* "A knight on the rim is grim." */
-PieceSquareRawTableType pstKnight = {
-	-100,	-50,	-50,	-50,	-50,	-50,	-50,	-100,
-	-50,	-25,	-20,	-10,	-10,	-20,	-50,	-50,
-	-40,	-20,	-5,		0,		0,		-5,		-20,	-40,
-	-50,	-5,		0,		0,		0,		0,		-5,		-50,
-	-50,	-5,		0,		0,		0,		0,		-5,		-50,
-	-40,	-20,	-5,		0,		0,		-5,		-20,	-40,
-	-50,	-25,	-20,	-10,	-10,	-20,	-50,	-50,
-	-100,	-50,	-50,	-50,	-50,	-50,	-50,	-100
+PieceSquareRawTableType pstKnight =
+{
+	-140,   -110,    -80,   -70,    -70,    -80,    -110,   -140,
+	-90,    -70,    -40,    -30,    -30,    -40,    -70,    -90,
+	-50,    -30,    0,     10,     10,      0,      -30,    -50,
+	-30,     0,    30,     45,      45,      30,     0,    -30,
+	-30,     0,    30,     45,      45,      30,     0,    -30,
+	-50,    -30,    0,     10,     10,      0,      -30,    -50,
+	-90,    -70,    -40,    -30,    -30,    -40,    -70,    -90,
+	-140,   -110,    -80,   -70,    -70,    -80,    -110,   -140
 };
 
-PieceSquareRawTableType pstWhitePawn = {
-	0,		0,		0,		0,		0,		0,		0,		0,
-	0,		0,		0,		0,		0,		0,		0,		0,
-	0,		0,		0,		0,		0,		0,		0,		0,
-	0,		0,		5,		10,		10,		5,		0,		0,
-	10,		10,		20,		30,		30,		20,		10,		10,
-	20,		20,		20,		30,		30,		20,		20,		20,
-	40,		40,		40,		40,		40,		40,		40,		40,
-	0,		0,		0,		0,		0,		0,		0,		0,
+PieceSquareRawTableType pstWhitePawn =
+{
+	0,      0,      0,      0,      0,      0,      0,      0,
+	0,      0,      0,      0,      0,      0,      0,      0,
+	0,      0,      0,      0,      0,      0,      0,      0,
+	0,      0,      20,     40,     40,     20,      0,     0,
+	0,     10,     20,     40,     40,     20,     10,      0,
+	0,     20,     20,     50,     50,     20,     20,      0,
+	10,     30,     40,     70,     70,     40,     30,     10,
+	0,      0,      0,      0,      0,      0,      0,      0
 };
 
 class PieceSquareTable : public Object
 {
-public:
-	PieceSquareTable()
-	{
-		for ( int i = 0; i < MAX_SQUARES; i++ )
+	public:
+		PieceSquareTable()
 		{
-			m_Table[ i ] = 0;
-		}
-	}
-
-	PieceSquareTable( const PieceSquareRawTableType &table )
-	{
-		m_Table = table;
-	}
-
-	void InvertColor()
-	{
-		PieceSquareRawTableType temp;
-		temp = m_Table;
-		for ( int i = 0; i < MAX_FILES; i++ )
-			for ( int j = 0; i < MAX_FILES; j++ )
+			for ( int i = 0; i < MAX_SQUARES; i++ )
 			{
-				m_Table[ i + j * MAX_FILES ] =
-					temp[ i + ((MAX_FILES - 1 ) - j) * MAX_FILES];
+				m_Table[ i ] = 0;
 			}
-	}
+		}
 
-	int Get( const Square &s );
+		PieceSquareTable( const PieceSquareRawTableType& table )
+		{
+			m_Table = table;
+		}
 
-	int Get( unsigned int index )
-	{
-		return m_Table[ index ];
-	}
+		void InvertColor()
+		{
+			PieceSquareRawTableType temp;
+			temp = m_Table;
+			for ( int i = 0; i < MAX_FILES; i++ )
+				for ( int j = 0; j < MAX_FILES; j++ )
+				{
+					m_Table[ i + j * MAX_FILES ] =
+						temp[ i + ( ( MAX_FILES - 1 ) - j ) * MAX_FILES];
+				}
+		}
 
-	PieceSquareRawTableType m_Table;
+		int Get( const Square& s ) const;
+
+		int Get( unsigned int index ) const
+		{
+			return m_Table[ index ];
+		}
+
+		PieceSquareRawTableType m_Table;
 };
 
 /** A centisecond wall clock. */
@@ -268,7 +272,8 @@ class Piece : Object
 		/** A unique index value for each piece. */
 		virtual int Index() const { return m_nIndex; };
 		virtual void SetIndex( int i ) { m_nIndex = i; };
-		virtual Moves GenerateMoves( const Square& source, const Position& pos ) const = 0;
+		virtual Moves GenerateMoves( const Square& source,
+									 const Position& pos ) const = 0;
 		virtual bool IsDifferent( const Square& dest, const Board& board ) const;
 		virtual bool IsDifferentOrEmpty( const Square& dest, const Board& board ) const;
 
@@ -306,17 +311,17 @@ class Piece : Object
 			return m_PieceType;
 		}
 
-		const PieceSquareTable &GetPieceSquareTable() const { return m_PieceSquareTable; }
-		void SetPieceSquareTable(const PieceSquareTable &val) { m_PieceSquareTable = val; }
+		const PieceSquareTable& GetPieceSquareTable() const { return m_PieceSquareTable; }
+		void SetPieceSquareTable( const PieceSquareTable& val ) { m_PieceSquareTable = val; }
 
 	protected:
 		char    m_Letter;
 		Color   m_Color;
 		Piece*   m_pOtherColor;
 		PieceType m_PieceType;
-		int		m_nIndex;
+		int     m_nIndex;
 		PieceSquareTable m_PieceSquareTable;
-	};
+};
 
 class NoPiece : public Piece
 {
@@ -333,7 +338,7 @@ class NoPiece : public Piece
 			return NONE_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 };
 
@@ -351,7 +356,7 @@ class Pawn : public Piece
 			return PAWN_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 		virtual void AddAndPromote( Moves& moves, Move& m,
 									const bool bIsPromote ) const;
@@ -370,7 +375,7 @@ class Bishop : public Piece
 			return BISHOP_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 };
 
@@ -388,7 +393,7 @@ class Knight : public Piece
 			return KNIGHT_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 };
 
@@ -406,7 +411,7 @@ class Rook : public Piece
 			return ROOK_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 };
 
@@ -424,7 +429,7 @@ class Queen : public Piece
 			return QUEEN_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 };
 
@@ -442,7 +447,7 @@ class King : public Piece
 			return KING_VALUE;
 		}
 
-		Moves GenerateMoves( const Square& source, const Position& pos) const;
+		Moves GenerateMoves( const Square& source, const Position& pos ) const;
 
 	private:
 		King();
@@ -593,14 +598,14 @@ class BoardHashing : public BoardBase
 		virtual const Piece* Set( int index, const Piece* piece ) override
 		{
 			// first, erase the old piece if it is non-null
-			const Piece *curPiece = Get( index );
+			const Piece* curPiece = Get( index );
 
 			if ( curPiece != &None )
-				m_Hash ^= s_PiecePositionHash[ index ][ curPiece->Index() ];
+			{ m_Hash ^= s_PiecePositionHash[ index ][ curPiece->Index() ]; }
 
 			// next, place the next piece if it is non-null
 			if ( piece != &None )
-				m_Hash ^= s_PiecePositionHash[ index ][ piece->Index() ];
+			{ m_Hash ^= s_PiecePositionHash[ index ][ piece->Index() ]; }
 
 			return super::Set( index, piece );
 		}
@@ -621,7 +626,23 @@ class BoardHashing : public BoardBase
 		HashValue m_Hash;
 };
 
-class Board : public BoardHashing {};
+class BoardPieceSquare : public BoardHashing
+{
+	public:
+		virtual int GetPieceSquareValue( int index ) const
+		{
+			return Get( index )->
+				   GetPieceSquareTable().Get( index );
+		}
+
+		virtual int GetPieceSquareValue( const Square& s ) const
+		{
+			return Get( s )->
+				   GetPieceSquareTable().Get( s );
+		}
+};
+
+class Board : public BoardPieceSquare {};
 
 class HashInitializer
 {
@@ -634,7 +655,7 @@ class HashInitializer
 				{ s_PiecePositionHash[ i ][ j ] = mt(); }
 
 			for ( unsigned int i = 0; i < 2; i++ )
-				s_PieceColorHash[ i ] = mt();
+			{ s_PieceColorHash[ i ] = mt(); }
 
 		}
 };
@@ -754,7 +775,7 @@ class Square : public Object
 		int j; // rank
 };
 
-int PieceSquareTable::Get( const Square &s )
+int PieceSquareTable::Get( const Square& s ) const
 {
 	return m_Table[ s.I() + s.J() * MAX_FILES ];
 }
@@ -811,7 +832,6 @@ class Move : Object
 
 				switch ( cPromote )
 				{
-
 					case 'q' :
 						m_PromoteTo = ( color == WHITE ) ? &WhiteQueen : &BlackQueen;
 						break;
@@ -904,19 +924,19 @@ bool operator< ( const Move& left, const Move& right )
 	int leftscore = left.Score();
 	int rightscore = right.Score();
 
-	if (( leftscore != 0 ) && ( leftscore == rightscore ))
+	if ( ( leftscore != 0 ) && ( leftscore == rightscore ) )
 	{
 		/* Captured values are the same.  Choose the capturing piece with
 		 * the least value, MVV/LVA style.
 		 */
 		if ( left.GetPiece()->PieceValue() < right.GetPiece()->PieceValue() )
-			return true;
+		{ return true; }
 
 		return false;
 	}
 
 	if ( leftscore > rightscore )
-		return true;
+	{ return true; }
 
 	return false;
 }
@@ -1252,18 +1272,18 @@ class PositionHashTable : public Object
 
 		virtual void Insert( const PositionHashEntry& entry )
 		{
- 			size_t loc = entry.m_Hash % m_SizeEntries;
+			size_t loc = entry.m_Hash % m_SizeEntries;
 			/** todo Insert logic for different strategies */
-			PositionHashEntry *pHE = m_pEntries + loc;
+			PositionHashEntry* pHE = m_pEntries + loc;
 
 			if ( pHE->m_TypeBits == HET_NONE )
-				m_nEntriesInUse++;
+			{ m_nEntriesInUse++; }
 
 			if ( pHE->m_Hash == entry.m_Hash )
 			{
 				/* Only overwrite if the search depth is farther */
 				if ( pHE->m_Ply > entry.m_Ply )
-					return;
+				{ return; }
 			}
 			m_pEntries[ loc ] = entry;
 		}
@@ -1292,8 +1312,8 @@ class PositionHashTable : public Object
 		{
 			/*
 			if ( m_SizeBytes )
-			{ 
-				delete m_pEntries;
+			{
+			    delete m_pEntries;
 			}
 			*/
 
@@ -1321,7 +1341,7 @@ class PositionHashTable : public Object
 		/** Returns a value representing how full the cache is.  0 is empty.  1000 is full.  */
 		virtual unsigned int GetHashFull()
 		{
-			return (unsigned int) ( 1000 * m_nEntriesInUse / m_SizeEntries );
+			return ( unsigned int ) ( 1000 * m_nEntriesInUse / m_SizeEntries );
 		}
 
 		PositionHashEntry* m_pEntries;
@@ -1442,11 +1462,11 @@ class Position : Object
 				return;
 			}
 
-			if ( GetBoard().Get( move.Source()) == &None )
+			if ( GetBoard().Get( move.Source() ) == &None )
 			{
-				stringstream ss; 
+				stringstream ss;
 				ss << "Illegal move: no piece found at source location for move ";
-				ss << (string)move;
+				ss << ( string )move;
 				Die( ss.str() );
 			}
 
@@ -1462,22 +1482,23 @@ class Position : Object
 							 m_Board.Get( move.Source() ) );
 
 				/* Handle castling */
-				if ( m_Board.Get( move.Source())->Type() == KING )
-				{					
+				if ( m_Board.Get( move.Source() )->Type() == KING )
+				{
 					if ( abs( move.Source().I() - move.Dest().I() ) == 2 )
 					{
 						/* Move rook during castling */
 						int rookISource = 0, rookIDest = 3, rookJ;
 						rookJ = move.Source().J();
-						if ( move.Dest().I() == 6 ) 
+						if ( move.Dest().I() == 6 )
 						{
 							rookISource = 7;
 							rookIDest = 5;
 						}
 
-						const Rook *pRook = dynamic_cast< const Rook * >( m_Board.Get( rookISource, rookJ ));
+						const Rook* pRook = dynamic_cast< const Rook* >( m_Board.Get( rookISource,
+											rookJ ) );
 						m_Board.Set( rookIDest, rookJ, pRook );
-						m_Board.Set( rookISource, rookJ, &None );						
+						m_Board.Set( rookISource, rookJ, &None );
 					}
 				}
 
@@ -1520,24 +1541,24 @@ class Position : Object
 		const Moves& GetMoves()
 		{
 			if ( m_Moves.IsEmpty() )
-				GenerateMoves();
+			{ GenerateMoves(); }
 
 			return m_Moves;
 		}
 
-		const Moves &GetCaptures()
+		const Moves& GetCaptures()
 		{
 			if ( m_Captures.IsEmpty() )
 			{
 				if ( m_Moves.IsEmpty() )
-					GenerateMoves();
-				
-				for ( auto &move: m_Moves )
+				{ GenerateMoves(); }
+
+				for ( auto& move : m_Moves )
 				{
 					if ( move.Score() > 0 )
-						m_Captures.Add( move );
+					{ m_Captures.Add( move ); }
 					else
-						break;
+					{ break; }
 				}
 			}
 
@@ -1759,26 +1780,26 @@ class Position : Object
 			}
 
 			if ( GetColorToMove() == WHITE  )
-				s += " w ";
+			{ s += " w "; }
 			else
-				s += " b "; 
+			{ s += " b "; }
 
 			if ( !( m_bH1 || m_bA1 || m_bH8 || m_bA8 ) )
-				 s += "-"; 
+			{ s += "-"; }
 
 			else
 			{
 				if ( m_bH1 )
-					s += "K"; 
+				{ s += "K"; }
 
 				if ( m_bA1 )
-					s += "Q";
+				{ s += "Q"; }
 
 				if ( m_bH8 )
-					s += "k";
+				{ s += "k"; }
 
 				if ( m_bA8 )
-					s += "q";
+				{ s += "q"; }
 			}
 
 			stringstream ss;
@@ -1835,8 +1856,8 @@ class Position : Object
 HashValue PositionHasher::GetHash() const
 {
 	return ( m_pPosition->m_Board.GetHash() ^
-		s_PieceColorHash[ ( int )m_pPosition->m_ColorToMove ]
-		);
+			 s_PieceColorHash[ ( int )m_pPosition->m_ColorToMove ]
+		   );
 }
 
 class EvaluatorBase : public Object
@@ -1867,6 +1888,30 @@ class EvaluatorSlowMaterial : public EvaluatorBase
 				if ( piece != &None )
 				{
 					nScore += ( piece->PieceValue() *
+								( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
+				}
+			}
+
+			return Bias( pos, nScore );
+		}
+};
+
+class EvaluatorPieceSquare : public EvaluatorBase
+{
+	public:
+		virtual int Evaluate( Position& pos ) const
+		{
+			Board board = pos.GetBoard();
+			const Piece* piece;
+
+			int nScore = 0;
+
+			for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
+			{
+				piece = board.Get( i );
+				if ( piece != &None )
+				{
+					nScore += ( board.GetPieceSquareValue( i ) *
 								( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
 				}
 			}
@@ -1938,7 +1983,8 @@ class EvaluatorStandard : public EvaluatorWeighted
 		EvaluatorStandard()
 		{
 			m_Weighted.Add( m_Material );
-			m_Weighted.Add( m_SimpleMobility );
+			m_Weighted.Add( m_SimpleMobility, 0.2f );
+			m_Weighted.Add( m_PieceSquareEvaluator );
 		}
 
 		virtual int Evaluate( Position& pos ) const
@@ -1948,6 +1994,7 @@ class EvaluatorStandard : public EvaluatorWeighted
 
 		EvaluatorMaterial m_Material;
 		EvaluatorSimpleMobility m_SimpleMobility;
+		EvaluatorPieceSquare m_PieceSquareEvaluator;
 		EvaluatorWeighted m_Weighted;
 };
 
@@ -1964,7 +2011,7 @@ class SearcherBase : Object
 	public:
 		SearcherBase( Interface& interface ) :
 			m_nNodesSearched( 0 ), m_nDepth( SEARCH_DEPTH )
-		{			
+		{
 			m_bTerminated = true;
 			m_pInterface = &interface;
 		}
@@ -1979,7 +2026,7 @@ class SearcherBase : Object
 			m_nDepth = depth;
 		}
 
-		virtual void Start( const Position &pos)
+		virtual void Start( const Position& pos )
 		{
 			m_Root = pos;
 			m_nNodesSearched = 0;
@@ -2040,7 +2087,7 @@ class SearcherReporting : public SearcherBase
 		SearcherReporting( Interface& interface ) :
 			SearcherBase( interface ) {};
 
-		virtual void Report( const Position& pos)
+		virtual void Report( const Position& pos )
 		{
 			static int sReportDelay = 0;
 
@@ -2052,7 +2099,7 @@ class SearcherReporting : public SearcherBase
 			Clock::ChessTickType tMilliSinceStart = m_Clock.Get();
 
 			if ( tMilliSinceStart == 0 )
-				return;
+			{ return; }
 
 			uint64_t nodesPerSec = m_nNodesSearched * 1000 / tMilliSinceStart;
 
@@ -2084,7 +2131,7 @@ class SearcherThreaded : public SearcherReporting
 			Stop();
 		}
 
-		virtual void Start( const Position &pos )
+		virtual void Start( const Position& pos )
 		{
 			Stop();
 
@@ -2114,23 +2161,23 @@ class SearcherThreaded : public SearcherReporting
 
 		virtual int Search( )
 		{
-			for ( int nCurrentDepth = 1; nCurrentDepth <= m_nDepth; 
-				nCurrentDepth++ )
+			for ( int nCurrentDepth = 1; nCurrentDepth <= m_nDepth;
+					nCurrentDepth++ )
 			{
 				Moves PV;
 				m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-					nCurrentDepth, m_Root, PV );
+										  nCurrentDepth, m_Root, PV );
 				m_Result = PV;
-				
+
 				stringstream ss;
 				ss << "info depth " << nCurrentDepth;
-				ss << " pv " << (string)PV;
-				ss << " score cps "	<< m_Score;
+				ss << " pv " << ( string )PV;
+				ss << " score cps " << m_Score;
 
-				Instruct(ss.str());
+				Instruct( ss.str() );
 
 				if ( m_bTerminated )
-					break;
+				{ break; }
 			}
 
 			SearchComplete();
@@ -2324,10 +2371,10 @@ class SearcherPrincipalVariation : public SearcherThreaded
 			}
 
 			if ( depth <= 0 )
-				{
+			{
 				Report( pos );
 				return Evaluate( pos );
-				}
+			}
 
 			Moves bestPV, currentPV;
 			Moves myMoves;
@@ -2341,20 +2388,20 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				return beta;
 			}
 
-			{			
+			{
 				/* If the king has been captured, abort evaluation here.  Don't
-				 * go off and try to evaluate king exchanges and whatnot -- it's 
+				 * go off and try to evaluate king exchanges and whatnot -- it's
 				 * the end of the game.
 				 */
 				Move firstMove = myMoves.GetFirst();
-				const Piece *pTarget = pos.GetBoard().Get( firstMove.Dest() );
+				const Piece* pTarget = pos.GetBoard().Get( firstMove.Dest() );
 				if ( pTarget->Type() == KING )
-					return KING_VALUE;
+				{ return KING_VALUE; }
 			}
 
 			/* We got an exact match but the search wasn't deep enough to
 			 * simply return.  So seed this search with the exact value
-			 * 
+			 *
 			 * from the hash table.
 			 */
 			if ( pEntry && ( pEntry->m_TypeBits == HET_EXACT ) )
@@ -2423,7 +2470,7 @@ class SearcherPrincipalVariation : public SearcherThreaded
 				}
 
 				if ( m_bTerminated )
-					break;
+				{ break; }
 			}
 
 			/* If we got a best move then report it */
@@ -2539,15 +2586,15 @@ void Pawn::AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const
 		}
 	}
 	else
-		moves.Add( m ); 
+	{ moves.Add( m ); }
 }
 
-Moves Pawn::GenerateMoves( const Square& source, const Position& pos) const
+Moves Pawn::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Moves moves;
 	Square dest = source;
 	Color movingColor = GetColor();
-	const Board &board = pos.GetBoard();
+	const Board& board = pos.GetBoard();
 
 	int sourceJ;
 	sourceJ = source.J();
@@ -2598,11 +2645,11 @@ Moves Pawn::GenerateMoves( const Square& source, const Position& pos) const
 	return moves;
 }
 
-Moves Knight::GenerateMoves( const Square& source, const Position& pos) const
+Moves Knight::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Move m( this, source, source );
 	Moves moves;
-	const Board &board = pos.GetBoard();
+	const Board& board = pos.GetBoard();
 
 	moves.TryAttack( m, board, 1, 2 );
 	moves.TryAttack( m, board, -1, 2 );
@@ -2617,11 +2664,11 @@ Moves Knight::GenerateMoves( const Square& source, const Position& pos) const
 	return moves;
 }
 
-Moves Bishop::GenerateMoves( const Square& source, const Position& pos) const
+Moves Bishop::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Moves moves;
 	Move m( this, source, source );
-	const Board &board = pos.GetBoard();
+	const Board& board = pos.GetBoard();
 
 	moves.TryRayAttack( m, board, 1, 1 );
 	moves.TryRayAttack( m, board, 1, -1 );
@@ -2631,11 +2678,11 @@ Moves Bishop::GenerateMoves( const Square& source, const Position& pos) const
 	return moves;
 }
 
-Moves Rook::GenerateMoves( const Square& source, const Position& pos) const
+Moves Rook::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Moves moves;
 	Move m( this, source, source );
-	const Board &board = pos.GetBoard();
+	const Board& board = pos.GetBoard();
 
 	moves.TryRayAttack( m, board, 0, 1 );
 	moves.TryRayAttack( m, board, 0, -1 );
@@ -2645,11 +2692,11 @@ Moves Rook::GenerateMoves( const Square& source, const Position& pos) const
 	return moves;
 }
 
-Moves King::GenerateMoves( const Square& source, const Position& pos) const
+Moves King::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Move m( this, source, source );
 	Moves moves;
-	const Board &board = pos.GetBoard();
+	const Board& board = pos.GetBoard();
 
 	moves.TryAttack( m, board, 1, 0 );
 	moves.TryAttack( m, board, -1, 0 );
@@ -2664,11 +2711,11 @@ Moves King::GenerateMoves( const Square& source, const Position& pos) const
 	return moves;
 }
 
-Moves Queen::GenerateMoves( const Square& source, const Position& pos) const
+Moves Queen::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Moves moves;
 	Move m( this, source, source );
-	const Board &board = pos.GetBoard();
+	const Board& board = pos.GetBoard();
 
 	moves.TryRayAttack( m, board, 1, 1 );
 	moves.TryRayAttack( m, board, 1, -1 );
@@ -2823,8 +2870,8 @@ class Interface : Object
 			Instruct( "id name Superpawn" );
 			Instruct( "id author John Byrd" );
 
-			Instruct( "option name Hash type spin default 1 min 1 max 2048");
-			Instruct( "option name UCI_EngineAbout type string default See http://www.github.com/johnwbyrd/superpawn");
+			Instruct( "option name Hash type spin default 1 min 1 max 2048" );
+			Instruct( "option name UCI_EngineAbout type string default See http://www.github.com/johnwbyrd/superpawn" );
 
 			stringstream ss;
 			ss << "Built on " << __DATE__ << " " __TIME__;
@@ -2868,11 +2915,11 @@ class Interface : Object
 
 			while ( ss >> sParam )
 			{
-				if ( sParam == "name")
+				if ( sParam == "name" )
 				{
 					ss >> sName;
 				}
-				else if ( sParam == "value")
+				else if ( sParam == "value" )
 				{
 					ss >> nValue;
 				}
@@ -2886,14 +2933,14 @@ class Interface : Object
 
 			if ( !sName.empty() )
 			{
-				if ( sName == "Hash")
+				if ( sName == "Hash" )
 				{
 					s_pPositionHashTable->SetSize( nValue * 1024 * 1024 );
 				}
 			}
 			else
 			{
-				Notify("SetOption: Could not find name of the option to set");
+				Notify( "SetOption: Could not find name of the option to set" );
 			}
 		}
 
@@ -3072,10 +3119,10 @@ void Die( const string& s )
 	const bool bAbortOnDie = true;
 
 	if ( s_pDefaultInterface )
-		s_pDefaultInterface->Notify( s );
+	{ s_pDefaultInterface->Notify( s ); }
 
 	if ( bAbortOnDie )
-		abort();
+	{ abort(); }
 }
 
 
