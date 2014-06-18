@@ -1,4 +1,6 @@
 set( PROJECT_NAME Superpawn )
+set( BUILD_FOR_RELEASE ON BOOL 
+	"Builds executable and documentation for release to web site.")
 cmake_minimum_required (VERSION 2.6.4)
 set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cotire/CMake" )	
 include(cotire OPTIONAL)
@@ -6,6 +8,12 @@ project ( ${PROJECT_NAME} )
 
 find_package( Threads )
 set( CMAKE_LEGACY_CYGWIN_WIN32 0 )
+
+if( BUILD_FOR_RELEASE )
+	add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+                   COMMAND ${CMAKE_COMMAND} -E copy_directory
+                       ${CMAKE_SOURCE_DIR}/tools/doc $<TARGET_FILE_DIR:${PROJECT_NAME})
+endif()					  
 
 if(MSVC)
   # Force to always compile with W4; all warnings are errors

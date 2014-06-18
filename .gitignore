@@ -17,7 +17,6 @@ local.properties
 .loadpath
 html/
 latex/
-tools/win32
 
 # External tool builders
 .externalToolBuilders/
