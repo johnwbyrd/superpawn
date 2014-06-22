@@ -14,10 +14,10 @@ from [http://chess.johnbyrd.org](http://chess.johnbyrd.org) .
 Downloads
 ---------
 
-[Windows x86 executable](http://chess.johnbyrd.org/build/win/x86/Superpawn-windows-x32.zip).  If
+[Windows x86 executable](http://chess.johnbyrd.org/build/win/x86/superpawn-windows-x32.zip).  If
 you don't know which file to download, this one is probably it.
 
-[Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/Superpawn-windows-x64.zip).  Slightly 
+[Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/superpawn-windows-x64.zip).  Slightly 
 faster for x64 machines.
 
 [Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Linux boxes.
@@ -59,19 +59,18 @@ Features
 - Vaguely sort of const-correct
 - Compiles cleanly in 32-bit and 64-bit modes
 - Compatible with cmake build systems
+- Transposition tables to help speed up end game
 
 
 Things it doesn't do
 --------------------
 
-- Check
-- Checkmate
+- Draw by repetition
 - Stalemate
 - En passant
 - Castling
 - Time controls
 - The fifty move rule
-- Transposition tables
 - Play chess well
 
 License

@@ -1269,7 +1269,6 @@ class PositionHashEntry : public Object
 			m_Depth( 0 ),
 			m_Ply( 0 ),
 			m_Score( 0 )
-			// m_sFEN( "" )
 		{
 			m_TypeBits = HET_NONE;
 		}
@@ -1336,13 +1335,6 @@ class PositionHashTable : public Object
 
 		virtual void SetSize( size_t size )
 		{
-			/*
-			if ( m_SizeBytes )
-			{
-			    delete m_pEntries;
-			}
-			*/
-
 			if ( size == 0 )
 			{
 				Die( "Size of hash table can't be zero" );
@@ -1471,17 +1463,6 @@ class Position : Object
 			m_bA1 = position.m_bA1;
 			m_bH8 = position.m_bH8;
 			m_bA8 = position.m_bA8;
-
-			/*
-			Position attemptedPos = *this;
-
-			*this = position;
-
-			m_Moves.Clear();
-			m_Captures.Clear();
-
-			m_nPly++;
-			*/
 
 			if ( &move == &NullMove )
 			{
@@ -2427,7 +2408,6 @@ class SearcherPrincipalVariation : public SearcherThreaded
 
 			/* We got an exact match but the search wasn't deep enough to
 			 * simply return.  So seed this search with the exact value
-			 *
 			 * from the hash table.
 			 */
 			if ( pEntry && ( pEntry->m_TypeBits == HET_EXACT ) )
@@ -3150,8 +3130,6 @@ void Die( const string& s )
 	if ( bAbortOnDie )
 	{ abort(); }
 }
-
-
 
 void SearcherBase::Notify( const string& s ) const
 {
