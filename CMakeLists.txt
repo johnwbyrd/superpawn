@@ -44,9 +44,9 @@ add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 
 if( BUILD_DOCS )
 # Generate HTML docs
-	add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-					   COMMAND ${CMAKE_COMMAND} -E copy_directory
-							${CMAKE_SOURCE_DIR}/tools/css $<TARGET_FILE_DIR:${PROJECT_NAME}> )
+#	add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+#					   COMMAND ${CMAKE_COMMAND} -E copy_directory
+#							${CMAKE_SOURCE_DIR}/tools/css $<TARGET_FILE_DIR:${PROJECT_NAME}> )
 	if( MSVC )
 		add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 						   COMMAND ${MMD_BINARY}
