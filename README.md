@@ -38,15 +38,16 @@ are objects; they know how to move, capture, etc.  This of course slows
 down the move generation and evaluation process immensely, making this 
 program irredeemably slow in tournament conditions.
 
-Superpawn requires a C++11 compiler with support for threading.  It runs
-on Windows and Linux systems, and compiles under Microsoft, gcc and clang
-compilers.  A CMake implementation is provided to ease compilation.
+Superpawn requires a [C++11](http://en.wikipedia.org/wiki/C%2B%2B11) compiler
+with support for threading.  It runs on Windows and Linux systems, and compiles 
+under Microsoft, gcc and clang compilers.  A [CMake](http://www.cmake.org/)
+implementation is provided to ease compilation on arbitrary targets.
 
 Features
 --------
 
 - ANSI C++11 code
-- Compiles under Microsoft Visual Studio 2012, gcc 3.8.2, and clang 3.3
+- Compiles under Microsoft Visual Studio 2013, gcc 3.8.2, and clang 3.3
 - Implements a subset of UCI protocol sufficient to permit play 
   with Arena 3.0+
 - Pluggable architecture permits easy experimentation with 
