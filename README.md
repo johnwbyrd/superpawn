@@ -1,20 +1,20 @@
-<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+<link rel="stylesheet" href="http://jasonm23.github.io/markdown-css-themes/foghorn.css">
 </link>
 Superpawn
 =========
 
-Superpawn is a trivial, slow and weak chess engine.  It is written to use the
+Superpawn is a trivial, slow and weak [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn uses the
 [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
-protocol, and it requires a [compatible GUI program](http://www.playwitharena.com/) to play chess with it.
+protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of your choice.
 
 Downloads
 ---------
 
-[Windows x86](http://chess.johnbyrd.org/build/win/x86/Superpawn-windows-x32.zip)
+[Windows x86 executable](http://chess.johnbyrd.org/build/win/x86/Superpawn-windows-x32.zip).  If you don't know which file to download, this one is probably it.
 
-[Windows x64](http://chess.johnbyrd.org/build/win/x64/Superpawn-windows-x64.zip)
+[Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/Superpawn-windows-x64.zip).  Slightly faster for x64 machines.
 
-[Source code](http://www.github.com/johnwbyrd/superpawn)
+[Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Linux boxes.
 
 Description
 -----------
@@ -23,9 +23,8 @@ Superpawn is capable of making many fascinating chess moves, some
 of which are actually even legal.
 
 As of this writing, it is capable of only playing
-a pseudo-legal game of chess, as it doesn't yet understand the notion that 
-checkmate constitutes the end of the game, and doesn't handle moves like
-en passant correctly. 
+a pseudo-legal game of chess, as it doesn't handle moves like
+en passant and castling correctly.
 
 Superpawn is an excellent example of the "objects gone wild" style of
 programming, in which Everything Is An Object.  Even the pieces themselves
@@ -72,7 +71,6 @@ Things it doesn't do
 License
 -------
 
-Source code is provided under the Creative Commons 3.0 Attribution 
-Unported license.  Full details are available at
-<http://creativecommons.org/licenses/by/3.0/deed.en_US>.  Please don't pretend you
-created this chess engine.
+Source code is provided under the [Creative Commons 3.0 Attribution 
+Unported](http://creativecommons.org/licenses/by/3.0/deed.en_US) license.  Please
+don't pass off this chess engine as your own work.
