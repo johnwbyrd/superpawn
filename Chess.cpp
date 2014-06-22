@@ -3116,7 +3116,7 @@ class Interface : Object
 
 void Die( const string& s )
 {
-	const bool bAbortOnDie = true;
+	bool bAbortOnDie = true;
 
 	if ( s_pDefaultInterface )
 	{ s_pDefaultInterface->Notify( s ); }
