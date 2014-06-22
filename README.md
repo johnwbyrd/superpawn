@@ -1,13 +1,30 @@
-<link href="http://kevinburke.bitbucket.org/markdowncss/markdown.css" rel="stylesheet"></link>
+<link href="markdown.css" rel="stylesheet"></link>
 Superpawn
 =========
 
-Superpawn is a trivial, slow, pedantic, and silly UCI chess engine.  
+Superpawn is a trivial, slow and weak chess engine.  It is written to use the
+[Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
+protocol, and it requires a [compatible GUI program](http://www.playwitharena.com/) to play chess with it.
+
+Downloads
+---------
+
+[Windows x86](http://chess.johnbyrd.org/build/win/x86/)
+
+[Windows x64](http://chess.johnbyrd.org/build/win/x64/)
+
+[Source code](http://www.github.com/johnwbyrd/superpawn)
+
+Description
+-----------
+
+Superpawn is capable of making many fascinating chess moves, some
+of which are actually even legal.
 
 As of this writing, it is capable of only playing
 a pseudo-legal game of chess, as it doesn't yet understand the notion that 
-checkmate constitutes the end of the game.  Superpawn is capable of making
-many fascinating chess moves, some of which are actually even legal.
+checkmate constitutes the end of the game, and doesn't handle moves like
+en passant correctly. 
 
 Superpawn is an excellent example of the "objects gone wild" style of
 programming, in which Everything Is An Object.  Even the pieces themselves
@@ -49,13 +66,12 @@ Things it doesn't do
 - Time controls
 - The fifty move rule
 - Transposition tables
-- Play well
+- Play chess well
 
 License
 -------
 
 Source code is provided under the Creative Commons 3.0 Attribution 
 Unported license.  Full details are available at
-<http://creativecommons.org/licenses/by/3.0/deed.en_US>.  I'm sure that if
-you steal this work and paste your name on it as though you had written
-it, you're a complete idiot in at least three major ways.
+<http://creativecommons.org/licenses/by/3.0/deed.en_US>.  Please don't pretend you
+created this chess engine.
