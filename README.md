@@ -1,4 +1,5 @@
-<link href="markdown.css" rel="stylesheet"></link>
+<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+</link>
 Superpawn
 =========
 
@@ -9,9 +10,9 @@ protocol, and it requires a [compatible GUI program](http://www.playwitharena.co
 Downloads
 ---------
 
-[Windows x86](http://chess.johnbyrd.org/build/win/x86/)
+[Windows x86](http://chess.johnbyrd.org/build/win/x86/Superpawn-windows-x32.zip)
 
-[Windows x64](http://chess.johnbyrd.org/build/win/x64/)
+[Windows x64](http://chess.johnbyrd.org/build/win/x64/Superpawn-windows-x64.zip)
 
 [Source code](http://www.github.com/johnwbyrd/superpawn)
 
