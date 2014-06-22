@@ -1,6 +1,6 @@
 # CMakeLists.txt
 
-set( PROJECT_NAME Superpawn )
+set( PROJECT_NAME superpawn )
 set( BUILD_FOR_RELEASE ON BOOL 
 	"Builds executable and documentation for release to web site.")
 set( BUILD_DOCS ON BOOL

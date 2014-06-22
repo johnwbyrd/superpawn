@@ -2,7 +2,7 @@ echo Run me in the root directory of the project to build win32 releases.
 
 call "%VS120COMNTOOLS%\vsvars32.bat"
 set ZIP_EXE=tools\win32\zip\zip.exe
-set ENGINE_NAME=Superpawn
+set ENGINE_NAME=superpawn
 rem
 mkdir build\win\x86
 cd build\win\x86
@@ -14,7 +14,7 @@ if errorlevel 1 goto :fail
 msbuild superpawn.sln /p:Configuration=Release
 if errorlevel 1 goto :fail
 git log -n 50 > release\ChangeLog.txt
-..\..\..\%ZIP_EXE% Superpawn-windows-x32.zip release\*.*
+..\..\..\%ZIP_EXE% superpawn-windows-x32.zip release\*.*
 cd ..\..\..
 
 mkdir build\win\x64
@@ -26,7 +26,7 @@ if errorlevel 1 goto :fail
 msbuild superpawn.sln /p:Configuration=Release
 if errorlevel 1 goto :fail
 git log -n 50 > release\ChangeLog.txt
-..\..\..\%ZIP_EXE% Superpawn-windows-x64.zip release\*.*
+..\..\..\%ZIP_EXE% superpawn-windows-x64.zip release\*.*
 
 
 cd ..\..\..
