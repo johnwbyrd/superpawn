@@ -3,16 +3,22 @@
 Superpawn
 =========
 
-Superpawn is a trivial, slow and weak [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn uses the
-[Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
-protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of your choice.
+Superpawn is a trivial, slow and weak [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn
+uses the [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
+protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of 
+your choice.
+
+The latest build of [Superpawn](http://chess.johnbyrd.org) can always be downloaded
+from [http://chess.johnbyrd.org](http://chess.johnbyrd.org) .
 
 Downloads
 ---------
 
-[Windows x86 executable](http://chess.johnbyrd.org/build/win/x86/Superpawn-windows-x32.zip).  If you don't know which file to download, this one is probably it.
+[Windows x86 executable](http://chess.johnbyrd.org/build/win/x86/Superpawn-windows-x32.zip).  If
+you don't know which file to download, this one is probably it.
 
-[Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/Superpawn-windows-x64.zip).  Slightly faster for x64 machines.
+[Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/Superpawn-windows-x64.zip).  Slightly 
+faster for x64 machines.
 
 [Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Linux boxes.
 
