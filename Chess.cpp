@@ -2897,10 +2897,10 @@ class Interface : Object
 			Instruct( "id author John Byrd" );
 
 			Instruct( "option name Hash type spin default 1 min 1 max 2048" );
-			Instruct( "option name UCI_EngineAbout type string default See http://www.github.com/johnwbyrd/superpawn" );
+			Instruct( "option name UCI_EngineAbout type string default http://chess.johnbyrd.org" );
 
 			stringstream ss;
-			ss << "Built on " << __DATE__ << " " __TIME__;
+			ss << "Superpawn build " << __DATE__ << " " __TIME__;
 			Notify( ss.str() );
 
 			string none;
