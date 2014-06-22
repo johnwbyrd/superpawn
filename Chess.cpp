@@ -182,7 +182,7 @@ class PieceSquareTable : public Object
 	public:
 		PieceSquareTable()
 		{
-			for ( int i = 0; i < MAX_SQUARES; i++ )
+			for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
 			{
 				m_Table[ i ] = 0;
 			}
@@ -197,8 +197,8 @@ class PieceSquareTable : public Object
 		{
 			PieceSquareRawTableType temp;
 			temp = m_Table;
-			for ( int i = 0; i < MAX_FILES; i++ )
-				for ( int j = 0; j < MAX_FILES; j++ )
+			for ( unsigned int i = 0; i < MAX_FILES; i++ )
+				for ( unsigned int j = 0; j < MAX_FILES; j++ )
 				{
 					m_Table[ i + j * MAX_FILES ] =
 						temp[ i + ( ( MAX_FILES - 1 ) - j ) * MAX_FILES];
