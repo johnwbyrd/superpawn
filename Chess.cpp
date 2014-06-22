@@ -131,26 +131,50 @@ PieceSquareRawTableType pstDefault =
 /* "A knight on the rim is grim." */
 PieceSquareRawTableType pstKnight =
 {
-	-140,   -110,    -80,   -70,    -70,    -80,    -110,   -140,
-	-90,    -70,    -40,    -30,    -30,    -40,    -70,    -90,
-	-50,    -30,    0,     10,     10,      0,      -30,    -50,
-	-30,     0,    30,     45,      45,      30,     0,    -30,
-	-30,     0,    30,     45,      45,      30,     0,    -30,
-	-50,    -30,    0,     10,     10,      0,      -30,    -50,
-	-90,    -70,    -40,    -30,    -30,    -40,    -70,    -90,
-	-140,   -110,    -80,   -70,    -70,    -80,    -110,   -140
+	-50, -40, -30, -30, -30, -30, -40, -50,
+	-40, -20,   0,   0,   0,   0, -20, -40,
+	-30,   0,  10,  15,  15,  10,   0, -50,
+	-30,   5,  15,  20,  20,  15,   5, -30,
+	-30,   5,  15,  20,  20,  15,   5, -30,
+	-30,   0,  10,  15,  15,  10,   0, -50,
+	-40, -20,   0,   0,   0,   0, -20, -40,
+	-50, -40, -30, -30, -30, -30, -40, -50
 };
 
 PieceSquareRawTableType pstWhitePawn =
 {
-	0,      0,      0,      0,      0,      0,      0,      0,
-	0,      0,      0,      0,      0,      0,      0,      0,
-	0,      0,      0,      0,      0,      0,      0,      0,
-	0,      0,      20,     40,     40,     20,      0,     0,
-	0,     10,     20,     40,     40,     20,     10,      0,
-	0,     20,     20,     50,     50,     20,     20,      0,
-	10,     30,     40,     70,     70,     40,     30,     10,
-	0,      0,      0,      0,      0,      0,      0,      0
+	0,  0,  0,  0,  0,  0,  0,  0,
+	5, 10, 10,-20,-20, 10, 10,  5,
+	5, -5,-10,  0,  0,-10, -5,  5,
+	0,  0,  0, 20, 20,  0,  0,  0,
+	5,  5, 10, 25, 25, 10,  5,  5,
+   10, 10, 20, 30, 30, 20, 10, 10,
+   50, 50, 50, 50, 50, 50, 50, 50,
+	0,  0,  0,  0,  0,  0,  0,  0
+};
+
+PieceSquareRawTableType pstBishop =
+{
+	-20, -10, -10, -10, -10, -10, -10, -20,
+	-10,   0,   0,   0,   0,   0,   0, -10,
+	-10,   0,   5,  10,  10,   5,   0, -10,
+	-10,   5,   5,  10,  10,   5,   5, -10,
+	-10,   5,   5,  10,  10,   5,   5, -10,
+	-10,   0,   5,  10,  10,   5,   0, -10,
+	-10,   0,   0,   0,   0,   0,   0, -10,
+	-20, -10, -10, -10, -10, -10, -10, -20
+};
+
+PieceSquareRawTableType pstRook = 
+{
+	 0, 0, 0, 5, 5, 0, 0, 0
+	-5, 0, 0, 0, 0, 0, 0,-5,
+	-5, 0, 0, 0, 0, 0, 0,-5,
+	-5, 0, 0, 0, 0, 0, 0,-5,
+	-5, 0, 0, 0, 0, 0, 0,-5,
+	 5,10,10,10,10,10,10, 5,
+	-5, 0, 0, 0, 0, 0, 0,-5,
+	 0, 0, 0, 0, 0, 0, 0, 0
 };
 
 class PieceSquareTable : public Object
@@ -987,6 +1011,8 @@ class PieceInitializer : Object
 			WhiteKnight.SetPieceSquareTable( pstKnight );
 			BlackKnight.SetPieceSquareTable( pstKnight );
 
+			WhiteBishop.SetPieceSquareTable( pstBishop );
+			BlackBishop.SetPieceSquareTable( pstBishop );
 		}
 };
 
@@ -1983,7 +2009,7 @@ class EvaluatorStandard : public EvaluatorWeighted
 		EvaluatorStandard()
 		{
 			m_Weighted.Add( m_Material );
-			m_Weighted.Add( m_SimpleMobility, 0.2f );
+			m_Weighted.Add( m_SimpleMobility, 0.1f );
 			m_Weighted.Add( m_PieceSquareEvaluator );
 		}
 
