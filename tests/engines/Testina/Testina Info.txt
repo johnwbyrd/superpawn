@@ -1,0 +1,55 @@
+TESTINA 2.1 Chess engine for Winboard
+-------------------------------------
+
+Author:Sandro Corsini
+
+Testina is a program to play chess with the Winboard interface.
+Testina is freeware and is written using Visual Basic 6.
+From this version Testina displays a nice logo thanks to
+Daniele Del Bino (logo maker).
+
+BOOK EDITOR:
+To enter in book edit mode simply invoke Testina with the
+"book" option (i.e. testina book) or run the book.bat file.
+The book editor window pops out.To the left side listbox you
+should see the list of moves possible in the position.
+Those moves are pseudo-legal so be careful to not enter an
+illegal one!
+To enter a move in the book simply click one of the moves in
+the listbox: the move selected is highlighted.
+Press now the button with the >>> graphic on it. This will
+send the move selected in the book.
+If you wish to restart a new line of play click the Opzioni
+menu (Options menu) and select Restart. The text box showing
+the line of play will be cleared and the moves list updated.
+If you click Esci (Exit) from the options menu the book editor
+is shut down.
+
+DAT FILES:
+The files with the .DAT extension are tables for the moves:
+CAVS.DAT for example contains all the possible knight moves from
+every square.Testina records the position in a 64 integer array.
+The square A8 is the number 1 while the H1 is the number 64.To
+know what moves are possible the program look in the table
+containing the data loaded from the corresponding DAT file.
+CAVS.DAT...knight moves
+COLS.DAT...column moves (Rook and Queen)
+DIAGS.DAT..diagonal moves (Queen and bishop)
+RE.DAT.....king moves
+PEDB.DAT...white pawn moves
+PEDN.DAT...black pawn moves
+To generate a knight move for a knight located in Board(40),
+the program look the list in Cavs(40).In this list are recorded
+all the possible knight moves from the 40 square in the Board
+representation.A number 99 means the end of moves,if the
+possible moves are less than the allotted space (vacant moves
+are indicated with a 0).
+
+STRENGHT OF PROGRAM:
+Based on Fics matches the rating of Testina would be between
+1350-1400 Elo points.
+
+Newer versions of Testina will be shipped to WBEC Ridderkerk.
+Testina is freeware and you can modify the source if you wish.
+Testina is a simple program but the more I add the more complicated it become.People interested in chess programming
+may start to take a look at the 1.X version first.

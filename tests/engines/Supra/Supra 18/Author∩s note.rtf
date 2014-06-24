@@ -1,0 +1,322 @@
+{\rtf1\ansi\ansicpg1252\deff0\deflang2070{\fonttbl{\f0\fnil\fcharset0 Arial;}{\f1\fnil\fcharset2 Symbol;}}
+{\colortbl ;\red0\green176\blue80;\red247\green150\blue70;\red255\green0\blue0;\red0\green77\blue187;\red75\green172\blue198;}
+{\*\generator Msftedit 5.41.21.2510;}\viewkind4\uc1\pard\sb100\sa100\qj\b\fs40 Thank you for using SUPRA chess engine! \line\line\fs36 This version has 21  engine configuration variables  \fs32 + 2 buttons to clear memory:\par
+\b0\line\line\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b CPU power level\cf2\ulnone\fs40 *\cf0\b0\fs32 : possibility of calibration by the user the time management in five levels: \b EXTREME \b0 to max performance computers(+4 Ghz); \b HIGH \b0 to top computers (between 2.5 and 4Ghz); \b MEDIUM\b0  to normal computers  (between 1.5 and 2.5Ghz);  \b LOW\b0  to slower computers (-1.5 GHz) and \b FIXED DEPH \b0 to set the deph of analysis. \b (default:MEDIUM) \b0\line\pard\sb100\sa100\qj\line\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b Deep\cf2\ulnone\fs40 *\cf0\b0\fs32 : parameterizes the level of depth of researchers back. \cf3 For games <=3 minutes I  recommend deep <= 5\cf0 .\b  (Default: 9) \par
+\pard\sb100\sa100\qj\b0\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b Turbo search\cf2\ulnone\fs40 *\cf0\b0\fs32 :  when activated allows SUPRA use a method of searching a bit faster by staged increments of alpha.\b  (Default: on) \par
+\pard\sb100\sa100\qj\b0\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b positive float filter\cf2\ulnone\fs40 *\cf0\b0\fs32 : Allows three options: \b off\b0  (full off the  effect of filtering), \b full\b0  (allows SUPRA  choice the max level of filtering according to the current position and time available) \b auto\b0  (allows SUPRA  choice about the level of filtering according to the current position and time available) \b manual\b0  (allows the user to set the level of filtering being done by the engine from depth = 5) \b (default: auto)\par
+\pard\sb100\sa100\qj\b0\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b positive float level filter\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 (\b Only valid if positive float filter = manual) \b0 parameterizes the level of the filter can be done when SUPRA find a  response (for each node) at least greater than or equal to a. ... (0 - empty), (\u8203?\u8203?a-pawn), (2-bishop), (3-horse), (4-tower), (\u8203?\u8203?5 lady) (6-xequemate in 12 moves) \b (default: 5)\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul negative float filter\cf2\ulnone\fs40 *\cf0\b0\fs32 : Allows three options: \b off\b0  (full off the  effect of filtering), \b full\b0  (allows SUPRA  choice the max level of filtering according to the current position and time available), \b auto\b0  (allows SUPRA  choice about the level of filtering according to the current position and time available) \b manual\b0  (allows the user to set the level of filtering being done by the engine from depth = 4) \b (default: auto)\par
+\pard\sb100\sa100\qj\b0\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b negative float level filter\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 (\b Only valid if positive float filter = manual) \b0 parameterizes the level of the filter can be done when SUPRA find a  response of the opponent (for each node) at least greater than or equal to a. ... (0 - empty), (\u8203?\u8203?a-pawn), (2-bishop), (3-horse), (4-tower), (\u8203?\u8203?5 lady) (6-xequemate in 12 moves) \b (default: 5)\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Vertical filter\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 Powerful filter of variants frankly bad from deph = 3 \b (default: on)\par
+\pard\li360\sb100\sa100\qj\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Null move filter\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 The side to move do not move and leaves the opponent  play: if the result of this analysis (with deph = deph-2) is still bad for the opponent exists  a full cut at this node. \b (default: plus)\par
+\pard\li360\sb100\sa100\qj\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Temperament\cf0\ulnone\b0 : Although these differences were attenuated, there are 3 states of temper and the Dynamic is more AGGRESSIVE and positional is more strategic. Note that the parameter agrressiveness has more real impact on the final style of play \b (default (32bit):dynamic / (64bit): consistent) \b0\par
+\pard\li360\sb100\sa100\qj\b\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Aggressiveness\cf0\ulnone\b0 : parameterize the tendency of SUPRA to choose  attack  positions to queen, towers, knights and  bishops of the opponent. \b (min:1/max:5) (default: 1)\b0\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b Attack to king proximity\cf0\ulnone\b0 : parameterize the tendency of SUPRA to attack king proximity of opponent. \b (min:1/max:5) (default: 1)\b0\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b Attack by check to king\cf0\ulnone\b0 : parameterize the tendency of SUPRA to attack by check the king of opponent. \b (min:1/max:9) (default: 1)\b0\par
+\pard\li360\sb100\sa100\qj\b\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Confidence\cf0\ulnone\b0 : parameterizes the tendency to avoid the tie and seek win. Values \u8203?\u8203?greater than 6 can make SUPRA lose games that had disadvantage but had at its disposal the possibility of forcing the tie. \b (default: 5)\b0\par
+\pard\li360\sb100\sa100\qj\b\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Positional matrices\cf0\ulnone\b0 : consists of static arrays to guide SUPRA at the beginning of the game and dynamic arrays to enable SUPRA mates more easily carry out at the end \b (default: on)\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Extra evaluation\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 beyond material dierence extra evaluation quantifies the positions of pawns\b . \cf3\b0 For games <3 minutes I  recommend this setting off. \cf0\b (default: on)\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Extra definition\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 Improves considerably the definition  in the deep search function, allowing SUPRA to distinguish between equivalent differences in material final  when there is difference in starting material between white and black. SUPRA at an advantage privileged variants that will lead to increased qociente between SUPRA material and the enemy. The reverse held SUPRA in a disadvantage situation\b . \cf3\b0 For games <3 minutes I  recommend this setting off. \cf0\b (default: on)\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Own Book\cf0\ulnone\b0 : SUPRA has a very short open book (will update with more variants) of my own openness: open  queen force\b .(default: on)\b0\par
+\pard\li360\sb100\sa100\qj\b\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul Memory\cf2\ulnone\fs40 *\cf1\fs32 : \cf0\b0 The memory of SUPRA when activated allows SUPRA to save the value of a total of 1,000,000 making moves so SUPRA need not reevaluate a position if it is in memory\b  (default: Off)\par
+\pard\li360\sb100\sa100\qj\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf4\ul Clear memory (button):\ulnone  \cf0\b0 The memory of SUPRA automatically recycles just never needs to be cleaned unless you want to review the search process for a new position has already saved.\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b Deep memory\cf2\ulnone\fs40 *\cf0\b0\fs32 : In addition to the 1,000,000 moves / positions in depth level = 1 stored, SUPRA also has the option to save the positions corresponding levels of depth <= 5. Although sometimes it may be advantageous in quick games I think it is preferable not to activate this memory game for> 5 min\b  (default: on)\par
+\pard\li360\sb100\sa100\qj\b0\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf4\ul\b Clear deep memory (button):\ulnone  \cf0\b0 The memory of SUPRA automatically recycles just never needs to be cleaned unless you want to review the search process for a new position has already saved.\par
+\pard\li360\sb100\sa100\qj\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\fi-360\li720\sb100\sa100\qj\cf1\ul\b Full info\cf0\ulnone\b0 : active submission to the GUI of all alternatives of SUPRA, even with values \u8203?\u8203?too low.\b (default: on)\par
+\pard\li360\sb100\sa100\qj\b0\par
+\par
+\pard\sb100\sa100\cf2  \b\fs40 * \b0\fs32 Parameters that affect the search speed\par
+\pard\sb100\sa100\qj\cf0\line\par
+\pard\sb100\sa100\cf4\b\fs40 Examples of recommended settings:\par
+\pard\sb100\sa100\qj\cf0\b0\fs32\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\nowidctlpar\fi-360\li720\qj\cf5\b T <= 1 min:\cf0\b0\fs20\par
+\pard\nowidctlpar\li360\qj\par
+\par
+\cf1\ul\b\fs32 CPU power level: \cf0\ulnone Medium\fs20\par
+\b0\par
+\pard\nowidctlpar\qj\cf1\ul\b\fs28 Deep\cf0\ulnone\b0 : \b 5\par
+\par
+\cf1\ul Turbo search\cf0\ulnone\b0 : \b on\fs20\par
+\b0\par
+\cf1\ul\b\fs28 positive float filter\cf0\ulnone : manual \b0\fs20\par
+\par
+\cf1\ul\b\fs28 positive float filter level\cf0\ulnone : 2\b0\fs20\par
+\par
+\cf1\ul\b\fs28 negative float filter\cf0\ulnone :manual\b0\fs20\par
+\par
+\cf1\ul\b\fs28 negative float filter level\cf0\ulnone : 2\par
+\par
+\cf1\ul\fs32 Vertical filter:\cf0\ulnone  on\par
+\par
+\cf1\ul Null move filter:\cf0\ulnone  plus\b0\fs20\par
+\par
+\ul\b\fs28\par
+\cf1\fs32 Temperament\cf0\ulnone\fs28 : dynamic\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Aggressiveness\cf0\ulnone :1\par
+\par
+\cf1\ul\fs32 Attack to king proximity\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul\fs32 Attack by check to king\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul Confidence\cf0\ulnone :5\b0\fs20\par
+\par
+\cf1\ul\b\fs28 Positional matrices\cf0\ulnone : on\par
+\par
+\cf1\ul Extra Evaluation\cf0\ulnone :off\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Extra definition\cf0\ulnone :off\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Own Book\cf0\ulnone :on\ul\par
+\par
+\cf1 Memory\cf0\ulnone :off\b0\fs20\par
+\fs28\par
+\cf1\ul\b Deep memory\cf0\ulnone :on\par
+\par
+\cf1\ul Full info\cf0\ulnone :on\b0\fs20\par
+\par
+\par
+\ul\b\fs28\par
+\pard\nowidctlpar\li360\qj\ulnone\b0\fs20\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\nowidctlpar\fi-360\li720\qj\cf5\b\fs32 1 min < T <= 5 min:\cf0\b0\fs20\par
+\pard\nowidctlpar\li360\qj\par
+\cf5\b\fs32\par
+\cf1\ul CPU power level: \cf0\ulnone Medium\b0\fs20\par
+\par
+\pard\nowidctlpar\qj\cf1\ul\b\fs28 Deep\cf0\ulnone\b0 : \b 5\par
+\par
+\cf1\ul Turbo search\cf0\ulnone\b0 : \b on\fs20\par
+\b0\par
+\cf1\ul\b\fs28 positive float filter\cf0\ulnone : manual \b0\fs20\par
+\par
+\cf1\ul\b\fs28 positive float filter level\cf0\ulnone : 4\b0\fs20\par
+\par
+\cf1\ul\b\fs28 negative float filter\cf0\ulnone :manual\b0\fs20\par
+\par
+\cf1\ul\b\fs28 negative float filter level\cf0\ulnone : 4\par
+\par
+\cf1\ul\fs32 Vertical filter:\cf0\ulnone  on\par
+\par
+\cf1\ul Null move filter:\cf0\ulnone  plus\b0\fs20\par
+\par
+\ul\b\fs28\par
+\cf1\fs32 Temperament\cf0\ulnone\fs28 : dynamic\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Aggressiveness\cf0\ulnone :1\par
+\par
+\cf1\ul\fs32 Attack to king proximity\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul\fs32 Attack by check to king\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul Confidence\cf0\ulnone :5\b0\fs20\par
+\par
+\par
+\cf1\ul\b\fs28 Positional matrices\cf0\ulnone : on\par
+\par
+\cf1\ul Extra Evaluation\cf0\ulnone :off\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Extra definition\cf0\ulnone :off\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Own Book\cf0\ulnone :on\ul\par
+\par
+\cf1 Memory\cf0\ulnone :off\b0\fs20\par
+\fs28\par
+\cf1\ul\b Deep memory\cf0\ulnone :on\par
+\par
+\cf1\ul Full info\cf0\ulnone :on\b0\fs20\par
+\par
+\par
+\par
+\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\nowidctlpar\fi-360\li720\qj\cf5\b\fs32 5 min < T <= 15 min:\cf0\b0\fs20\par
+\pard\nowidctlpar\li360\qj\par
+\cf5\b\fs32\par
+\cf1\ul CPU power level: \cf0\ulnone Medium\b0\fs20\par
+\par
+\pard\nowidctlpar\qj\cf1\ul\b\fs28 Deep\cf0\ulnone\b0 : \b 7\par
+\par
+\cf1\ul Turbo search\cf0\ulnone\b0 : \b off\fs20\par
+\par
+\b0\par
+\cf1\ul\b\fs28 positive float filter\cf0\ulnone : auto \par
+\b0\fs20\par
+\par
+\pard\sb100\sa100\cf1\ul\b\fs28 positive float filter level\cf0\ulnone : indifferent\b0\fs20\par
+\pard\nowidctlpar\qj\par
+\cf1\ul\b\fs28 negative float filter\cf0\ulnone :auto\b0\fs20\par
+\par
+\pard\sb100\sa100\cf1\ul\b\fs28 negative float filter level\cf0\ulnone : indifferent\par
+\pard\nowidctlpar\qj\cf1\ul\fs32 Vertical filter:\cf0\ulnone  on\par
+\par
+\cf1\ul Null move filter:\cf0\ulnone  plus\b0\fs20\par
+\par
+\par
+\cf1\ul\b\fs32 Temperament\cf0\ulnone\fs28 : dynamic\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Aggressiveness\cf0\ulnone :1\par
+\par
+\cf1\ul\fs32 Attack to king proximity\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul\fs32 Attack by check to king\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul Confidence\cf0\ulnone :5\b0\fs20\par
+\par
+\cf1\ul\b\fs28 Positional matrices\cf0\ulnone : on\par
+\par
+\cf1\ul Extra Evaluation\cf0\ulnone :on\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Extra definition\cf0\ulnone :on\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Own Book\cf0\ulnone :on\ul\par
+\par
+\cf1 Memory\cf0\ulnone :off\b0\fs20\par
+\fs28\par
+\cf1\ul\b Deep memory\cf0\ulnone :on\par
+\par
+\cf1\ul Full info\cf0\ulnone :on\b0\fs20\par
+\par
+\par
+\fs28\par
+\cf2\lang2057\b\fs32\par
+\cf0\lang2070\fs28\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\nowidctlpar\fi-360\li720\qj\cf5\fs32 15 min < T <= 240 min:\cf0\b0\fs20\par
+\pard\nowidctlpar\li360\qj\par
+\cf5\b\fs32\par
+\par
+\cf1\ul CPU power level: \cf0\ulnone Medium\b0\fs20\par
+\par
+\pard\nowidctlpar\qj\cf1\ul\b\fs28 Deep\cf0\ulnone\b0 : \b 7\par
+\par
+\cf1\ul Turbo search\cf0\ulnone\b0 : \b off\fs20\par
+\par
+\b0\par
+\cf1\ul\b\fs28 positive float filter\cf0\ulnone : auto \b0\fs20\par
+\par
+\pard\sb100\sa100\cf1\ul\b\fs28 positive float filter level\cf0\ulnone : indifferent\b0\fs20\par
+\pard\nowidctlpar\qj\par
+\cf1\ul\b\fs28 negative float filter\cf0\ulnone :auto\b0\fs20\par
+\par
+\pard\sb100\sa100\cf1\ul\b\fs28 negative float filter level\cf0\ulnone : indifferent\par
+\pard\nowidctlpar\qj\cf1\ul\fs32 Vertical filter:\cf0\ulnone  on\par
+\par
+\cf1\ul Null move filter:\cf0\ulnone  plus\b0\fs20\par
+\par
+\ul\b\fs28\par
+\cf1\fs32 Temperament\cf0\ulnone\fs28 : dynamic\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Aggressiveness\cf0\ulnone :1\par
+\par
+\cf1\ul\fs32 Attack to king proximity\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul\fs32 Attack by check to king\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul Confidence\cf0\ulnone :5\b0\fs20\par
+\par
+\cf1\ul\b\fs28 Positional matrices\cf0\ulnone : on\par
+\par
+\cf1\ul Extra Evaluation\cf0\ulnone :on\b0\fs20\par
+\par
+\ul\b\fs28\par
+\cf1 Extra definition\cf0\ulnone :on\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Own Book\cf0\ulnone :on\ul\par
+\par
+\cf1 Memory\cf0\ulnone :off\b0\fs20\par
+\fs28\par
+\cf1\ul\b Deep memory\cf0\ulnone :on\par
+\par
+\cf1\ul Full info\cf0\ulnone :on\b0\fs20\par
+\b\fs28\par
+\par
+\par
+\par
+\par
+\pard{\pntext\f1\'B7\tab}{\*\pn\pnlvlblt\pnf1\pnindent0{\pntxtb\'B7}}\nowidctlpar\fi-360\li720\qj\cf5\fs32 T >240 min:\cf0\b0\fs20\par
+\pard\nowidctlpar\li360\qj\par
+\cf5\b\fs32\par
+\cf1\ul CPU power level: \cf0\ulnone Medium\b0\fs20\par
+\par
+\pard\nowidctlpar\qj\cf1\ul\b\fs28 Deep\cf0\ulnone\b0 : \b 9\par
+\par
+\cf1\ul Turbo search\cf0\ulnone\b0 : \b off\fs20\par
+\par
+\b0\par
+\cf1\ul\b\fs28 positive float filter\cf0\ulnone : off \b0\fs20\par
+\par
+\pard\sb100\sa100\cf1\ul\b\fs28 positive float filter level\cf0\ulnone : indifferent\b0\fs20\par
+\pard\nowidctlpar\qj\par
+\cf1\ul\b\fs28 negative float filter\cf0\ulnone :off\b0\fs20\par
+\par
+\pard\sb100\sa100\cf1\ul\b\fs28 negative float filter level\cf0\ulnone : indifferent\par
+\pard\nowidctlpar\qj\cf1\ul\fs32 Vertical filter:\cf0\ulnone  on\par
+\par
+\cf1\ul Null move filter:\cf0\ulnone  plus\b0\fs20\par
+\par
+\ul\b\fs28\par
+\cf1\fs32 Temperament\cf0\ulnone\fs28 : dynamic\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Aggressiveness\cf0\ulnone :1\par
+\par
+\cf1\ul\fs32 Attack to king proximity\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\cf1\ul\fs32 Attack by check to king\cf0\ulnone\b0 : \b\fs28 1\par
+\par
+\par
+\cf1\ul Confidence\cf0\ulnone :5\b0\fs20\par
+\par
+\par
+\cf1\ul\b\fs28 Positional matrices\cf0\ulnone : on\par
+\par
+\cf1\ul Extra Evaluation\cf0\ulnone :on\b0\fs20\par
+\par
+\ul\b\fs28\par
+\cf1 Extra definition\cf0\ulnone :on\b0\fs20\par
+\ul\b\fs28\par
+\cf1 Own Book\cf0\ulnone :on\ul\par
+\par
+\cf1 Memory\cf0\ulnone :off\b0\fs20\par
+\fs28\par
+\cf1\ul\b Deep memory\cf0\ulnone :on\par
+\par
+\cf1\ul Full info\cf0\ulnone :on\b0\fs20\par
+\par
+\pard\sb100\sa100\qj\fs32\par
+\line\line\b\fs36 Supra is a UCI chess engine to be installed in GUI (s) as the fritz, ChessBase, Hiarcs among others. \line\b0\fs32\line\ul\b\fs40 Notes: \b0\fs32\par
+\ulnone\line\line\cf1\b Supra is compatible with open books, Fenstring and  tablebases.\par
+\b0  \line\b Can play games from any position.\par
+\b0  \line\b accepts fighting engines.\par
+\b0\par
+\par
+\cf0\line Supra plays regularly with the nickname in playchess.com suprachesssystem. You can also play there with her or against her. \line\line Have fun with SUPRA, \line\line Pedro Mour\'e3o Correia\par
+\pard\sa200\sl276\slmult1\qj\lang22\par
+}
+ 
