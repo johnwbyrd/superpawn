@@ -1,0 +1,5 @@
+// UCI predefined options (else default will be taken)
+option NalimovCache value 8
+option Hash value 256
+option Ponder value false
+option OwnBook value false
