@@ -2809,9 +2809,6 @@ class Interface : Object
 			{
 				getline( *m_In, sInputLine );
 
-				if ( sInputLine.empty() )
-				{ break; }
-
 				LockGuardType guard( m_Lock );
 
 				Execute( sInputLine );
