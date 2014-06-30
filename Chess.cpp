@@ -381,7 +381,7 @@ class Pawn : public Piece
 		}
 
 		Moves GenerateMoves( const Square& source, const Position& pos ) const;
-
+		void AddEnPassantMove(Move &m, Square dest, Moves moves) const;
 		virtual void AddAndPromote( Moves& moves, Move& m,
 									const bool bIsPromote ) const;
 };
@@ -1395,30 +1395,30 @@ class Position : Object
 
 		void Initialize()
 		{
-			SetColorToMove( WHITE );
+			SetColorToMove(WHITE);
 			m_nPly = 0;
 			m_nMaterialScore = 0;
-			m_bH8 = m_bA8 = m_bH1 = m_bA1 = true;
-			m_sEnPassant.Set( -1, -1 );
+			m_bVirginH8 = m_bVirginA8 = m_bVirginH1 = m_bVirginA1 = true;
+			m_sEnPassant.Set(-1, -1);
 			m_Moves.Clear();
 			m_Board.Initialize();
 		}
 
-		Position( bool colorToMove )
+		Position(bool colorToMove)
 		{
 			Initialize();
-			SetColorToMove( colorToMove );
+			SetColorToMove(colorToMove);
 		}
 
-		Position( const string& sFEN )
+		Position(const string& sFEN)
 		{
 			Initialize();
-			SetFEN( sFEN );
+			SetFEN(sFEN);
 		}
 
 		int GetColorBias() const
 		{
-			return ( m_ColorToMove == WHITE ? 1 : -1 );
+			return (m_ColorToMove == WHITE ? 1 : -1);
 		}
 
 		PositionHashTable* GetHashTable() const
@@ -1432,61 +1432,100 @@ class Position : Object
 		const PositionHashEntry* LookUp() const
 		{
 			PositionHashTable* pHT = GetHashTable();
-			PositionHasher ph( *this );
-			return pHT->LookUp( ph.GetHash() );
+			PositionHasher ph(*this);
+			return pHT->LookUp(ph.GetHash());
 		}
 
 		/** Inserts this position into the hash table.  Takes care of updating
 		 ** the hash value before insertion.
 		 **/
-		void Insert( PositionHashEntry& pos )
+		void Insert(PositionHashEntry& pos)
 		{
 			PositionHashTable* pHT = GetHashTable();
-			PositionHasher ph( *this );
+			PositionHasher ph(*this);
 			pos.m_Hash = ph.GetHash();
-			pHT->Insert( pos );
+			pHT->Insert(pos);
 		}
 
 		/** Generates a new Position based on a previous, existing Position
 		 ** as well as a Move to apply to that previous Position.  A new
 		 ** Position is generated; the original Position remains untouched.
 		 **/
-		Position( const Position& position, const Move& move )
+		Position(const Position& position, const Move& move)
 		{
 			/** \todo Optimize this -- way too slow. */
 			m_Board = position.m_Board;
 			m_ColorToMove = position.m_ColorToMove;
 			m_nMaterialScore = position.m_nMaterialScore;
 			m_nPly = position.m_nPly + 1;
+			m_sEnPassant = Square(-1, -1);
 
-			m_bH1 = position.m_bH1;
-			m_bA1 = position.m_bA1;
-			m_bH8 = position.m_bH8;
-			m_bA8 = position.m_bA8;
+			m_bVirginH1 = position.m_bVirginH1;
+			m_bVirginA1 = position.m_bVirginA1;
+			m_bVirginH8 = position.m_bVirginH8;
+			m_bVirginA8 = position.m_bVirginA8;
 
-			if ( &move == &NullMove )
+			if (&move == &NullMove)
 			{
 				return;
 			}
 
-			if ( GetBoard().Get( move.Source() ) == &None )
+			if (GetBoard().Get(move.Source()) == &None)
 			{
 				stringstream ss;
 				ss << "Illegal move: no piece found at source location for move ";
-				ss << ( string )move;
-				Die( ss.str() );
+				ss << (string)move;
+				Die(ss.str());
 			}
 
-			if ( move.GetPromoteTo() == &None )
+			if (move.GetPromoteTo() == &None)
 			{
 				/* Move piece */
+				const Piece *pSource = m_Board.Get(move.Source());
+				const PieceType sourceType = pSource->Type();
 
-				m_nMaterialScore = position.GetScore() + ( m_Board.Get(
-									   move.Dest() )->PieceValue() ) *
-								   GetColorBias();
+				Square captureSquare = move.Dest();
 
+				/* Handle en passant */
+				if (sourceType == PAWN)
+				{
+					/* Did the pawn just move two spaces?  If so, record this fact in the position */
+					int pawnMoveDistance;
+					pawnMoveDistance = move.Dest().J() - move.Source().J();
+
+					if (abs( pawnMoveDistance ) > 1)
+					{
+						/* Halfway between the start and the end */
+						pawnMoveDistance = pawnMoveDistance >> 1;
+						Square enPassant(move.Source().I(), move.Source().J() + pawnMoveDistance);
+						m_sEnPassant = enPassant;
+					}
+
+					/* Did the pawn just move into the previous en passant square?  If so, capture */
+					else if (move.Dest() == position.m_sEnPassant)
+					{
+						/* Capture the pawn behind it */
+						int d = position.GetColorToMove() ? -1 : 1;
+						captureSquare = Square(move.Dest().I(), move.Dest().J() + d);
+						CaptureMaterial(position, captureSquare);
+						m_Board.Set(captureSquare.I(), captureSquare.J(), &None);
+					}
+					else
+					{
+						/* Not en passant.  Regardless of whether there's a capture or not,
+						* bump the material score by the captured square
+						*/
+						CaptureMaterial(position, captureSquare);
+					}
+				}
+				else
+				{
+					CaptureMaterial(position, captureSquare);
+				}
+
+				/* Move the piece to the destination */
 				m_Board.Set( move.Dest().I(), move.Dest().J(),
-							 m_Board.Get( move.Source() ) );
+							 pSource );
 
 				/* Handle castling */
 				if ( m_Board.Get( move.Source() )->Type() == KING )
@@ -1525,6 +1564,13 @@ class Position : Object
 			m_Board.Set( move.Source().I(), move.Source().J(), &None );
 
 			SetColorToMove( !GetColorToMove() );
+		}
+
+		void CaptureMaterial(const Position &position, Square captureSquare)
+		{
+			m_nMaterialScore = position.GetScore() + (m_Board.Get(
+				captureSquare)->PieceValue()) *
+				GetColorBias();
 		}
 
 		void GenerateMoves()
@@ -1709,7 +1755,7 @@ class Position : Object
 
 			stringstream ssVirgins( sVirgins );
 
-			m_bH1 = m_bA1 = m_bH8 = m_bA8 = false;
+			m_bVirginH1 = m_bVirginA1 = m_bVirginH8 = m_bVirginA8 = false;
 
 			while ( ssVirgins >> c )
 			{
@@ -1719,19 +1765,19 @@ class Position : Object
 						break;
 
 					case 'K':
-						m_bH1 = true;
+						m_bVirginH1 = true;
 						break;
 
 					case 'Q':
-						m_bA1 = true;
+						m_bVirginA1 = true;
 						break;
 
 					case 'k':
-						m_bH8 = true;
+						m_bVirginH8 = true;
 						break;
 
 					case 'q':
-						m_bA8 = true;
+						m_bVirginA8 = true;
 						break;
 				}
 			}
@@ -1791,21 +1837,21 @@ class Position : Object
 			else
 			{ s += " b "; }
 
-			if ( !( m_bH1 || m_bA1 || m_bH8 || m_bA8 ) )
+			if ( !( m_bVirginH1 || m_bVirginA1 || m_bVirginH8 || m_bVirginA8 ) )
 			{ s += "-"; }
 
 			else
 			{
-				if ( m_bH1 )
+				if ( m_bVirginH1 )
 				{ s += "K"; }
 
-				if ( m_bA1 )
+				if ( m_bVirginA1 )
 				{ s += "Q"; }
 
-				if ( m_bH8 )
+				if ( m_bVirginH8 )
 				{ s += "k"; }
 
-				if ( m_bA8 )
+				if ( m_bVirginA8 )
 				{ s += "q"; }
 			}
 
@@ -1847,13 +1893,17 @@ class Position : Object
 			m_nPly = val;
 		}
 
+		Square EnPassant() const { return m_sEnPassant; }
+		void EnPassant(Square val) { m_sEnPassant = val; }
+
+
 	protected:
 		Board   m_Board;
 		Color   m_ColorToMove;
 		unsigned int    m_nPly;
 		int m_nMaterialScore;
-		// Virgin rooks; can tell whether any of the four rooks has been moved
-		bool m_bH1, m_bA1, m_bH8, m_bA8;
+		/** Virgin rooks; can tell whether any of the four rooks has been moved */
+		bool m_bVirginH1, m_bVirginA1, m_bVirginH8, m_bVirginA8;
 		Square m_sEnPassant;
 		/** Cached generated moves. */
 		Moves m_Moves;
@@ -2595,6 +2645,17 @@ void Pawn::AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const
 	{ moves.Add( m ); }
 }
 
+void Pawn::AddEnPassantMove(Move &m, Square dest, Moves moves) const
+{
+	Pawn *pPawn;
+	pPawn = GetColor() ? &WhitePawn : &BlackPawn;
+	m.Dest(dest);
+	m.Score(pPawn->PieceValue());
+	AddAndPromote(moves, m, false);
+}
+
+
+
 Moves Pawn::GenerateMoves( const Square& source, const Position& pos ) const
 {
 	Moves moves;
@@ -2641,11 +2702,28 @@ Moves Pawn::GenerateMoves( const Square& source, const Position& pos ) const
 	}
 
 	dest = source.Add( 1, d );
-	if ( dest.IsOnBoard() && IsDifferent( dest, board ) )
+	if ( dest.IsOnBoard() && IsDifferent(dest, board) )
 	{
 		m.Dest( dest );
 		m.Score( board.Get( dest )->PieceValue() );
 		AddAndPromote( moves, m, bIsPromote );
+	}
+
+	Square enPassant = pos.EnPassant();
+	// Generate en passant moves
+	if (enPassant.IsOnBoard())
+	{
+		dest = source.Add(-1, d);
+		if (dest == enPassant)
+		{
+			AddEnPassantMove(m, dest, moves);
+		}
+
+		dest = source.Add(1, d);
+		if (dest == enPassant) 
+		{
+			AddEnPassantMove(m, dest, moves);
+		}
 	}
 
 	return moves;
