@@ -9,7 +9,7 @@
 ** \todo Checkmate
 ** \todo Castling
 ** \todo Timers
-** \todo En passant
+** \todo En passant 
 ** \todo Stalemate
 ** \todo Fifty-move clock
 ** \todo Threefold repetition
@@ -911,6 +911,20 @@ class Move : Object
 
 		operator string () const
 		{
+			if (m_Piece == &None)
+			{
+				return (string)"null";
+			}
+
+			if (m_PromoteTo != &None)
+			{
+				string s;
+				s.append(m_Source);
+				s.append(m_Dest);
+				s.push_back((char)tolower(m_PromoteTo->Letter()));
+				return s;
+			}
+
 			return ( string )m_Source + ( string )m_Dest;
 		}
 
@@ -1507,6 +1521,7 @@ class Position : Object
 						/* Capture the pawn behind it */
 						int d = position.GetColorToMove() ? -1 : 1;
 						captureSquare = Square(move.Dest().I(), move.Dest().J() + d);
+						/* FIXME This line doesn't seem to get the material right in the case of an en passant */
 						CaptureMaterial(position, captureSquare);
 						m_Board.Set(captureSquare.I(), captureSquare.J(), &None);
 					}
