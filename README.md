@@ -25,12 +25,12 @@ faster for x64 machines.
 Description
 -----------
 
-Superpawn is capable of making many fascinating chess moves, some
-of which are actually even legal.
+Superpawn is capable of making many fascinating chess moves, most
+of which are actually legal.
 
 As of this writing, it is capable of only playing
 a pseudo-legal game of chess, as it doesn't handle moves like
-en passant and castling correctly.
+check and castling correctly.
 
 Superpawn is an excellent example of the "objects gone wild" style of
 programming, in which Everything Is An Object.  Even the pieces themselves
@@ -61,15 +61,13 @@ Features
 - Compiles cleanly in 32-bit and 64-bit modes
 - Compatible with cmake build systems
 - Transposition tables to help speed up end game
-
+- Simple test framework based on [cutechess-cli](http://cutechess.com/)
 
 Things it doesn't do
 --------------------
 
-- Draw by repetition
-- Stalemate
-- En passant
 - Castling
+- Draw by repetition
 - Time controls
 - The fifty move rule
 - Play chess well
