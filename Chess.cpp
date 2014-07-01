@@ -32,7 +32,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -381,7 +381,7 @@ class Pawn : public Piece
 		}
 
 		Moves GenerateMoves( const Square& source, const Position& pos ) const;
-		void AddEnPassantMove(Move &m, Square dest, Moves moves) const;
+		void AddEnPassantMove(Move &m, Square dest, Moves &moves) const;
 		virtual void AddAndPromote( Moves& moves, Move& m,
 									const bool bIsPromote ) const;
 };
@@ -700,8 +700,8 @@ class Square : public Object
 
 		Square( const string& s )
 		{
-			i = s[0] - '0' + 1;
-			j = s[1] - 'a';
+			i = s.at(0) - 'a';
+			j = s.at(1) - '1';
 		}
 
 		bool IsOnBoard() const
@@ -1797,8 +1797,12 @@ class Position : Object
 				}
 			}
 
-			Square s( sEnPassant );
-			m_sEnPassant = s;
+			if (sEnPassant != "-")
+			{ 
+				Square s(sEnPassant);
+				m_sEnPassant = s;
+			}
+
 			m_nPly = ( nMoves - 1 ) * 2 + ( m_ColorToMove ? 0 : 1 );
 
 			UpdateScore();
@@ -2660,7 +2664,7 @@ void Pawn::AddAndPromote( Moves& moves, Move& m, const bool bIsPromote ) const
 	{ moves.Add( m ); }
 }
 
-void Pawn::AddEnPassantMove(Move &m, Square dest, Moves moves) const
+void Pawn::AddEnPassantMove(Move &m, Square dest, Moves &moves) const
 {
 	Pawn *pPawn;
 	pPawn = GetColor() ? &WhitePawn : &BlackPawn;
@@ -2668,8 +2672,6 @@ void Pawn::AddEnPassantMove(Move &m, Square dest, Moves moves) const
 	m.Score(pPawn->PieceValue());
 	AddAndPromote(moves, m, false);
 }
-
-
 
 Moves Pawn::GenerateMoves( const Square& source, const Position& pos ) const
 {
