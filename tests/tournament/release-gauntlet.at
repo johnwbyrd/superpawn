@@ -4,8 +4,8 @@ Type=1
 CurrSwissRound=0
 Rounds=10
 CurrentPair=1
-CurrentRound=8
-Level=5 -1\1/-1#1@-1|1
+CurrentRound=5
+Level=5 -1\8/-1#8@-1|8
 [Options]
 QuitAfterTournament=0
 ShutDownAfterTournament=0
@@ -58,7 +58,7 @@ FCHnames=
 [Data]
 LastPGNEPDindex=1
 LastGameDate=2014.07.01
-LastGameTime=00:14:59
+LastGameTime=01:50:14
 Country=United States
 Site=NICE
 Hardware=Intel(R) Core(TM) i7-4600U CPU @ 2.10GHz with 7.7 GB Memory
@@ -66,18 +66,10 @@ OS=Windows 7 Ultimate Professional Service Pack 1 (Build 7601) 64 bit
 Website=
 E-Mail=
 ArenaVersion=Arena 3.5
-FirstGameDate=2014.06.30
-FirstGameTime=23:45:00
+FirstGameDate=2014.07.01
+FirstGameTime=01:38:37
 [PairingResults]
-Superpawn Release x64 ------ Testina=11111111
-AnMon 5.75 ------ Superpawn Release x64=1111111
-ACE ------ Superpawn Release x64=00򚤰0
-Superpawn Debug x64 ------ Superpawn Release x64=浇浇010
-SOS 5.1 for Arena ------ Superpawn Release x64=1111111
+Dikabi ------ Superpawn Release x64=浇浇�?
 [Participants]
 Engine1=Superpawn Release x64
-Engine2=Testina
-Engine3=AnMon 5.75
-Engine4=ACE
-Engine5=Superpawn Debug x64
-Engine6=SOS 5.1 for Arena
+Engine2=Dikabi
