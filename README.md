@@ -20,7 +20,8 @@ you don't know which file to download, this one is probably it.
 [Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/superpawn-windows-x64.zip).  Slightly 
 faster for x64 machines.
 
-[Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Linux boxes.
+[Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Macintosh and 
+Linux boxes.
 
 Description
 -----------
@@ -39,15 +40,16 @@ down the move generation and evaluation process immensely, making this
 program irredeemably slow in tournament conditions.
 
 Superpawn requires a [C++11](http://en.wikipedia.org/wiki/C%2B%2B11) compiler
-with support for threading.  It runs on Windows and Linux systems, and compiles 
-under Microsoft, gcc and clang compilers.  A [CMake](http://www.cmake.org/)
+with support for threading.  It builds and runs on Windows, Linux and MacOS systems, 
+and  compiles under Microsoft, gcc and clang compilers.  A [CMake](http://www.cmake.org/)
 implementation is provided to ease compilation on arbitrary targets.
 
 Features
 --------
 
 - ANSI C++11 code
-- Compiles under Microsoft Visual Studio 2013, gcc 3.8.2, and clang 3.3
+- Compiles under Microsoft Visual Studio 2013, gcc 3.8.2, AppleClang 5.1.0,
+  and clang 3.3
 - Implements a subset of UCI protocol sufficient to permit play 
   with Arena 3.0+
 - Pluggable architecture permits easy experimentation with 
