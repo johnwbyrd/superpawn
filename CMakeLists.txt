@@ -33,7 +33,7 @@ endif()
 
 # As of 2014/7/1, the Darwin compiler built into Apple is not very C++11 compliant
 IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++")
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
