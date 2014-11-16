@@ -1,0 +1,18 @@
+0.4	(29.03.2003)
+
+initial public release
+
+
+0.5	(11.04.2003)
+
+- move generator: only legal moves now (before: pseudo-legal), nevertheless 30% faster
+- also only legal moves in quiescence search now
+- SEE
+- check and recapture extensions
+- verified nullmove pruning
+- stalemate recognized as draw
+- insufficient material recognized as draw
+- endgame: passed pawn evaluation improved
+- output: mate scoring ("M3" instead of "+100.00")
+- always plays legal moves now, even in extreme time trouble ("Pepito bug")
+- opening book changed to a static, non-learning one; but now with reasonable moves

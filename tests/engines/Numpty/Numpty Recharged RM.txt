@@ -1,0 +1,322 @@
+				Numpty
+
+		(a weak chess program by Chris Tatham)
+
+-------------------------------------------------------------------------------
+
+///// What is included? /////
+
+Numpty_Recharged_RM.txt - basic information
+Numpty_Recharged.exe    - executable  (dated 21 October 2014)
+Numpty_Recharged.bas	- source code (dated 21 October 2014)
+
+(files will have either 32 or 64 bit identifier)
+
+(32 bit version includes Numpty-Uncharged.exe) (non-optimised version)
+
+--------------------------------------------------------------------------------
+
+///// Overview /////
+
+As a longstanding computer chess enthusiast I have always admired those who have 
+been able to write and release their own programs irrespective of how strong or 
+weak they are. It has been a bonus that so many have been made available for us 
+to enjoy for free! :)
+
+Numpty is the culmination of a long held ambition of mine, to write and release 
+my own chess program. As I am very much a non-technical hobbyist with no 
+previous relevant experience, it has taken many frutstrating hours over a long 
+period of time. However, as well as being very challenging it has been an 
+immensely rewarding and also highly addictive experience! 
+
+In recent years too much time has been spent tweaking and testing minor changes
+rather than more fundamentally overhauling and improving core elements - such as
+improving the search functions (there is still no move ordering!). Given my lack
+of knowledge about coding and program design when starting back in 2005, further
+material improvement will only be achieved from rewriting the engine from scratch
+which is, sadly, unlikely to happen.
+
+Numpty is not the best coded or most efficient engine available by any means. 
+However, my primary objective in releasing Numpty is to make my experiences and 
+resources such as they are, available to other novice coders who are keen to 
+start writing their own programs. With this in mind, my source code which I have 
+documented as clearly as I can, is also freely available with this release.
+
+Numpty was written and compiled in FreeBasic (up to Numpty DD in v0.15b and 
+subsequently v0.90), using FBIDE (V0.4.6r4). You can find out more about 
+FreeBasic from the following site:
+
+http://www.freebasic.net/index.php/about 
+
+
+If you enjoy using Numpty then please send me a tweet '@numpty_chess' and make 
+my day! :) 
+
+
+--------------------------------------------------------------------------------
+
+
+///// Strength /////
+
+Strength of play wasn't the main focus in developing Numpty. Against human
+opponents I believe Numpty plays at around 1700 - 1900 elo level, depending on 
+computer hardware (the faster your computer the better it will play).
+
+Since July 2013 Numpty has been playing humans regularly on the Free Internet 
+Chess (FICS) server using the handle (numpty_chess). Numpty generally has a
+rating between 1950-2100 for each time control (ie lightning, blitz and standard
+chess).
+
+Numpty should be a nice opponent for the average club player. Although still 
+relatively weak it will play 'reasonable' looking moves without too many gross
+blunders. 
+
+Earlier versions of Numpty chess will remain available as I have had feedback to
+say these have been good opponents for novice players and children learning the 
+game.
+
+
+ -------------------------------------------------------------------------------
+
+///// Installation & use /////
+
+Numpty is winboard compatible engine and can be used within any of the common 
+commercial or freely available graphical user interfaces (gui). If you are 
+reading this you probably know what to do to install the engine in the desired 
+gui, but if you need further help or the software itself then please visit the 
+following:
+
+
+Free GUI:
+
+Winboard:
+http://www.open-aurec.com/wbforum/viewtopic.php?f=19&t=51528
+
+
+Arena:
+www.playwitharena.com
+
+
+
+Commerical GUI:
+
+Chessmaster
+http://chessmaster.uk.ubi.com/xi/index.php
+
+
+Chessbase
+http://en.chessbase.com/
+
+
+Console mode
+You can use Numpty in 'console' mode, by simply by double clicking 
+the Numpty.exe file. However, the engine is not really designed for use in 
+console mode. Its main use is for testing move generation. As a result not all
+features are supported. In particular games can only be played with a fixed 
+search depth as time controls are not supported in console mode.
+
+Enter 'help' to get a full list of the available commands/options. These are
+fairly basic and obvious so are not explained in detail here. 
+
+
+-------------------------------------------------------------------------------
+
+///// Acknowledgements & thanks /////
+
+I would like to thank the following people for their help in making my dream a 
+reality! - Numpty would not exist without their kind input. 
+
+A *big* thank you to the following:…
+
+
+frisian:
+- for his amazing job in translating the Numpty code and creating a functionally
+identical copy of Numpty Omega from a very old version of Freebasic (0.15b)
+in the most recent version (0.90); in so doing also improving and tidying up 
+some of my poor coding   
+
+
+Bill Rogers:
+- for his encouragement and support including the exchange of source code
+during development of the initial version of Numpty. Specifically, also for the 
+idea for multiple use of an ‘incheck routine’ and permission to use and adapt 
+his opening book related code
+
+
+Tom McBurney:
+– for permission to use his basic Winboard interface code (it was a real thrill
+to see my engine play its first game in Winboard!). I have adapted it for use in
+Numpty and added additional features/options so any compatibility problems or 
+errors are entirely my fault.
+
+
+John Merlino:
+- for his extensive help in enabling me to resolve a longstanding and frustrating
+bug that affected compatibility in the Chessmaster gui
+
+
+Lars Hallerstrom:
+- for his willingness to test many early development versions and his patience in
+putting up with the many problems/limitations encountered! 
+
+
+Adam Hair:
+- for his dedication in testing weaker engines like Numpty and enabling them to
+be included in the CCRL - it was a real thrill to see Numpty appear in the widely
+known and highly regarded rating list
+
+
+Uschi and Dusan Stamenkovic
+– for the wonderful Numpty logos
+
+
+Engine testers:
+- for their unflagging support and encouragement of my efforts. Thanks in particular
+  to:
+  - Leo Dijksman for the superb WBEC - sadly no more :(
+  - Olivier Deville for his excellent Chesswar - sadly no more :( 
+  - Sergio Martinez; Claude Dubois; Ciro Vignotto, Guenther Simon, Richard Dickinson 
+
+
+..... all those who have used (and hopefully enjoyed) earlier versions of Numpty 
+chess and the many people who have offered support, given feedback or informed me 
+of bugs - thanks! :-) 
+
+
+
+I have used the following resources extensively in learning how to program a chess
+engine and can recommend them highly:
+
+
+Levy D – Chess Computer Handbook (Batsford, 1984)
+- I used this book for the basic ideas of how a chess program works.
+
+
+Levy D – How Computers Play Chess (Batsford, 1976)
+- Earlier engine versions used the swap-off algorithm described in this book.
+
+
+Levy D - Chess Computer Compendium (Batsford 1988)
+- A magnificent compiliation of papers relating to all aspects of computer
+  chess from the early days of chess programming
+
+
+Chess Programming wiki (http://chessprogramming.wikispaces.com/)
+- An invaluable reference source. Numpty's piece square tables are developed
+  from and based on the ideas from this site    
+
+
+JAMCA  (http://eli.thegreenplace.net/programs-and-code/jamca/) 
+- an excellent and readable introduction of the basics of how a program plays 
+  chess – thanks to Eli Bendersky
+
+
+------------------------------------------------------------------------------
+
+///// Known and other issues /////
+
+My objective has only ever been to write a rock solid reliable chess engine
+so if you find any bugs or encounter any unexpected behaviour please let me
+know.
+
+The only GUI compatibility issues or problems with Numpty that I am aware 
+of are:
+
+
+Arena users:
+When setting up a position manually for Numpty to play (ie using setboard)
+please re-start Numpty before starting the engine thinking.
+
+Where preference is given for book use I would appreciate it if Numpty could
+use my own neutral engine v engine book (libra8.abk). Numpty was extensively 
+tested using this book during the development phase.
+
+
+Chessbase users:
+Numpty will not play consecutive games without being restarted manually.
+
+
+If you need support or help with the engine, you can tweet @numpty_chess and
+I will do my best to help.
+
+
+
+--------------------------------------------------------------------------------
+
+///// version control /////
+
+
+Numpty Recharged < October 2014 >
++++++++++++++++++++++++++++++++++
+
+Strength (approx +100 elo over previous version)
+
+Bugs:
+Fixed - error using force mode (re ep square) resulting in rare engine hang or 
+        illegal move when using external book)
+Fixed - odd error in engine book due to manual coding - occasionally resulted in
+	illegal book move or book line not being engaged
+Fixed - error in trapped bishop eval condition (checking wrong pawn!) 
+
+Other:
+Added  - resign and draw functionality
+Added  - additional book lines (still manually entered & tuned!)
+Change - less aggressive pruning of search at root (sadly still very crude!)
+Change - less aggressive use of 'easy move' (now d = 5)
+Change - first 64bit version and use of compiler optimisation
+	 (additional Numpty Uncharged (non-optimised) version released for 
+         existing human players not wanting such a step up in strength) 
+
+First version developed using FB 0.90 (all previous development used 0.15b) 
+
+
+Previous Numpty versions are available from the Numpty homepage (GIYF!). The
+ReadMe file in each release give details of the changes in each version.
+
+
+Numpty DD     < January 2014 >
+
+Numpty Omega  < November 2011 >
+
+Numpty 0.7pr  < September 2010 >
+
+Numpty 0.6pr  < March 2010 >
+
+Numpty 0.5pr  < December 2009 >
+
+Numpty 0.4pr  < June 2009 >
+
+Numpty 0.3pr  < May 2009 >
+
+Numpty 0.22pr < December 2007 >
+
+Numpty 0.21pr < September 2007 >
+
+Numpty 0.2pr  < March 2007 >
+
+Numpty 0.1pr  < 15 December 2006 > - The first public release of Numpty!
+
+
+-------------------------------------------------------------------------------
+
+///// Small print ////
+
+Please feel free to edit, enhance or otherwise use Numpty's code as you wish. 
+There is plenty of scope for improvement! Any errors or bugs in the existing 
+code are entirely my responsibility.
+
+This program and related files are free to use and distribute subject to the
+conditions below.  
+
+1) If you wish to use specific code in any program that is publicly released,
+   please first seek permission from and then credit the relevant author's 
+   work.
+
+2) This read me file and the relevant source code must accompany any secondary
+   distribution of the Numpty executable.
+
+There is no warranty given or implied and the Numpty program and related files
+are used at your own risk.
+
+
+(c) Chris Tatham - Oct 2014
