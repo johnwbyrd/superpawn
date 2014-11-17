@@ -21,7 +21,9 @@ you don't know which file to download, this one is probably it.
 faster for x64 machines.
 
 [Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Macintosh and 
-Linux boxes.
+Linux boxes.  The [Travis](https://travis-ci.org/johnwbyrd/superpawn) build system currently reports
+Superpawn's build status as:
+[![Build Status](https://travis-ci.org/johnwbyrd/superpawn.svg?branch=master)](https://travis-ci.org/johnwbyrd/superpawn)
 
 Description
 -----------
