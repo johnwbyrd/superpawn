@@ -4,7 +4,7 @@ os:
   - osx
 compiler:
   - gcc
-  - clang
+#  - clang
   
 # Setup different environments to test
 env:
