@@ -46,6 +46,24 @@ with support for threading.  It builds and runs on Windows, Linux and MacOS syst
 and  compiles under Microsoft, gcc and clang compilers.  A [CMake](http://www.cmake.org/)
 implementation is provided to ease compilation on arbitrary targets.
 
+If you are compiling with gcc, Superpawn requires gcc 3.8.2 or higher to compile.
+Earlier versions don't support all C++11 features, and your compilation will fail.
+
+Raspberry Pi
+------------
+
+Superpawn has been demonstrated to work, excruciatingly slowly, on the 
+[Raspberry Pi](http://www.raspberrypi.org) embeddable computer.  However, most graphical user interfaces for 
+chess on the Pi utilize the older [xboard](http://www.gnu.org/software/xboard/engine-intf.html)
+protocol, while Superpawn uses the Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
+protocol.  This can be worked around by installing and using [Polyglot](http://wbec-ridderkerk.nl/html/details1/PolyGlot.html) to launch Superpawn.
+A sample polyglot.ini for the Raspberry Pi is included with this 
+distribution.  This configuration works well with the eboard graphical
+user interface on the Pi.
+ 
+You will need to have gcc 3.8.2 or higher installed on the Pi.  As of this
+writing, instructions for updating the Pi from older compilers are [here](http://somewideopenspace.wordpress.com/2014/02/28/gcc-4-8-on-raspberry-pi-wheezy/).
+
 Features
 --------
 

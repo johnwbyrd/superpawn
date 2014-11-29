@@ -1,6 +1,7 @@
 /**
  ** Chess.cpp
  ** A simple UCI-compatible chess engine
+ ** http://chess.johnbyrd.org
  **
  ** astyle options:
  ** --align-pointer=name --align-reference=name --max-code-length=80 --pad-paren-in --pad-header --remove-brackets --convert-tabs --mode=c
