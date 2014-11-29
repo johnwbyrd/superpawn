@@ -4,12 +4,22 @@ engine-shootout.lua
 %CUTECHESS% -pgnout %PGN_DATABASE% -engine name=superpawn proto=uci cmd=superpawn.exe dir=..\build\win\x64\release -engine name=testina proto=xboard cmd=testina.exe dir=engines\testina -each tc=60/180 -games 10 -wait 1
 ]]--
 
+games = 1
 
-game_options = "-tournament gauntlet -each tc=1/10 -games 10 -wait 1"
+game_options = "-tournament gauntlet -each tc=1/10 "
+game_options = game_options .. " -games " .. games
+game_options = game_options .. " -concurrency 2 -wait 1"
 
 opponents = { 
 	"ACE/ACE.exe/uci",
-	"Testina/Testina.exe/xboard"
+	"DesasterArea/DesasterArea-1.54.exe/uci",
+	"Dika/Dikabi.exe/xboard",
+--	"Marquis/marquis.exe/xboard",
+--	"Numpty/Numpty_Recharged_64.exe/xboard",
+	"Piranha/piranha.exe/uci",
+	"Senpai/senpai1.0_sse42.exe/uci",
+	"Stockfish/stockfish_14053109_32bit.exe/uci",
+	"Testina/Testina.exe/xboard",
 	}
 
 platform = "win32"
@@ -65,3 +75,7 @@ print "---"
 print( command_line )
 print "---"
 os.execute( command_line )
+
+-- create elostat instruction file
+
+
