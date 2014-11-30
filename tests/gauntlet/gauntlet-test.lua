@@ -3,6 +3,19 @@ gauntlet-test.lua
 ]]--
 
 require "cmdline"
+local getparam = cmdline.getparam
+local inspect = require('inspect')
+
+print( inspect( arg ))
+t_out = getparam( arg )
+print( inspect( t_out ))
+
+current_date = os.date("%Y-%m-%d-%H-%M-%S")
+
+build_id = t_out.BUILD_ID or current_date
+build_number = t_out.BUILD_NUMBER or current_date
+build_tag = t_out.BUILD_TAG or current_date
+print( "Build tag: " .. build_tag )
 
 -- Number of rounds per engine
 games = 1
@@ -28,6 +41,10 @@ opponents = {
 	"TSCP/tscp181.exe/xboard"
 	}
 
+opponents = { 
+	"ACE/ACE.exe/uci",
+	}
+	
 platform = "win32"
 platform_generic = "win"
 subplatform = "x64"
@@ -42,7 +59,7 @@ tests_dir = root_dir .. "tests/"
 engines_dir = tests_dir .. "engines/"
 hero_engine_path = build_dir .. platform_generic .. "/" .. subplatform .. "/" .. hero_engine_build_type .. "/"
 
-current_date = os.date("%Y-%m-%d-%H-%M-%S")
+
 
 print("Current directory: " .. current_dir)
 print("Current time:      " .. current_date)
@@ -52,7 +69,7 @@ tools_platform_dir = tools_dir .. platform .. "/"
 cutechess = tools_platform_dir .. "/cutechess-cli/cutechess-cli.exe"
 
 pgn_database_dir = build_dir .. "tests/"
-pgn_database_root = pgn_database_dir .. "test-" .. current_date
+pgn_database_root = pgn_database_dir .. build_tag
 pgn_database = pgn_database_root .. ".pgn"
 pgn_report_fn = pgn_database_root .. ".txt"
 

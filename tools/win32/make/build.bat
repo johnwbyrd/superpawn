@@ -1,6 +1,10 @@
 echo Run me in the root directory of the project to build win32 releases.
 echo Use -tests argument to run gauntlet tests on engine.
 
+set BUILD_ID=Unknown
+set BUILD_NUMBER=Unknown
+set BUILD_TAG=Unknown
+
 :parse_command_line
 IF NOT "%1"=="" (
     IF "%1"=="--BUILD_ID" (
@@ -12,10 +16,10 @@ IF NOT "%1"=="" (
         SHIFT
     )
 	IF "%1"=="--BUILD_TAG" (
-        SET JOB_NAME=%2
+        SET BUILD_TAG=%2
         SHIFT
     )
-	if "%1"=="--tests" (
+	if "%1"=="--TESTS" (
 		SET TESTS=1
 	)
     SHIFT
@@ -53,7 +57,7 @@ popd
 
 if "%TESTS%" == "" goto no_tests
 pushd tests\gauntlet
-call gauntlet-test.bat
+call gauntlet-test.bat --BUILD_ID %BUILD_ID% --BUILD_NUMBER %BUILD_NUMBER% --BUILD_TAG %BUILD_TAG%
 
 :no_tests
 
