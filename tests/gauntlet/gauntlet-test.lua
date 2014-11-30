@@ -18,7 +18,7 @@ build_tag = t_out.BUILD_TAG or current_date
 print( "Build tag: " .. build_tag )
 
 -- Number of rounds per engine
-games = 1
+games = 100
 
 -- Actually run cutechess or just simulate?
 run_cutechess = true
@@ -40,10 +40,6 @@ opponents = {
 	"Stockfish/stockfish_14053109_32bit.exe/uci",
 	"Testina/Testina.exe/xboard",
 	"TSCP/tscp181.exe/xboard"
-	}
-
-opponents = { 
-	"ACE/ACE.exe/uci",
 	}
 	
 platform = "win32"
