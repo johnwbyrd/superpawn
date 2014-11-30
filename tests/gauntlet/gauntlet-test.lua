@@ -62,7 +62,9 @@ engines_dir = tests_dir .. "engines/"
 hero_engine_path = build_dir .. platform_generic .. "/" .. subplatform .. "/" .. hero_engine_build_type .. "/"
 
 string.gsub( build_tests_dir, "/", "\\")
-os.execute( "if not exist " .. build_tests_dir .. "\\nul mkdir ".. build_tests_dir )
+makedir_cmd = "if not exist " .. build_tests_dir .. "\\nul mkdir ".. build_tests_dir
+print( "Trying to make directory: " .. makedir_cmd )
+os.execute( makedir_cmd )
 
 print("Current directory: " .. current_dir)
 print("Current time:      " .. current_date)
