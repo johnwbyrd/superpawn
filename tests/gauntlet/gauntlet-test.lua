@@ -27,7 +27,8 @@ run_analyze = true
 
 game_options = "-tournament gauntlet -each tc=1/10 "
 game_options = game_options .. " -games " .. games
-game_options = game_options .. " -concurrency 2 -wait 1"
+game_options = game_options .. " -concurrency 2 -wait 1 " 
+game_options = game_options .. "-event " .. build_tag .. " "
 -- game_options = game_options .. " -recover "
 
 opponents = { 
