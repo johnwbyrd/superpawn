@@ -55,12 +55,13 @@ hero_engine_command = "superpawn.exe"
 
 current_dir = io.popen "cd" : read '*l'
 root_dir = current_dir .. "/../../"
-build_dir = root_dir .. "build/" 
+build_dir = root_dir .. "build/"
+build_tests_dir = build_dir .. "tests/"
 tests_dir = root_dir .. "tests/"
 engines_dir = tests_dir .. "engines/"
 hero_engine_path = build_dir .. platform_generic .. "/" .. subplatform .. "/" .. hero_engine_build_type .. "/"
 
-
+os.execute( "if not exist " .. build_tests_dir .. "\nul mkdir ".. build_tests_dir )
 
 print("Current directory: " .. current_dir)
 print("Current time:      " .. current_date)
