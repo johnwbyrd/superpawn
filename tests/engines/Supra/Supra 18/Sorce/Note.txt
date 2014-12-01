@@ -1,1 +1,0 @@
-Note: This source code is complete and buildable (with dev-c ++)

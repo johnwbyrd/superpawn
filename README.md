@@ -49,13 +49,52 @@ implementation is provided to ease compilation on arbitrary targets.
 If you are compiling with gcc, Superpawn requires gcc 3.8.2 or higher to compile.
 Earlier versions don't support all C++11 features, and your compilation will fail.
 
+Building on Windows
+-------------------
+
+To attempt a Windows build, from the root directory of the installation type:
+
+    tools\win32\make\build.bat
+
+Test suite
+----------
+
+Superpawn includes a simple test suite that uses the [cutechess-cli](https://chessprogramming.wikispaces.com/Cutechess-cli) application
+to run a series of tests against existing chess engines.  Superpawn currently
+loses handily to most of them.  The test suite currently runs on Windows
+platforms only but could be modified to run on other platforms.
+
+The core of the test suite is a Lua script that enumerates all currently
+existing chess engines in the tools\engines subdirectory, and uses
+the cutechess-cli application to launch a gauntlet test against Superpawn.
+The results of the gauntlet are automatically stored in the build\tests
+subdirectory.
+
+To build and run against the test gauntlet, run the following on a Windows 
+box from the root directory:
+
+    tools\win32\make\build --TESTS
+
+As of this writing, I test against specific Windows builds of the following engines:
+
+- [ACE](https://code.google.com/p/ace-chess/)
+- [DesasterArea](http://desasterarea.jimdo.com/)
+- [Dika](http://kirr.homeunix.org/chess/engines/Norbert%27s%20collection/Dika%20v0.4209/)
+- [Piranha](http://www.villwock.com/piranha/)
+- [Senpai](https://chessprogramming.wikispaces.com/Senpai)
+- [Stockfish](https://stockfishchess.org/)
+- [Testina](http://www.g-sei.org/testina/) 
+- [TSCP](http://www.tckerrigan.com/chess/tscp) 
+
+I make no proprietary claim for cutechess-cli or any of the included chess engines except Superpawn.  If you don't want me to test against your engine or include it in github, let me know and I'll happily delete it from the repository.
+
 Raspberry Pi
 ------------
 
 Superpawn has been demonstrated to work, excruciatingly slowly, on the 
 [Raspberry Pi](http://www.raspberrypi.org) embeddable computer.  However, most graphical user interfaces for 
 chess on the Pi utilize the older [xboard](http://www.gnu.org/software/xboard/engine-intf.html)
-protocol, while Superpawn uses the Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
+protocol, while Superpawn uses the [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
 protocol.  This can be worked around by installing and using [Polyglot](http://wbec-ridderkerk.nl/html/details1/PolyGlot.html) to launch Superpawn.
 A sample polyglot.ini for the Raspberry Pi is included with this 
 distribution.  This configuration works well with the eboard graphical

@@ -8,14 +8,15 @@
  ** http://creativecommons.org/licenses/by/3.0/
  **/
 
-/** \todo Check
-** \todo Checkmate
-** \todo Castling
-** \todo Timers
-** \todo Stalemate
-** \todo Fifty-move clock
+/**
+** \todo Don't try to sacrifice king if position is hopeless
+** \todo Correctly report distance to mate in search
+** \todo Generate castling moves
 ** \todo Threefold repetition
-** \todo Draw due to material
+** \todo Parse clock requests from interface
+** \todo Change search based on clock
+** \todo Handle stalemate
+** \todo Fifty-move clock
 ** \todo Take castling into account in computing hashes
 **/
 
