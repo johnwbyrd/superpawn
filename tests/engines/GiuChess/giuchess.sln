@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 9.00
+# Visual Studio 2005
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "giuchess", "giuchess.vcproj", "{42BB594E-49DF-4328-90EE-4FCEECD044EB}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pthread", "..\pthreads-snap-2005-01-03\pthread.vcproj", "{5532850A-950A-4D38-837D-2C85FBC15296}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{42BB594E-49DF-4328-90EE-4FCEECD044EB}.Debug|Win32.ActiveCfg = Debug|Win32
+		{42BB594E-49DF-4328-90EE-4FCEECD044EB}.Debug|Win32.Build.0 = Debug|Win32
+		{42BB594E-49DF-4328-90EE-4FCEECD044EB}.Release|Win32.ActiveCfg = Release|Win32
+		{42BB594E-49DF-4328-90EE-4FCEECD044EB}.Release|Win32.Build.0 = Release|Win32
+		{5532850A-950A-4D38-837D-2C85FBC15296}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5532850A-950A-4D38-837D-2C85FBC15296}.Debug|Win32.Build.0 = Debug|Win32
+		{5532850A-950A-4D38-837D-2C85FBC15296}.Release|Win32.ActiveCfg = Release|Win32
+		{5532850A-950A-4D38-837D-2C85FBC15296}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal

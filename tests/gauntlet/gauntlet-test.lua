@@ -35,6 +35,7 @@ opponents = {
 	"ACE/ACE.exe/uci",
 --	"DesasterArea/DesasterArea-1.54.exe/uci",
 	"Dika/Dikabi.exe/xboard",
+	"GiuChess/giuchess.exe/xboard",
 --	"Piranha/piranha.exe/uci",
 --	"Senpai/senpai1.0_sse42.exe/uci",
 --	"Stockfish/stockfish_14053109_32bit.exe/uci",

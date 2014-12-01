@@ -1,12 +1,8 @@
-   Engine                Score                   Su
-1: DesasterArea-1.54     19.0/19 1111111111111111111 
-1: Numpty_Recharged_64   19.0/19 1111111111111111111 
-3: Marquis               15.0/18 1111=====1111111=1  
-4: Superpawn Release x64 14.5/93 ··················· 
-5: Dikabi                13.5/19 1111======11==11=== 
-6: Testina               12.0/18 1111=000=111==11==? 
+   Engine              Score  Su
+1: Giuchess            1.5/2  =1 
+2: Superpawn Debug x64 0.5/2  ·· 
 
-93 of 500 games played
+2 of 100 games played
 Name of the tournament: Arena Tournament
 Site/ Country: NICE, United States
 Level: Tournament Game in 5 Minutes

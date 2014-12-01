@@ -80,6 +80,7 @@ As of this writing, I test against specific Windows builds of the following engi
 - [ACE](https://code.google.com/p/ace-chess/)
 - [DesasterArea](http://desasterarea.jimdo.com/)
 - [Dika](http://kirr.homeunix.org/chess/engines/Norbert%27s%20collection/Dika%20v0.4209/)
+- [GiuChess](https://chessprogramming.wikispaces.com/GiuChess)
 - [Piranha](http://www.villwock.com/piranha/)
 - [Senpai](https://chessprogramming.wikispaces.com/Senpai)
 - [Stockfish](https://stockfishchess.org/)
@@ -87,6 +88,11 @@ As of this writing, I test against specific Windows builds of the following engi
 - [TSCP](http://www.tckerrigan.com/chess/tscp) 
 
 I make no proprietary claim for cutechess-cli or any of the included chess engines except Superpawn.  If you don't want me to test against your engine or include it in github, let me know and I'll happily delete it from the repository.
+
+Information on recent gauntlet results, including 
+[PGN](http://en.wikipedia.org/wiki/Portable_Game_Notation) format games
+and their [elostat](http://www.playwitharena.com/?User_Files%2C_Engines:Axon%2C_EloStat%2C_Nalimov:EloStat) analyses, may be online
+[here](http://chess.johnbyrd.org/tests).
 
 Raspberry Pi
 ------------
