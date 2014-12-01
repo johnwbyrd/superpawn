@@ -18,7 +18,7 @@ build_tag = t_out.BUILD_TAG or current_date
 print( "Build tag: " .. build_tag )
 
 -- Number of rounds per engine
-games = 100
+games = 20
 
 -- Actually run cutechess or just simulate?
 run_cutechess = true
@@ -46,7 +46,7 @@ platform = "win32"
 platform_generic = "win"
 subplatform = "x64"
 hero_engine_name = "Superpawn"
-hero_engine_build_type = "Release"
+hero_engine_build_type = "Debug"
 hero_engine_command = "superpawn.exe"
 
 current_dir = io.popen "cd" : read '*l'

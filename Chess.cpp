@@ -34,7 +34,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -2314,7 +2314,7 @@ protected:
             stringstream ss;
             ss << "info depth " << nCurrentDepth;
             ss << " pv " << ( string ) PV;
-            ss << " score cps " << m_Score;
+            ss << " score cp " << m_Score;
 
             Instruct( ss.str() );
 
