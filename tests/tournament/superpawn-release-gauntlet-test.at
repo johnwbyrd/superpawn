@@ -31,10 +31,10 @@ ShutdownComputerAfterGamesValue=10
 [Save]
 SaveGamesPGN=1
 SaveIncompleteGamesPGN=1
-PGNFile=C:\git\superpawn\tests\tournament\gauntlet-tournament.pgn
-Protocolfile=Logfile001.log
-TurTabTextfile=C:\git\superpawn\tests\tournament\gauntlet-tournament.txt
-TurTabHTMLfile=C:\git\superpawn\tests\tournament\gauntlet-tournament.html
+PGNFile=C:\git\superpawn\build\tests\gauntlet-tournament.pgn
+Protocolfile=C:\git\superpawn\build\tests\gauntlet-tournament
+TurTabTextfile=C:\git\superpawn\build\tests\gauntlet-tournament.txt
+TurTabHTMLfile=C:\git\superpawn\build\tests\gauntlet-tournament.txt
 SaveTurTabText=1
 SaveTurTabHTML=1
 HTMLuseCountry=0
@@ -64,12 +64,14 @@ OS=Windows 7 Ultimate Professional Service Pack 1 (Build 7601) 64 bit
 Website=
 E-Mail=
 ArenaVersion=Arena 3.5
-LastGameDate=2014.11.30
-LastGameTime=23:37:49
+LastGameDate=2014.12.01
+LastGameTime=00:43:33
 FirstGameDate=2014.11.30
 FirstGameTime=23:32:53
 [PairingResults]
-Giuchess ------ Superpawn Debug x64=½1
+Giuchess ------ Superpawn Debug x64=½1½11½½½1½?
+Dendron-042b-32-ja ------ Superpawn Debug x64=0½½½?
+MicroChess ------ Superpawn Debug x64=½½?
 [Participants]
 Engine1=Superpawn Debug x64
-Engine2=Giuchess
+Engine2=MicroChess

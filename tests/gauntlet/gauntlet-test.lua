@@ -110,7 +110,11 @@ if ( run_cutechess ) then
 	os.execute( command_line )
 end
 
+print "cutechess execution finished."
+
 -- create elostat instruction file
+print "Creating elostat instruction file..."
+
 pgn_database_base_fn = string.gsub( pgn_database, ".pgn", "" )
 
 insns_file_name = current_date .. ".tmp"
@@ -120,6 +124,8 @@ insns:write( pgn_database_base_fn .. "\n" )
 insns:write( "1500\n" )
 insns:write( "1\n" )
 insns:close()
+
+print "File created."
 
 analysis_dir = tools_platform_dir .. "elostat/"
 analysis_exe = analysis_dir .. "elostat_13.exe"
@@ -133,6 +139,7 @@ if ( run_analyze ) then
 	print (analysis_cmdline)
 	print ("---")
 	os.execute( analysis_cmdline )
+	print "Analysis completed."
 end
 
 os.remove( insns_file_name )
