@@ -904,7 +904,8 @@ public:
     void SetPromoteTo( const Piece *val )
     {
         m_PromoteTo = val;
-        m_Score = val->PieceValue() ;
+        /* Don't just overwrite -- this may be a promotion and a capture! */
+        m_Score += val->PieceValue() ;
     }
 
     Square Source() const
@@ -1476,6 +1477,8 @@ public:
         m_sEnPassant.Set( -1, -1 );
         m_Moves.Clear();
         m_Board.Initialize();
+        m_bIsCheckDetermined = false;
+        m_bIsCheck = false;
     }
 
     Position( bool colorToMove )
@@ -1576,6 +1579,18 @@ public:
     }
 
 
+    void PromotePiece( const Position &position, const Move &move )
+    {
+        /* Promote piece */
+        m_nMaterialScore = position.GetScore() +
+                           ( move.GetPromoteTo()->PieceValue() +
+                             m_Board.Get( move.Dest() )->PieceValue() ) *
+                           GetColorBias();
+
+        m_Board.Set( move.Dest().I(), move.Dest().J(),
+                     move.GetPromoteTo() );
+    }
+
     /** Generates a new Position based on a previous, existing Position
      ** as well as a Move to apply to that previous Position.  A new
      ** Position is generated; the original Position remains untouched.
@@ -1594,8 +1609,14 @@ public:
         m_bVirginH8 = position.m_bVirginH8;
         m_bVirginA8 = position.m_bVirginA8;
 
+        m_bIsCheckDetermined = false;
+        m_bIsCheck = false;
+
         if ( &move == &NullMove )
+        {
+            SetColorToMove( !GetColorToMove() );
             return;
+        }
 
         if ( GetBoard().Get( move.Source() ) == &None )
         {
@@ -1632,18 +1653,6 @@ public:
 
         m_Board.Set( move.Source().I(), move.Source().J(), &None );
         SetColorToMove( !GetColorToMove() );
-    }
-
-    void PromotePiece( const Position &position, const Move &move )
-    {
-        /* Promote piece */
-        m_nMaterialScore = position.GetScore() +
-                           ( move.GetPromoteTo()->PieceValue() +
-                             m_Board.Get( move.Dest() )->PieceValue() ) *
-                           GetColorBias();
-
-        m_Board.Set( move.Dest().I(), move.Dest().J(),
-                     move.GetPromoteTo() );
     }
 
     void CaptureMaterial( const Position &position, Square captureSquare )
@@ -1701,6 +1710,34 @@ public:
         GetMoves();
         return m_Moves.Count();
 
+    }
+
+    bool CanKingBeCapturedNow()
+    {
+        Moves moves = GetMoves();
+
+        if ( !moves.IsEmpty() )
+        {
+            Move bestMove = moves.GetFirst();
+            if ( bestMove.Score() >= KING_VALUE )
+                return true;
+        }
+
+        return false;
+    }
+
+    bool IsCheck()
+    {
+        if ( m_bIsCheckDetermined )
+            return m_bIsCheck;
+
+        /* To determine check, apply a null move to the current position and see if the result
+         * permits the king to be captured.
+         */
+        Position tempPos( *this, NullMove );
+        m_bIsCheck = tempPos.CanKingBeCapturedNow();
+        m_bIsCheckDetermined = true;
+        return m_bIsCheck;
     }
 
     const Board &GetBoard() const
@@ -2005,6 +2042,8 @@ protected:
     /** Cached generated moves. */
     Moves m_Moves;
     Moves m_Captures;
+    bool m_bIsCheckDetermined;
+    bool m_bIsCheck;
 };
 
 HashValue PositionHasher::GetHash() const
@@ -2246,7 +2285,7 @@ public:
     {
         Clock::ChessTickType tMilliSinceStart = m_Clock.Get();
 
-        if ( tMilliSinceStart - m_tLastReport < 1000 )
+        if ( abs( tMilliSinceStart - m_tLastReport ) < 1000 )
             return;
 
         if ( tMilliSinceStart == 0 )
@@ -2574,15 +2613,28 @@ protected:
             myMoves.Bump( bestMove );
         }
 
+        if ( pos.CanKingBeCapturedNow() )
         {
-            /* If the king has been captured, abort evaluation here.  Don't
-             * go off and try to evaluate king exchanges and whatnot -- it's
-             * the end of the game.
-             */
-            Move firstMove = myMoves.GetFirst();
-            const Piece *pTarget = pos.GetBoard().Get( firstMove.Dest() );
-            if ( pTarget->Type() == KING )
-                return KING_VALUE;
+            /* stop all recursion here */
+            return KING_VALUE;
+        }
+
+        if ( pos.IsCheck() )
+        {
+            Moves checkResolvingMoves;
+            /* Filter out all moves to ones that resolve the check */
+            Moves::iterator it = myMoves.begin();
+
+            while ( it != myMoves.end() )
+            {
+                Position tempPos( pos, *it );
+                if ( !tempPos.CanKingBeCapturedNow() )
+                    checkResolvingMoves.Add( *it );
+
+                it++;
+            }
+
+            myMoves = checkResolvingMoves;
         }
 
         bool bFirstSearch = true;
@@ -2735,25 +2787,41 @@ void Pawn::AddAndPromote( Moves &moves, Move &m, const bool bIsPromote ) const
         Color color = m.GetPiece()->GetColor();
         if ( color == WHITE )
         {
-            m.SetPromoteTo( &WhiteQueen );
-            moves.Add( m );
-            m.SetPromoteTo( &WhiteKnight );
-            moves.Add( m );
-            m.SetPromoteTo( &WhiteBishop );
-            moves.Add( m );
-            m.SetPromoteTo( &WhiteRook );
-            moves.Add( m );
+            Move m1;
+            m1 = m;
+            m1.SetPromoteTo( &WhiteQueen );
+            moves.Add( m1 );
+
+            m1 = m;
+            m1.SetPromoteTo( &WhiteKnight );
+            moves.Add( m1 );
+
+            m1 = m;
+            m1.SetPromoteTo( &WhiteBishop );
+            moves.Add( m1 );
+
+            m1 = m;
+            m1.SetPromoteTo( &WhiteRook );
+            moves.Add( m1 );
         }
         else
         {
-            m.SetPromoteTo( &BlackQueen );
-            moves.Add( m );
-            m.SetPromoteTo( &BlackKnight );
-            moves.Add( m );
-            m.SetPromoteTo( &BlackBishop );
-            moves.Add( m );
-            m.SetPromoteTo( &BlackRook );
-            moves.Add( m );
+            Move m1;
+            m1 = m;
+            m1.SetPromoteTo( &BlackQueen );
+            moves.Add( m1 );
+
+            m1 = m;
+            m1.SetPromoteTo( &BlackKnight );
+            moves.Add( m1 );
+
+            m1 = m;
+            m1.SetPromoteTo( &BlackBishop );
+            moves.Add( m1 );
+
+            m1 = m;
+            m1.SetPromoteTo( &BlackRook );
+            moves.Add( m1 );
         }
     }
     else
