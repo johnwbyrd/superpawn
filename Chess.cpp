@@ -9,7 +9,8 @@
  **/
 
 /**
-** \todo Don't try to sacrifice king if position is hopeless
+** \todo Search returns null moves for some positions researched, i.e.
+**       6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 3 45
 ** \todo Correctly report distance to mate in search
 ** \todo Generate castling moves
 ** \todo Threefold repetition
