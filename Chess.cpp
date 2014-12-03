@@ -35,7 +35,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 4; //-V112
+const unsigned int SEARCH_DEPTH = 6; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -134,14 +134,14 @@ PieceSquareRawTableType pstDefault =
 /* "A knight on the rim is grim." */
 PieceSquareRawTableType pstKnight =
 {
-    -50, -40, -30, -30, -30, -30, -40, -50,
+    -40, -30, -30, -30, -30, -30, -30, -40,
     -40, -20,   0,   0,   0,   0, -20, -40,
     -30,   0,  10,  15,  15,  10,   0, -50,
-    -30,   5,  15,  20,  20,  15,   5, -30,
-    -30,   5,  15,  20,  20,  15,   5, -30,
+    -30,  10,  15,  30,  30,  15,  10, -30,
+    -30,  10,  15,  20,  30,  15,  10, -30,
     -30,   0,  10,  15,  15,  10,   0, -50,
     -40, -20,   0,   0,   0,   0, -20, -40,
-    -50, -40, -30, -30, -30, -30, -40, -50
+    -40, -30, -30, -30, -30, -30, -30, -40
 };
 
 PieceSquareRawTableType pstWhitePawn =
@@ -1521,6 +1521,61 @@ public:
         pHT->Insert( pos );
     }
 
+    void HandleEnPassant( const Move &move, const Position &position,
+                          Square &captureSquare )
+    {
+        /* Did the pawn just move two spaces?  If so, record this fact in the position */
+        int pawnMoveDistance;
+        pawnMoveDistance = move.Dest().J() - move.Source().J();
+
+        if ( abs( pawnMoveDistance ) > 1 )
+        {
+            /* Halfway between the start and the end */
+            pawnMoveDistance = pawnMoveDistance >> 1;
+            Square enPassant( move.Source().I(), move.Source().J() + pawnMoveDistance );
+            m_sEnPassant = enPassant;
+        }
+
+        /* Did the pawn just move into the previous en passant square?  If so, capture */
+        else if ( move.Dest() == position.m_sEnPassant )
+        {
+            /* Capture the pawn behind it */
+            int d = position.GetColorToMove() ? -1 : 1;
+            captureSquare = Square( move.Dest().I(), move.Dest().J() + d );
+            /* FIXME This line doesn't seem to get the material right in the case of an en passant */
+            CaptureMaterial( position, captureSquare );
+            m_Board.Set( captureSquare.I(), captureSquare.J(), &None );
+        }
+        else
+        {
+            /* Not en passant.  Regardless of whether there's a capture or not,
+            * bump the material score by the captured square
+            */
+            CaptureMaterial( position, captureSquare );
+        }
+    }
+
+    void HandleCastling( const Move &move )
+    {
+        if ( abs( move.Source().I() - move.Dest().I() ) == 2 )
+        {
+            /* Move rook during castling */
+            int rookISource = 0, rookIDest = 3, rookJ;
+            rookJ = move.Source().J();
+            if ( move.Dest().I() == 6 )
+            {
+                rookISource = 7;
+                rookIDest = 5;
+            }
+
+            const Rook *pRook = dynamic_cast<const Rook *>( m_Board.Get( rookISource,
+                                rookJ ) );
+            m_Board.Set( rookIDest, rookJ, pRook );
+            m_Board.Set( rookISource, rookJ, &None );
+        }
+    }
+
+
     /** Generates a new Position based on a previous, existing Position
      ** as well as a Move to apply to that previous Position.  A new
      ** Position is generated; the original Position remains untouched.
@@ -1558,39 +1613,8 @@ public:
 
             Square captureSquare = move.Dest();
 
-            /* Handle en passant */
             if ( sourceType == PAWN )
-            {
-                /* Did the pawn just move two spaces?  If so, record this fact in the position */
-                int pawnMoveDistance;
-                pawnMoveDistance = move.Dest().J() - move.Source().J();
-
-                if ( abs( pawnMoveDistance ) > 1 )
-                {
-                    /* Halfway between the start and the end */
-                    pawnMoveDistance = pawnMoveDistance >> 1;
-                    Square enPassant( move.Source().I(), move.Source().J() + pawnMoveDistance );
-                    m_sEnPassant = enPassant;
-                }
-
-                /* Did the pawn just move into the previous en passant square?  If so, capture */
-                else if ( move.Dest() == position.m_sEnPassant )
-                {
-                    /* Capture the pawn behind it */
-                    int d = position.GetColorToMove() ? -1 : 1;
-                    captureSquare = Square( move.Dest().I(), move.Dest().J() + d );
-                    /* FIXME This line doesn't seem to get the material right in the case of an en passant */
-                    CaptureMaterial( position, captureSquare );
-                    m_Board.Set( captureSquare.I(), captureSquare.J(), &None );
-                }
-                else
-                {
-                    /* Not en passant.  Regardless of whether there's a capture or not,
-                    * bump the material score by the captured square
-                    */
-                    CaptureMaterial( position, captureSquare );
-                }
-            }
+                HandleEnPassant( move, position, captureSquare );
             else
                 CaptureMaterial( position, captureSquare );
 
@@ -1599,42 +1623,27 @@ public:
                          pSource );
 
             /* Handle castling */
-            if ( m_Board.Get( move.Source() )->Type() == KING )
-            {
-                if ( abs( move.Source().I() - move.Dest().I() ) == 2 )
-                {
-                    /* Move rook during castling */
-                    int rookISource = 0, rookIDest = 3, rookJ;
-                    rookJ = move.Source().J();
-                    if ( move.Dest().I() == 6 )
-                    {
-                        rookISource = 7;
-                        rookIDest = 5;
-                    }
-
-                    const Rook *pRook = dynamic_cast<const Rook *>( m_Board.Get( rookISource,
-                                        rookJ ) );
-                    m_Board.Set( rookIDest, rookJ, pRook );
-                    m_Board.Set( rookISource, rookJ, &None );
-                }
-            }
-
+            if ( sourceType == KING )
+                HandleCastling( move );
         }
         else
-        {
-            /* Promote piece */
-            m_nMaterialScore = position.GetScore() +
-                               ( move.GetPromoteTo()->PieceValue() +
-                                 m_Board.Get( move.Dest() )->PieceValue() ) *
-                               GetColorBias();
+            PromotePiece( position, move );
 
-            m_Board.Set( move.Dest().I(), move.Dest().J(),
-                         move.GetPromoteTo() );
-        }
 
         m_Board.Set( move.Source().I(), move.Source().J(), &None );
-
         SetColorToMove( !GetColorToMove() );
+    }
+
+    void PromotePiece( const Position &position, const Move &move )
+    {
+        /* Promote piece */
+        m_nMaterialScore = position.GetScore() +
+                           ( move.GetPromoteTo()->PieceValue() +
+                             m_Board.Get( move.Dest() )->PieceValue() ) *
+                           GetColorBias();
+
+        m_Board.Set( move.Dest().I(), move.Dest().J(),
+                     move.GetPromoteTo() );
     }
 
     void CaptureMaterial( const Position &position, Square captureSquare )
@@ -2228,21 +2237,22 @@ class SearcherReporting : public SearcherBase
 {
 public:
     SearcherReporting( Interface &interface ) :
-        SearcherBase( interface ) {};
+        SearcherBase( interface )
+    {
+        m_tLastReport = m_Clock.Get();
+    };
 
     virtual void Report( const Position &pos )
     {
-        static int sReportDelay = 0;
-
-        if ( ++sReportDelay < 2000 )
-            return;
-
-        sReportDelay = 0;
-
         Clock::ChessTickType tMilliSinceStart = m_Clock.Get();
+
+        if ( tMilliSinceStart - m_tLastReport < 1000 )
+            return;
 
         if ( tMilliSinceStart == 0 )
             return;
+
+        m_tLastReport = tMilliSinceStart;
 
         uint64_t nodesPerSec = m_nNodesSearched * 1000 / tMilliSinceStart;
 
@@ -2257,6 +2267,8 @@ public:
 
         Instruct( ss.str() );
     }
+
+    Clock::ChessTickType m_tLastReport;
 };
 
 class SearcherThreaded : public SearcherReporting
