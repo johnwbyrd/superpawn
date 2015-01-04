@@ -36,7 +36,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -61,7 +61,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <random>
 
 /** A number which is large and idempotent under double negation */
-const int BIG_NUMBER = INT_MAX - 1000;
+const int BIG_NUMBER = 1000000;
 
 using namespace std;
 
@@ -2213,6 +2213,11 @@ public:
         Stop();
     }
 
+    bool IsRunning() const
+    {
+        return !m_bTerminated;
+    }
+
     void SetDepth( int depth = SEARCH_DEPTH )
     {
         m_nDepth = depth;
@@ -2503,7 +2508,7 @@ protected:
     virtual int InternalSearch( int , int , int depth,
                                 Position &pos, Moves &pv )
     {
-        return pvSearch( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
+        return SearchPrincipalVariation( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
     }
 
     /* Returns true if no search is necessary at this node due to a transposition table hit. */
@@ -2576,8 +2581,26 @@ protected:
         return false;
     }
 
-    virtual int pvSearch( int alpha, int beta, int depth,
-                          Position &pos, Moves &pv )
+    void FilterCheckResolvingMoves( Moves &myMoves, Position &pos )
+    {
+        Moves checkResolvingMoves;
+        /* Filter out all moves to ones that resolve the check */
+        Moves::iterator it = myMoves.begin();
+
+        while ( it != myMoves.end() )
+        {
+            Position tempPos( pos, *it );
+            if ( !tempPos.CanKingBeCapturedNow() )
+                checkResolvingMoves.Add( *it );
+
+            it++;
+        }
+
+        myMoves = checkResolvingMoves;
+    }
+
+    virtual int SearchPrincipalVariation( int alpha, int beta, int depth,
+                                          Position &pos, Moves &pv )
     {
         /* Overall structure lifted egregiously from
          * http://chessprogramming.wikispaces.com/Principal+Variation+Search */
@@ -2588,6 +2611,7 @@ protected:
             Report( pos );
             return Evaluate( pos );
         }
+
         int score = 0;
         m_nNodesSearched++;
 
@@ -2604,6 +2628,7 @@ protected:
         if ( myMoves.IsEmpty() )
         {
             /* pretend this is a cutoff */
+            Die( "No moves could be generated!" );
             pv.Make( NullMove );
             return beta;
         }
@@ -2617,26 +2642,12 @@ protected:
         if ( pos.CanKingBeCapturedNow() )
         {
             /* stop all recursion here */
+            pv.Make( NullMove );
             return KING_VALUE;
         }
 
         if ( pos.IsCheck() )
-        {
-            Moves checkResolvingMoves;
-            /* Filter out all moves to ones that resolve the check */
-            Moves::iterator it = myMoves.begin();
-
-            while ( it != myMoves.end() )
-            {
-                Position tempPos( pos, *it );
-                if ( !tempPos.CanKingBeCapturedNow() )
-                    checkResolvingMoves.Add( *it );
-
-                it++;
-            }
-
-            myMoves = checkResolvingMoves;
-        }
+            FilterCheckResolvingMoves( myMoves, pos );
 
         bool bFirstSearch = true;
         bool bIsNotNullWindowSearch = ( beta - alpha > 1 );
@@ -2648,15 +2659,21 @@ protected:
             Position nextPos( pos, move );
 
             if ( bFirstSearch )
-                score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
+            {
+                score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
+                                                   currentPV );
+                bFirstSearch = false;
+            }
             else
             {
                 /* Search in a null window to see if this beats the pv */
-                score = -pvSearch( -alpha - 1, -alpha, depth - 1, nextPos, currentPV );
+                score = -SearchPrincipalVariation( -alpha - 1, -alpha, depth - 1, nextPos,
+                                                   currentPV );
                 if ( score > alpha ) // in fail-soft ... && score < beta ) is common
                 {
                     /* The null window search did not end up as projected, so do a full re-search */
-                    score = -pvSearch( -beta, -alpha, depth - 1, nextPos, currentPV );
+                    score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
+                                                       currentPV );
                 }
             }
 
@@ -2690,7 +2707,6 @@ protected:
                 alpha = score; // alpha acts like max in MiniMax
                 bestPV = currentPV;
                 bestMove = move;
-                bFirstSearch = false;
             }
 
             if ( m_bTerminated )
@@ -2705,6 +2721,9 @@ protected:
             /* Only do this if this is not a null window search */
             if ( bIsNotNullWindowSearch )
             {
+                if ( bestMove == NullMove )
+                    Die( "Best move for hash table was a null move!" );
+
                 PositionHashEntry phe;
                 phe.m_BestMove = bestMove;
                 phe.m_Depth = depth;
@@ -2735,7 +2754,9 @@ protected:
         }
         return alpha; // fail-hard
     }
+
 };
+
 
 typedef SearcherPrincipalVariation Searcher;
 
@@ -3150,6 +3171,8 @@ protected:
     {
         RegisterCommand( "uci",     &Interface::UCI );
         RegisterCommand( "quit",    &Interface::Quit );
+        RegisterCommand( "testone", &Interface::TestOne );
+        RegisterCommand( "test",  &Interface::Test );
     }
 
     INTERFACE_PROTOTYPE( UCI )
@@ -3223,6 +3246,21 @@ protected:
         }
         else
             Notify( "SetOption: Could not find name of the option to set" );
+    }
+
+    INTERFACE_PROTOTYPE( TestOne )
+    {
+        UCIPosition( sParams );
+        UCIGo( "wtime 300000 btime 300000 winc 0 binc 0 movestogo 1" );
+        do {
+            chrono::milliseconds delay( 500 );
+            this_thread::sleep_for( delay );
+        } while ( m_pSearcher->IsRunning() );
+    }
+
+    INTERFACE_PROTOTYPE_NO_PARAMS( Test )
+    {
+        TestOne( "fen 6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 0 45" );
     }
 
     INTERFACE_PROTOTYPE( UCIGo )
