@@ -1300,20 +1300,19 @@ class Position;
 
 class PositionHasher : Object
 {
-    friend class Position;
-    friend class PositionHashTable;
-protected:
+public:
+
     PositionHasher( const Position &pPos ) :
         m_Hash( 0 )
     {
         m_pPosition = &pPos;
     }
-
     /** \todo Update this hash value based on all relevant
      ** position data including castling and other rights
      **/
     HashValue GetHash() const;
 
+protected:
     HashValue m_Hash;
     const Position *m_pPosition;
 
@@ -1622,6 +1621,8 @@ public:
         m_Board = position.m_Board;
         m_ColorToMove = position.m_ColorToMove;
         m_nMaterialScore = position.m_nMaterialScore;
+        m_PreviousPositions = position.m_PreviousPositions;
+
         m_nPly = position.m_nPly + 1;
         m_sEnPassant = Square( -1, -1 );
 
@@ -1673,6 +1674,9 @@ public:
 
         m_Board.Set( move.Source().I(), move.Source().J(), &None );
         SetColorToMove( !GetColorToMove() );
+
+        PushHashInHistory();
+
     }
 
     void CaptureMaterial( const Position &position, Square captureSquare )
@@ -2064,7 +2068,7 @@ protected:
     Moves m_Captures;
     bool m_bIsCheckDetermined;
     bool m_bIsCheck;
-    typedef std::list< HashValue > PreviousPositionType;
+    typedef std::vector< HashValue > PreviousPositionType;
     PreviousPositionType m_PreviousPositions;
 };
 
@@ -2560,6 +2564,13 @@ protected:
                 // checkmate, no move possible
                 return -KING_VALUE;
             }
+        }
+
+        PositionHasher ph( pos );
+        if ( pos.CountHashesInHistory( ph.GetHash() ) >= 3 )
+        {
+            // draw by repetition
+            return 0;
         }
 
         bool bFirstSearch = true;

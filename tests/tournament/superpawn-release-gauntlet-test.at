@@ -4,7 +4,7 @@ Type=1
 CurrSwissRound=0
 Rounds=100
 CurrentPair=1
-CurrentRound=3
+CurrentRound=18
 Level=5 -1\5/-1#5@-1|5
 [Options]
 QuitAfterTournament=0
@@ -65,13 +65,11 @@ Website=
 E-Mail=
 ArenaVersion=Arena 3.5
 LastGameDate=2015.01.05
-LastGameTime=00:29:10
-FirstGameDate=2015.01.04
-FirstGameTime=23:58:09
+LastGameTime=10:12:09
+FirstGameDate=2015.01.05
+FirstGameTime=10:02:54
 [PairingResults]
-Superpawn Debug x64 ------ Testina=?
-Superpawn Release x64 ------ Testina=½1?
-Dikabi ------ Superpawn Release x64=½0½?
+Dikabi ------ Superpawn Release x64=½01111111111111111?
 [Participants]
 Engine1=Superpawn Release x64
 Engine2=Dikabi
