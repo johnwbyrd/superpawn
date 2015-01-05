@@ -2532,7 +2532,14 @@ protected:
         }
 
         if ( pos.IsCheck() )
+        {
             FilterCheckResolvingMoves( myMoves, pos );
+            if ( myMoves.Count() == 0 )
+            {
+                // checkmate, no move possible
+                return -KING_VALUE;
+            }
+        }
 
         bool bFirstSearch = true;
 

@@ -4,7 +4,7 @@ Type=1
 CurrSwissRound=0
 Rounds=100
 CurrentPair=1
-CurrentRound=100
+CurrentRound=3
 Level=5 -1\5/-1#5@-1|5
 [Options]
 QuitAfterTournament=0
@@ -64,16 +64,14 @@ OS=Windows 7 Ultimate Professional Service Pack 1 (Build 7601) 64 bit
 Website=
 E-Mail=
 ArenaVersion=Arena 3.5
-LastGameDate=2014.12.03
-LastGameTime=10:04:46
-FirstGameDate=2014.11.30
-FirstGameTime=23:32:53
+LastGameDate=2015.01.05
+LastGameTime=00:29:10
+FirstGameDate=2015.01.04
+FirstGameTime=23:58:09
 [PairingResults]
-Giuchess ------ Superpawn Debug x64=½1½11½½½1½?
-Dendron-042b-32-ja ------ Superpawn Debug x64=0½½½?
-MicroChess ------ Superpawn Debug x64=½½?
-Superpawn Debug x64 ------ Testina=0?
-Superpawn Release x64 ------ Testina=½½½½11111111111111110½0½½11111111111111100111111111111111111½½0½00000000000000000½0½½½01111111111111
+Superpawn Debug x64 ------ Testina=?
+Superpawn Release x64 ------ Testina=½1?
+Dikabi ------ Superpawn Release x64=½0½?
 [Participants]
 Engine1=Superpawn Release x64
-Engine2=Testina
+Engine2=Dikabi
