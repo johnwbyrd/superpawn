@@ -2054,6 +2054,17 @@ public:
         m_sEnPassant = val;
     }
 
+    HashValue GetHash()
+    {
+        if ( m_PreviousPositions.size() == 0 )
+        {
+            // do it the hard way
+            PushHashInHistory();
+        }
+
+        return *( m_PreviousPositions.end() - 1 );
+    }
+
 
 protected:
     Board   m_Board;
@@ -2566,8 +2577,7 @@ protected:
             }
         }
 
-        PositionHasher ph( pos );
-        if ( pos.CountHashesInHistory( ph.GetHash() ) >= 3 )
+        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
         {
             // draw by repetition
             return 0;
