@@ -9,11 +9,9 @@
  **/
 
 /**
-** \todo Search returns null moves for some positions researched, i.e.
-**       6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 3 45
+** \todo Threefold repetition
 ** \todo Correctly report distance to mate in search
 ** \todo Generate castling moves
-** \todo Threefold repetition
 ** \todo Parse clock requests from interface
 ** \todo Change search based on clock
 ** \todo Handle stalemate
@@ -1592,6 +1590,28 @@ public:
                      move.GetPromoteTo() );
     }
 
+    void PushHashInHistory()
+    {
+        PositionHasher ph( *this );
+        m_PreviousPositions.push_back( ph.GetHash() );
+    }
+
+    void PopHashFromHistory()
+    {
+        m_PreviousPositions.pop_back();
+    }
+
+    unsigned int CountHashesInHistory( const HashValue &theHash ) const
+    {
+        unsigned int count = 0;
+        for ( auto previous : m_PreviousPositions )
+        {
+            if ( previous == theHash )
+                count++;
+        }
+        return count;
+    }
+
     /** Generates a new Position based on a previous, existing Position
      ** as well as a Move to apply to that previous Position.  A new
      ** Position is generated; the original Position remains untouched.
@@ -1650,7 +1670,6 @@ public:
         }
         else
             PromotePiece( position, move );
-
 
         m_Board.Set( move.Source().I(), move.Source().J(), &None );
         SetColorToMove( !GetColorToMove() );
@@ -2045,6 +2064,8 @@ protected:
     Moves m_Captures;
     bool m_bIsCheckDetermined;
     bool m_bIsCheck;
+    typedef std::list< HashValue > PreviousPositionType;
+    PreviousPositionType m_PreviousPositions;
 };
 
 HashValue PositionHasher::GetHash() const
