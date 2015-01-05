@@ -36,7 +36,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 4; //-V112
+const unsigned int SEARCH_DEPTH = 6; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -2385,112 +2385,7 @@ protected:
     }
 
     virtual int InternalSearch( int alpha, int beta, int depthleft,
-                                Position &pos, Moves &pv )
-    {
-        return  alphaBetaMax( alpha, beta, depthleft, pos, pv );
-    }
-
-    virtual int alphaBetaMax( int alpha, int beta, int depthleft,
-                              Position &pos, Moves &pv )
-    {
-        m_nNodesSearched++;
-
-        if ( depthleft == 0 )
-        {
-            Report( pos );
-            return Evaluate( pos );
-        }
-
-        Moves bestPV, currentPV;
-
-        const Moves myMoves = pos.GetMoves();
-
-        if ( myMoves.IsEmpty() )
-        {
-            pv.Make( NullMove );
-            return beta;
-        }
-
-        for ( auto &move : myMoves )
-        {
-            currentPV = pv;
-            currentPV.Make( move );
-            Position nextPos( pos, move );
-
-            int score = alphaBetaMin( alpha, beta, depthleft - 1,
-                                      nextPos, currentPV );
-            if ( score >= beta )
-            {
-                /* we have produced a beta cutoff */
-                pv.Make( NullMove );
-                return beta;
-            }
-            if ( score > alpha )
-            {
-                /* we have improved alpha by raising it */
-                alpha = score;
-                bestPV = currentPV;
-            }
-
-            if ( m_bTerminated )
-                break;
-        }
-
-        pv = bestPV;
-        return alpha;
-    }
-
-    virtual int alphaBetaMin( int alpha, int beta, int depthleft,
-                              Position &pos, Moves &pv )
-    {
-
-        m_nNodesSearched++;
-
-        if ( depthleft == 0 )
-        {
-            Report( pos );
-            return Evaluate( pos );
-        }
-
-        Moves bestPV, currentPV;
-
-        Moves myMoves = pos.GetMoves();
-
-        if ( myMoves.IsEmpty() )
-        {
-            /* pretend this is an alpha cutoff */
-            pv.Make( NullMove );
-            return alpha;
-        }
-
-        for ( auto &move : myMoves )
-        {
-            currentPV = pv;
-            currentPV.Make( move );
-            Position nextPos( pos, move );
-
-            int score = alphaBetaMax( alpha, beta, depthleft - 1,
-                                      nextPos, currentPV );
-            if ( score <= alpha )
-            {
-                /* an alpha cutoff is occurring */
-                pv.Make( NullMove );
-                return alpha;
-            }
-            if ( score < beta )
-            {
-                /* we have improved beta by lowering it */
-                beta = score;
-                bestPV = currentPV;
-            }
-
-            if ( m_bTerminated )
-                break;
-        }
-
-        pv = bestPV;
-        return beta;
-    }
+                                Position &pos, Moves &pv ) = 0;
 
 protected:
     SearcherThreaded();
@@ -2577,7 +2472,7 @@ protected:
                 bestMove = pEntry->m_BestMove;
         }
 
-        /* The caller does need to search, transposition lookup failed */
+        /* The caller does need to do a full width search */
         return false;
     }
 
@@ -2615,23 +2510,13 @@ protected:
         int score = 0;
         m_nNodesSearched++;
 
-        Move bestMove;
-        if ( CheckTranspositionTable( bestMove, score, pos, alpha, beta, depth ) )
-        {
-            pv.Add( bestMove );
-            return score;
-        }
+        Move bestMove = NullMove;
 
         Moves bestPV, currentPV, myMoves;
 
         myMoves = pos.GetMoves();
         if ( myMoves.IsEmpty() )
-        {
-            /* pretend this is a cutoff */
             Die( "No moves could be generated!" );
-            pv.Make( NullMove );
-            return beta;
-        }
 
         if ( bestMove != NullMove )
         {
@@ -2650,7 +2535,6 @@ protected:
             FilterCheckResolvingMoves( myMoves, pos );
 
         bool bFirstSearch = true;
-        bool bIsNotNullWindowSearch = ( beta - alpha > 1 );
 
         for ( auto &move : myMoves )
         {
@@ -2658,51 +2542,34 @@ protected:
             currentPV.Make( move );
             Position nextPos( pos, move );
 
+            score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
+                                               currentPV );
+
             if ( bFirstSearch )
             {
-                score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
-                                                   currentPV );
+                bestPV = currentPV;
+                bestMove = move;
                 bFirstSearch = false;
-            }
-            else
-            {
-                /* Search in a null window to see if this beats the pv */
-                score = -SearchPrincipalVariation( -alpha - 1, -alpha, depth - 1, nextPos,
-                                                   currentPV );
-                if ( score > alpha ) // in fail-soft ... && score < beta ) is common
-                {
-                    /* The null window search did not end up as projected, so do a full re-search */
-                    score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
-                                                       currentPV );
-                }
             }
 
             if ( score >= beta )
             {
                 /* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry
                 * is called "LOWER" because the score you have is a lower bound, where the
-                * real score is greater than or equal to beta... */
-                pv.Make( NullMove );
-
-                /* Only do this if this is not a null window search */
-                if ( bIsNotNullWindowSearch )
-                {
-                    /* This was a full search, insert it into the hash table */
-                    PositionHashEntry phe;
-                    phe.m_Depth = depth;
-                    phe.m_Score = beta;
-                    phe.m_TypeBits = HET_LOWER_BOUND;
-                    phe.m_Ply = pos.GetPly();
-                    pos.Insert( phe );
-                }
-
+                * real score is greater than or equal to beta...
+                * Cut nodes(Knuth's Type 2), otherwise known as fail-high nodes, are nodes in which a
+                * beta-cutoff was performed. So with bounds [a,b], s>=b. A minimum of one move at a
+                * Cut-node needs to be searched. The score returned is a lower bound (might be
+                * greater) on the exact score of the node.
+                */
+                pv = bestPV;
                 return beta;   // fail-high beta-cutoff
             }
 
             if ( score > alpha )
             {
-                /* We have a new best move.  This should be an exact entry in the
-                * hash table, if it survives the rest of the search at this level.
+                /* The score is between alpha and beta.  We have a new best move.  This should
+                * be an exact entry in the hash table, if it survives the rest of the search at this level.
                 */
                 alpha = score; // alpha acts like max in MiniMax
                 bestPV = currentPV;
@@ -2713,48 +2580,9 @@ protected:
                 break;
         }
 
-        /* If we got a best move then report it */
-        if ( !bFirstSearch )
-        {
-            pv = bestPV;
-            /* This is a PV or exact node. */
-            /* Only do this if this is not a null window search */
-            if ( bIsNotNullWindowSearch )
-            {
-                if ( bestMove == NullMove )
-                    Die( "Best move for hash table was a null move!" );
-
-                PositionHashEntry phe;
-                phe.m_BestMove = bestMove;
-                phe.m_Depth = depth;
-                phe.m_Score = alpha;
-                phe.m_TypeBits = HET_EXACT;
-                phe.m_Ply = pos.GetPly();
-                pos.Insert( phe );
-            }
-        }
-        else
-        {
-            /* This is an ALL node. And the hash entry is an Upper type because
-            * the score is an upper bound on the bad side
-            * (the score could actually be worse than alpha, but
-            * it can not be greater than alpha).
-            */
-            /* Only do this if this is not a null window search */
-            if ( bIsNotNullWindowSearch )
-            {
-                PositionHashEntry phe;
-                phe.m_Depth = depth;
-                phe.m_Score = alpha;
-                phe.m_TypeBits = HET_UPPER_BOUND;
-                phe.m_Ply = pos.GetPly();
-                pos.Insert( phe );
-            }
-            // fail-low alpha cutoff
-        }
-        return alpha; // fail-hard
+        pv = bestPV;
+        return alpha;
     }
-
 };
 
 
