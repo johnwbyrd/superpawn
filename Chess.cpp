@@ -91,7 +91,8 @@ const int KNIGHT_VALUE = 300;
 const int BISHOP_VALUE = 300;
 const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
-const int KING_VALUE = 100000;
+const int CHECKMATE_VALUE = 990000; // any abs. value greater than this is mate
+const int KING_VALUE = 1000000;
 
 class PieceInitializer;
 class Board;
@@ -1764,6 +1765,25 @@ public:
         return m_bIsCheck;
     }
 
+    bool IsStalemate()
+    {
+        if ( IsCheck() )
+            return false;
+
+        Moves moves = GetMoves();
+        for ( auto move : moves )
+        {
+            Position nextPos( *this, move );
+            if ( nextPos.CanKingBeCapturedNow() == false )
+            {
+                // terminate asap
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     const Board &GetBoard() const
     {
         return m_Board;
@@ -2408,7 +2428,21 @@ protected:
             stringstream ss;
             ss << "info depth " << nCurrentDepth;
             ss << " pv " << ( string ) PV;
-            ss << " score cp " << m_Score;
+            ss << " score " ;
+
+            int absScore;
+            absScore = abs( m_Score );
+
+            if ( absScore > CHECKMATE_VALUE )
+            {
+                int mate = ( 1 + KING_VALUE - absScore ) / 2;
+                if ( m_Score < 0 )
+                    mate = -mate;
+
+                ss << "mate " << mate;
+            }
+            else
+                ss << "cp " << m_Score;
 
             Instruct( ss.str() );
 
@@ -2436,7 +2470,7 @@ public:
     { }
 
 protected:
-    virtual int InternalSearch( int , int , int depth,
+    virtual int InternalSearch( int, int, int depth,
                                 Position &pos, Moves &pv )
     {
         return SearchPrincipalVariation( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
@@ -2530,6 +2564,41 @@ protected:
         myMoves = checkResolvingMoves;
     }
 
+    bool IsEndOfGame( int &score, Position &pos, Moves &myMoves )
+    {
+        if ( pos.CanKingBeCapturedNow() )
+        {
+            score = KING_VALUE;
+            return true;
+        }
+
+        if ( pos.IsCheck() )
+        {
+            FilterCheckResolvingMoves( myMoves, pos );
+            if ( myMoves.Count() == 0 )
+            {
+                // checkmate, no move possible
+                score = -KING_VALUE;
+                return true;
+            }
+        }
+
+        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
+        {
+            // draw by repetition
+            score = 0;
+            return true;
+        }
+
+        if ( pos.IsStalemate() )
+        {
+            score = 0;
+            return true;
+        }
+
+        return false;
+    }
+
     virtual int SearchPrincipalVariation( int alpha, int beta, int depth,
                                           Position &pos, Moves &pv )
     {
@@ -2560,28 +2629,8 @@ protected:
             myMoves.Bump( bestMove );
         }
 
-        if ( pos.CanKingBeCapturedNow() )
-        {
-            /* stop all recursion here */
-            pv.Make( NullMove );
-            return KING_VALUE;
-        }
-
-        if ( pos.IsCheck() )
-        {
-            FilterCheckResolvingMoves( myMoves, pos );
-            if ( myMoves.Count() == 0 )
-            {
-                // checkmate, no move possible
-                return -KING_VALUE;
-            }
-        }
-
-        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
-        {
-            // draw by repetition
-            return 0;
-        }
+        if ( IsEndOfGame( score, pos, myMoves ) )
+            return score;
 
         bool bFirstSearch = true;
 
@@ -2593,6 +2642,13 @@ protected:
 
             score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
                                                currentPV );
+
+            // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
+            if ( abs( score ) > CHECKMATE_VALUE )
+            {
+                int attenuate = ( score > 0 ) ? -1 : 1;
+                score += attenuate;
+            }
 
             if ( bFirstSearch )
             {
@@ -2633,7 +2689,6 @@ protected:
         return alpha;
     }
 };
-
 
 typedef SearcherPrincipalVariation Searcher;
 
@@ -3137,6 +3192,7 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
+        TestOne( "startpos moves b1c3 e7e5 e2e3 g8f6 g1f3 e5e4 e1e2 e4f3 e2d3 b7b6 c3b5 c8a6" );
         TestOne( "fen 6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 0 45" );
     }
 
