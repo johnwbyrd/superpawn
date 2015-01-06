@@ -1475,6 +1475,7 @@ public:
         m_Board.Initialize();
         m_bIsCheckDetermined = false;
         m_bIsCheck = false;
+        m_PreviousPositions.clear();
     }
 
     Position( bool colorToMove )
@@ -1674,7 +1675,6 @@ public:
         SetColorToMove( !GetColorToMove() );
 
         PushHashInHistory();
-
     }
 
     void CaptureMaterial( const Position &position, Square captureSquare )
@@ -2421,6 +2421,8 @@ protected:
             m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
                                       nCurrentDepth, m_Root, PV );
             m_Result = PV;
+            if ( m_Result.Count() == 0 )
+                Die( "Size of principal variation is zero!" );
 
             stringstream ss;
             ss << "info depth " << nCurrentDepth;
@@ -3189,6 +3191,7 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
+        TestOne( "startpos moves g1f3 e7e6 d2d4 d8f6 a2a3 c7c5 d4c5 b8c6 e2e4 f8c5 f1b5 a7a6 b5c6 b7c6 e4e5 f6g6 f3g5 c5b6 b1c3 b6c7 c1f4 h7h6 d1d3 h6g5 d3g6 f7g6 f4g5 c7e5 f2f4 e5c3 b2c3 g8f6 g5f6 g7f6 c3c4 g6g5 f4g5 f6g5 a3a4 h8h4 c4c5 h4c4 a1a3 c4c5 a3h3 c5c2 h3h8 e8f7 e1d1 c2g2 h2h3 g2g3 a4a5 f7g7 h8e8 g7f7" );
         TestOne( "startpos moves b1c3 e7e5 e2e3 g8f6 g1f3 e5e4 e1e2 e4f3 e2d3 b7b6 c3b5 c8a6" );
         TestOne( "fen 6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 0 45" );
     }
