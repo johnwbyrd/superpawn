@@ -129,12 +129,12 @@ Features
 - Compatible with cmake build systems
 - Transposition tables to help speed up end game
 - Simple test framework based on [cutechess-cli](http://cutechess.com/)
+- Stalemate and draw by repetition
 
 Things it doesn't do
 --------------------
 
-- Castling
-- Draw by repetition
+- Castling (recognizes but does not issue the move)
 - Time controls
 - The fifty move rule
 - Play chess well
