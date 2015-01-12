@@ -10,6 +10,8 @@
 
 /**
 ** \todo Generate castling moves
+** \todo Quiescent search
+** \todo Reintroduce transposition table
 ** \todo Parse clock requests from interface
 ** \todo Change search based on clock
 ** \todo Fifty-move clock
@@ -31,7 +33,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -482,6 +484,7 @@ public:
         return KING_VALUE;
     }
 
+    Moves GenerateCastlingMoves( const Square &source, const Position &pos ) const;
     Moves GenerateMoves( const Square &source, const Position &pos ) const;
 
 private:
@@ -807,6 +810,23 @@ protected:
     int i; // file
     int j; // rank
 };
+
+Square A1( 0, 0 ), A2( 0, 1 ), A3( 0, 2 ), A4( 0, 3 ), A5( 0, 4 ), A6( 0, 5 ),
+       A7( 0, 6 ), A8( 0, 7 );
+Square B1( 1, 0 ), B2( 1, 1 ), B3( 1, 2 ), B4( 1, 3 ), B5( 1, 4 ), B6( 1, 5 ),
+       B7( 1, 6 ), B8( 1, 7 );
+Square C1( 2, 0 ), C2( 2, 1 ), C3( 2, 2 ), C4( 2, 3 ), C5( 2, 4 ), C6( 2, 5 ),
+       C7( 2, 6 ), C8( 2, 7 );
+Square D1( 3, 0 ), D2( 3, 1 ), D3( 3, 2 ), D4( 3, 3 ), D5( 3, 4 ), D6( 3, 5 ),
+       D7( 3, 6 ), D8( 3, 7 );
+Square E1( 4, 0 ), E2( 4, 1 ), E3( 4, 2 ), E4( 4, 3 ), E5( 4, 4 ), E6( 4, 5 ),
+       E7( 4, 6 ), E8( 4, 7 );
+Square F1( 5, 0 ), F2( 5, 1 ), F3( 5, 2 ), F4( 5, 3 ), F5( 5, 4 ), F6( 5, 5 ),
+       F7( 5, 6 ), F8( 5, 7 );
+Square G1( 6, 0 ), G2( 6, 1 ), G3( 6, 2 ), G4( 6, 3 ), G5( 6, 4 ), G6( 6, 5 ),
+       G7( 6, 6 ), G8( 6, 7 );
+Square H1( 7, 0 ), H2( 7, 1 ), H3( 7, 2 ), H4( 7, 3 ), H5( 7, 4 ), H6( 7, 5 ),
+       H7( 7, 6 ), H8( 7, 7 );
 
 int PieceSquareTable::Get( const Square &s ) const
 {
@@ -1457,25 +1477,15 @@ public :
 class Position : Object
 {
     friend class PositionHasher;
+    /* King moves need to see somewhat deeply inside the Position structure for
+     * castling at the moment; this could be refactored I suppose
+     */
+    friend class King;
 
 public:
     Position()
     {
         Initialize();
-    }
-
-    void Initialize()
-    {
-        SetColorToMove( WHITE );
-        m_nPly = 0;
-        m_nMaterialScore = 0;
-        m_bVirginH8 = m_bVirginA8 = m_bVirginH1 = m_bVirginA1 = true;
-        m_sEnPassant.Set( -1, -1 );
-        m_Moves.Clear();
-        m_Board.Initialize();
-        m_bIsCheckDetermined = false;
-        m_bIsCheck = false;
-        m_PreviousPositions.clear();
     }
 
     Position( bool colorToMove )
@@ -1488,6 +1498,69 @@ public:
     {
         Initialize();
         SetFEN( sFEN );
+    }
+
+    /** Generates a new Position based on a previous, existing Position
+     ** as well as a Move to apply to that previous Position.  A new
+     ** Position is generated; the original Position remains untouched.
+     **/
+    Position( const Position &position, const Move &move )
+    {
+        CopyFrom( position );
+
+        Square source = move.Source();
+        DevirginizeRooks( source );
+
+        const Piece *pPiece = move.GetPiece();
+
+        if ( pPiece == &WhiteKing )
+            m_bVirginWhiteKing = false;
+
+        if ( pPiece == &BlackKing )
+            m_bVirginBlackKing = false;
+
+        if ( &move == &NullMove )
+        {
+            SetColorToMove( !GetColorToMove() );
+            return;
+        }
+
+        if ( GetBoard().Get( source ) == &None )
+        {
+            stringstream ss;
+            ss << "Illegal move: no piece found at source location for move ";
+            ss << ( string ) move;
+            Die( ss.str() );
+        }
+
+        if ( move.GetPromoteTo() == &None )
+            MovePiece( position, move );
+        else
+            PromotePiece( position, move );
+
+        m_Board.Set( move.Source().I(), move.Source().J(), &None );
+        SetColorToMove( !GetColorToMove() );
+
+        PushHashInHistory();
+    }
+
+    void Initialize()
+    {
+        SetColorToMove( WHITE );
+        m_nPly = 0;
+        m_nMaterialScore = 0;
+        m_bVirginH8 =
+            m_bVirginA8 =
+                m_bVirginH1 =
+                    m_bVirginA1 =
+                        m_bVirginBlackKing =
+                            m_bVirginWhiteKing = true;
+        m_sEnPassant.Set( -1, -1 );
+        m_Moves.Clear();
+        m_Board.Initialize();
+        m_bIsCheckDetermined = false;
+        m_bIsCheck = false;
+        m_PreviousPositions.clear();
     }
 
     int GetColorBias() const
@@ -1576,18 +1649,6 @@ public:
     }
 
 
-    void PromotePiece( const Position &position, const Move &move )
-    {
-        /* Promote piece */
-        m_nMaterialScore = position.GetScore() +
-                           ( move.GetPromoteTo()->PieceValue() +
-                             m_Board.Get( move.Dest() )->PieceValue() ) *
-                           GetColorBias();
-
-        m_Board.Set( move.Dest().I(), move.Dest().J(),
-                     move.GetPromoteTo() );
-    }
-
     void PushHashInHistory()
     {
         PositionHasher ph( *this );
@@ -1610,13 +1671,8 @@ public:
         return count;
     }
 
-    /** Generates a new Position based on a previous, existing Position
-     ** as well as a Move to apply to that previous Position.  A new
-     ** Position is generated; the original Position remains untouched.
-     **/
-    Position( const Position &position, const Move &move )
+    void CopyFrom( const Position &position )
     {
-        /** \todo Optimize this -- way too slow. */
         m_Board = position.m_Board;
         m_ColorToMove = position.m_ColorToMove;
         m_nMaterialScore = position.m_nMaterialScore;
@@ -1629,52 +1685,67 @@ public:
         m_bVirginA1 = position.m_bVirginA1;
         m_bVirginH8 = position.m_bVirginH8;
         m_bVirginA8 = position.m_bVirginA8;
+        m_bVirginBlackKing = position.m_bVirginBlackKing;
+        m_bVirginWhiteKing = position.m_bVirginWhiteKing;
 
         m_bIsCheckDetermined = false;
         m_bIsCheck = false;
+    }
 
-        if ( &move == &NullMove )
-        {
-            SetColorToMove( !GetColorToMove() );
-            return;
-        }
+    void MovePiece( const Position &position, const Move &move )
+    {
+        /* Move piece */
+        const Piece *pSource = m_Board.Get( move.Source() );
+        const PieceType sourceType = pSource->Type();
 
-        if ( GetBoard().Get( move.Source() ) == &None )
-        {
-            stringstream ss;
-            ss << "Illegal move: no piece found at source location for move ";
-            ss << ( string ) move;
-            Die( ss.str() );
-        }
+        Square captureSquare = move.Dest();
 
-        if ( move.GetPromoteTo() == &None )
-        {
-            /* Move piece */
-            const Piece *pSource = m_Board.Get( move.Source() );
-            const PieceType sourceType = pSource->Type();
-
-            Square captureSquare = move.Dest();
-
-            if ( sourceType == PAWN )
-                HandleEnPassant( move, position, captureSquare );
-            else
-                CaptureMaterial( position, captureSquare );
-
-            /* Move the piece to the destination */
-            m_Board.Set( move.Dest().I(), move.Dest().J(),
-                         pSource );
-
-            /* Handle castling */
-            if ( sourceType == KING )
-                HandleCastling( move );
-        }
+        if ( sourceType == PAWN )
+            HandleEnPassant( move, position, captureSquare );
         else
-            PromotePiece( position, move );
+            CaptureMaterial( position, captureSquare );
 
-        m_Board.Set( move.Source().I(), move.Source().J(), &None );
-        SetColorToMove( !GetColorToMove() );
+        /* Move the piece to the destination */
+        m_Board.Set( move.Dest().I(), move.Dest().J(),
+                     pSource );
 
-        PushHashInHistory();
+        /* Handle castling */
+        if ( sourceType == KING )
+            HandleCastling( move );
+
+    }
+
+    void PromotePiece( const Position &position, const Move &move )
+    {
+        /* Promote piece */
+        m_nMaterialScore = position.GetScore() +
+                           ( move.GetPromoteTo()->PieceValue() +
+                             m_Board.Get( move.Dest() )->PieceValue() ) *
+                           GetColorBias();
+
+        m_Board.Set( move.Dest().I(), move.Dest().J(),
+                     move.GetPromoteTo() );
+    }
+
+    /* This is the sexiest function in the entire program. */
+    void DevirginizeRooks( Square &source )
+    {
+        bool bIsA = ( source.I() == 0 );
+        bool bIsH = ( source.I() == 7 );
+        bool bIs1 = ( source.J() == 0 );
+        bool bIs8 = ( source.J() == 7 );
+
+        if ( bIsA && bIs1 )
+            m_bVirginA1 = false;
+
+        if ( bIsA && bIs8 )
+            m_bVirginA8 = false;
+
+        if ( bIsH && bIs1 )
+            m_bVirginH1 = false;
+
+        if ( bIsH && bIs8 )
+            m_bVirginH8 = false;
     }
 
     void CaptureMaterial( const Position &position, Square captureSquare )
@@ -1911,7 +1982,12 @@ public:
 
         stringstream ssVirgins( sVirgins );
 
-        m_bVirginH1 = m_bVirginA1 = m_bVirginH8 = m_bVirginA8 = false;
+        m_bVirginH1 =
+            m_bVirginA1 =
+                m_bVirginH8 =
+                    m_bVirginA8 =
+                        m_bVirginBlackKing =
+                            m_bVirginWhiteKing = false;
 
         while ( ssVirgins >> c )
         {
@@ -2090,6 +2166,7 @@ protected:
     int m_nMaterialScore;
     /** Virgin rooks; can tell whether any of the four rooks has been moved */
     bool m_bVirginH1, m_bVirginA1, m_bVirginH8, m_bVirginA8;
+    bool m_bVirginWhiteKing, m_bVirginBlackKing;
     Square m_sEnPassant;
     /** Cached generated moves. */
     Moves m_Moves;
@@ -2906,11 +2983,157 @@ Moves Rook::GenerateMoves( const Square &source, const Position &pos ) const
     return moves;
 }
 
+Moves King::GenerateCastlingMoves( const Square &source,
+                                   const Position &pos ) const
+{
+    Moves moves;
+    Board board = pos.GetBoard();
+
+    if ( pos.GetColorToMove() == WHITE )
+    {
+        if ( pos.m_bVirginWhiteKing )
+        {
+            if ( pos.m_bVirginA1 &&
+                    ( board.Get( B1 ) == &None ) &&
+                    ( board.Get( C1 ) == &None ) &&
+                    ( board.Get( D1 ) == &None )
+               )
+            {
+                Position nextPos( pos, NullMove );
+                nextPos.m_bVirginBlackKing = false;
+                nextPos.m_bVirginWhiteKing = false;
+
+                Moves responses = nextPos.GetMoves();
+
+                bool bCanCastle = true;
+
+                for ( auto response : responses )
+                {
+                    if ( ( response.Dest() == C1 ) ||
+                            ( response.Dest() == D1 ) ||
+                            ( response.Dest() == E1 ) )
+                    {
+                        bCanCastle = false;
+                        break;
+                    }
+                }
+
+                if ( bCanCastle ) {
+                    Move m( this, source, C1 );
+                    moves.Add( m );
+                }
+            }
+
+            if ( pos.m_bVirginH1 &&
+                    ( board.Get( F1 ) == &None ) &&
+                    ( board.Get( G1 ) == &None )
+               )
+            {
+                Position nextPos( pos, NullMove );
+                nextPos.m_bVirginBlackKing = false;
+                nextPos.m_bVirginWhiteKing = false;
+
+                Moves responses = nextPos.GetMoves();
+
+                bool bCanCastle = true;
+
+                for ( auto response : responses )
+                {
+                    if ( ( response.Dest() == E1 ) ||
+                            ( response.Dest() == F1 ) ||
+                            ( response.Dest() == G1 ) )
+                    {
+                        bCanCastle = false;
+                        break;
+                    }
+                }
+
+                if ( bCanCastle ) {
+                    Move m( this, source, G1 );
+                    moves.Add( m );
+                }
+            }
+
+        } // if ( m_bVirginWhiteKing )
+    }
+    else
+    {
+        if ( pos.m_bVirginBlackKing )
+        {
+            if ( pos.m_bVirginA8 &&
+                    ( board.Get( B8 ) == &None ) &&
+                    ( board.Get( C8 ) == &None ) &&
+                    ( board.Get( D8 ) == &None )
+               )
+            {
+                Position nextPos( pos, NullMove );
+                nextPos.m_bVirginBlackKing = false;
+                nextPos.m_bVirginWhiteKing = false;
+
+                Moves responses = nextPos.GetMoves();
+
+                bool bCanCastle = true;
+
+                for ( auto response : responses )
+                {
+                    if ( ( response.Dest() == C8 ) ||
+                            ( response.Dest() == D8 ) ||
+                            ( response.Dest() == E8 ) )
+                    {
+                        bCanCastle = false;
+                        break;
+                    }
+                }
+
+                if ( bCanCastle ) {
+                    Move m( this, source, C8 );
+                    moves.Add( m );
+                }
+            }
+
+            if ( pos.m_bVirginH8 &&
+                    ( board.Get( F8 ) == &None ) &&
+                    ( board.Get( G8 ) == &None )
+               )
+            {
+                Position nextPos( pos, NullMove );
+                nextPos.m_bVirginBlackKing = false;
+                nextPos.m_bVirginWhiteKing = false;
+
+                Moves responses = nextPos.GetMoves();
+
+                bool bCanCastle = true;
+
+                for ( auto response : responses )
+                {
+                    if ( ( response.Dest() == E8 ) ||
+                            ( response.Dest() == F8 ) ||
+                            ( response.Dest() == G8 ) )
+                    {
+                        bCanCastle = false;
+                        break;
+                    }
+                }
+
+                if ( bCanCastle ) {
+                    Move m( this, source, G8 );
+                    moves.Add( m );
+                }
+            }
+        } // if ( m_bVirginBlackKing )
+    }
+
+    return moves;
+}
+
 Moves King::GenerateMoves( const Square &source, const Position &pos ) const
 {
     Move m( this, source, source );
     Moves moves;
+
     const Board &board = pos.GetBoard();
+
+    moves = GenerateCastlingMoves( source, pos );
 
     moves.TryAttack( m, board, 1, 0 );
     moves.TryAttack( m, board, -1, 0 );
