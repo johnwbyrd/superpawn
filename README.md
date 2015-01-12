@@ -3,7 +3,7 @@
 Superpawn
 =========
 
-Superpawn is a trivial, slow and weak [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn
+Superpawn is a pedantic C++ [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn
 uses the [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
 protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of 
 your choice.
@@ -35,7 +35,8 @@ Superpawn is an excellent example of the "objects gone wild" style of
 programming, in which Everything Is An Object.  Even the pieces themselves
 are objects; they know how to move, capture, etc.  This of course slows 
 down the move generation and evaluation process immensely, making this 
-program irredeemably slow in tournament conditions.
+program irredeemably slow in tournament conditions.  However, its logic
+is easy to follow and extend as you see fit.
 
 Superpawn requires a [C++11](http://en.wikipedia.org/wiki/C%2B%2B11) compiler
 with support for threading.  It builds and runs on Windows, Linux and MacOS systems, 
