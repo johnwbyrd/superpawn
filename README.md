@@ -31,10 +31,6 @@ Description
 Superpawn is capable of making many fascinating chess moves, most
 of which are actually legal.
 
-As of this writing, it is capable of only playing
-a pseudo-legal game of chess, as it doesn't handle moves like
-check and castling correctly.
-
 Superpawn is an excellent example of the "objects gone wild" style of
 programming, in which Everything Is An Object.  Even the pieces themselves
 are objects; they know how to move, capture, etc.  This of course slows 
@@ -129,7 +125,8 @@ Features
 - Compatible with cmake build systems
 - Transposition tables to help speed up end game
 - Simple test framework based on [cutechess-cli](http://cutechess.com/)
-- Stalemate and draw by repetition
+- Castling, stalemate and draw by repetition detection
+- Reports distance to mate
 
 Things it doesn't do
 --------------------
