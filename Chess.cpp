@@ -175,10 +175,10 @@ PieceSquareRawTableType pstRook =
     -5, 0, 0, 0, 0, 0, 0, -5,
     5, 10, 10, 10, 10, 10, 10, 5,
     -5, 0, 0, 0, 0, 0, 0, -5,
-    0, 0, 0, 0, 0, 0, 0, 0
+    0, 0, 0, 30, 10, 30, 0, 0
 };
 
-PieceSquareRawTableType pstKingEarly =
+PieceSquareRawTableType pstWhiteKingEarly =
 {
     0, 0, 40, 0, 0, 0, 40, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -188,6 +188,18 @@ PieceSquareRawTableType pstKingEarly =
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0
+};
+
+PieceSquareRawTableType pstBlackKingEarly =
+{
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 60, 0, 0, 0, 60, 0
 };
 
 
@@ -1108,9 +1120,7 @@ public:
         WhiteBishop.SetPieceSquareTable( pstBishop );
         BlackBishop.SetPieceSquareTable( pstBishop );
 
-        WhiteKing.SetPieceSquareTable( pstKingEarly );
-        PieceSquareTable pstBlackKingEarly = pstKingEarly;
-        pstBlackKingEarly.InvertColor();
+        WhiteKing.SetPieceSquareTable( pstWhiteKingEarly );
         BlackKing.SetPieceSquareTable( pstBlackKingEarly );
     }
 };
