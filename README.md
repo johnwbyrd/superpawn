@@ -134,7 +134,6 @@ Features
 Things it doesn't do
 --------------------
 
-- Castling (recognizes but does not issue the move)
 - Time controls
 - The fifty move rule
 - Play chess well
