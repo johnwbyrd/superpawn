@@ -1666,7 +1666,12 @@ public:
             const Rook *pRook = dynamic_cast<const Rook *>( m_Board.Get( rookISource,
                                 rookJ ) );
             if ( pRook == nullptr )
-                Die( "Expected a rook during castling, couldn't find it!" );
+            {
+                stringstream ss;
+                ss << "Couldn't find rook during castling: ";
+                ss << GetFEN();
+                Die( ss.str() );
+            }
 
             m_Board.Set( rookIDest, rookJ, pRook );
             m_Board.Set( rookISource, rookJ, &None );
@@ -2675,7 +2680,7 @@ protected:
             if ( !tempPos.CanKingBeCapturedNow() )
                 checkResolvingMoves.Add( *it );
 
-            it++;
+            ++it;
         }
 
         myMoves = checkResolvingMoves;
