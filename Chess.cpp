@@ -1529,12 +1529,7 @@ public:
         DevirginizeRooks( source );
 
         const Piece *pPiece = move.GetPiece();
-
-        if ( pPiece == &WhiteKing )
-            m_bVirginWhiteKing = false;
-
-        if ( pPiece == &BlackKing )
-            m_bVirginBlackKing = false;
+        DevirginizeKing( pPiece );
 
         if ( &move == &NullMove )
         {
@@ -1660,6 +1655,9 @@ public:
 
             const Rook *pRook = dynamic_cast<const Rook *>( m_Board.Get( rookISource,
                                 rookJ ) );
+            if ( pRook == nullptr )
+                Die( "Expected a rook during castling, couldn't find it!" );
+
             m_Board.Set( rookIDest, rookJ, pRook );
             m_Board.Set( rookISource, rookJ, &None );
         }
@@ -1744,24 +1742,28 @@ public:
                      move.GetPromoteTo() );
     }
 
+    void DevirginizeKing( const Piece *pPiece )
+    {
+        if ( pPiece == &WhiteKing )
+            m_bVirginWhiteKing = false;
+
+        if ( pPiece == &BlackKing )
+            m_bVirginBlackKing = false;
+    }
+
     /* This is the sexiest function in the entire program. */
     void DevirginizeRooks( Square &source )
     {
-        bool bIsA = ( source.I() == 0 );
-        bool bIsH = ( source.I() == 7 );
-        bool bIs1 = ( source.J() == 0 );
-        bool bIs8 = ( source.J() == 7 );
-
-        if ( bIsA && bIs1 )
+        if ( source == A1 )
             m_bVirginA1 = false;
 
-        if ( bIsA && bIs8 )
+        if ( source == A8 )
             m_bVirginA8 = false;
 
-        if ( bIsH && bIs1 )
+        if ( source == H1 )
             m_bVirginH1 = false;
 
-        if ( bIsH && bIs8 )
+        if ( source == H8 )
             m_bVirginH8 = false;
     }
 
@@ -1770,6 +1772,18 @@ public:
         m_nMaterialScore = position.GetScore() + ( m_Board.Get(
                                captureSquare )->PieceValue() ) *
                            GetColorBias();
+
+        if ( captureSquare == A1 )
+            m_bVirginA1 = false;
+
+        if ( captureSquare == A8 )
+            m_bVirginA8 = false;
+
+        if ( captureSquare == H1 )
+            m_bVirginH1 = false;
+
+        if ( captureSquare == H8 )
+            m_bVirginH8 = false;
     }
 
     void GenerateMoves()
@@ -2766,7 +2780,7 @@ protected:
 
             if ( score > alpha )
             {
-                /* The score is between alpha and beta.  We have a new best move.  This should
+                /* The score is between alpha and beta.  We have a new best move.  This could
                 * be an exact entry in the hash table, if it survives the rest of the search at this level.
                 */
                 alpha = score; // alpha acts like max in MiniMax
@@ -3011,6 +3025,7 @@ Moves King::GenerateCastlingMoves( const Square &source,
         if ( pos.m_bVirginWhiteKing )
         {
             if ( pos.m_bVirginA1 &&
+                    ( board.Get( A1 ) == &WhiteRook ) &&
                     ( board.Get( B1 ) == &None ) &&
                     ( board.Get( C1 ) == &None ) &&
                     ( board.Get( D1 ) == &None )
@@ -3043,7 +3058,8 @@ Moves King::GenerateCastlingMoves( const Square &source,
 
             if ( pos.m_bVirginH1 &&
                     ( board.Get( F1 ) == &None ) &&
-                    ( board.Get( G1 ) == &None )
+                    ( board.Get( G1 ) == &None ) &&
+                    ( board.Get( H1 ) == &WhiteRook )
                )
             {
                 Position nextPos( pos, NullMove );
@@ -3078,6 +3094,7 @@ Moves King::GenerateCastlingMoves( const Square &source,
         if ( pos.m_bVirginBlackKing )
         {
             if ( pos.m_bVirginA8 &&
+                    ( board.Get( A8 ) == &BlackRook ) &&
                     ( board.Get( B8 ) == &None ) &&
                     ( board.Get( C8 ) == &None ) &&
                     ( board.Get( D8 ) == &None )
@@ -3110,7 +3127,8 @@ Moves King::GenerateCastlingMoves( const Square &source,
 
             if ( pos.m_bVirginH8 &&
                     ( board.Get( F8 ) == &None ) &&
-                    ( board.Get( G8 ) == &None )
+                    ( board.Get( G8 ) == &None ) &&
+                    ( board.Get( H8 ) == &BlackRook )
                )
             {
                 Position nextPos( pos, NullMove );
