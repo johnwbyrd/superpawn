@@ -9,6 +9,7 @@
  **/
 
 /**
+** \todo Currently crashes by generating fallacious rook moves; virgin handling is wrong; "test" for example
 ** \todo Quiescent search
 ** \todo Reintroduce transposition table
 ** \todo Parse clock requests from interface
@@ -56,7 +57,7 @@ const unsigned int DEFAULT_MOVES_SIZE = 2 << 6;
 #include <atomic>
 #include <random>
 
-/** A number which is large and idempotent under double negation */
+/** A number which is larger than any board score and idempotent under double negation */
 const int BIG_NUMBER = 1000000;
 
 using namespace std;
@@ -3464,6 +3465,8 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
+        // loss of rook during castling
+        TestOne( "startpos moves e2e4 d7d5 e4d5 d8d5 c2c4 d5e4 f1e2 e4g2 e2f3 g2g6 d1b3 g6a6 c4c5 e7e5 f3e2 a6a5 b3d5 b8c6 b2b4 a5b4 e2h5 g7g6 h5f3 b4d4 d5d4 c6d4 f3d1 f8c5 c1b2 g8f6 g1f3 d4f3 d1f3 c5d4 b2d4 e5d4 h1g1 e8g8 g1g5 h7h6 g5c5 f8e8 e1d1 c8g4 f3g4 f6g4 d1c2 g4f2 c5c4 d4d3 c2b3 a8c8 c4f4 f2e4 b3c4 c8d8 f4h4 g6g5 h4h3 e8e6 a2a4 e6c6 c4b3 c6a6 b3a3" );
         TestOne( "startpos moves g1f3 e7e6 d2d4 d8f6 a2a3 c7c5 d4c5 b8c6 e2e4 f8c5 f1b5 a7a6 b5c6 b7c6 e4e5 f6g6 f3g5 c5b6 b1c3 b6c7 c1f4 h7h6 d1d3 h6g5 d3g6 f7g6 f4g5 c7e5 f2f4 e5c3 b2c3 g8f6 g5f6 g7f6 c3c4 g6g5 f4g5 f6g5 a3a4 h8h4 c4c5 h4c4 a1a3 c4c5 a3h3 c5c2 h3h8 e8f7 e1d1 c2g2 h2h3 g2g3 a4a5 f7g7 h8e8 g7f7" );
         TestOne( "startpos moves b1c3 e7e5 e2e3 g8f6 g1f3 e5e4 e1e2 e4f3 e2d3 b7b6 c3b5 c8a6" );
         TestOne( "fen 6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 0 45" );
