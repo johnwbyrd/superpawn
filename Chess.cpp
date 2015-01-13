@@ -1539,7 +1539,7 @@ public:
         Square source = move.Source();
         DevirginizeRooks( source );
 
-        const Piece *pPiece = move.GetPiece();
+        const Piece *pPiece = GetBoard().Get( source );
         DevirginizeKing( pPiece );
 
         if ( &move == &NullMove )
@@ -1548,7 +1548,7 @@ public:
             return;
         }
 
-        if ( GetBoard().Get( source ) == &None )
+        if ( pPiece == &None )
         {
             stringstream ss;
             ss << "Illegal move: no piece found at source location for move ";
@@ -1676,6 +1676,9 @@ public:
 
             m_Board.Set( rookIDest, rookJ, pRook );
             m_Board.Set( rookISource, rookJ, &None );
+
+            Square rookSource( rookISource, rookJ );
+            DevirginizeRooks( rookSource );
         }
     }
 
