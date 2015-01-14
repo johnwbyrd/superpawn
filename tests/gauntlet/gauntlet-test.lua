@@ -25,7 +25,7 @@ run_cutechess = true
 -- Actually run analysis after?
 run_analyze = true
 
-game_options = "-tournament gauntlet -each tc=1/30 "
+game_options = "-tournament gauntlet -each tc=20/20:00+10 "
 game_options = game_options .. " -games " .. games
 game_options = game_options .. " -concurrency 2 -wait 1 " 
 game_options = game_options .. " -event " .. build_tag .. " "
