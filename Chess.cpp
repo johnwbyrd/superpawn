@@ -33,7 +33,7 @@ const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
 /** Default search depth */
-const unsigned int SEARCH_DEPTH = 6; //-V112
+const unsigned int DEFAULT_SEARCH_DEPTH = 4; //-V112
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -2378,11 +2378,107 @@ void Position::UpdateScore()
     SetScore( slow.Evaluate( *this ) );
 }
 
+/** Keeps track of the search and decides whether it should continue. */
+class DirectorBase : Object
+{
+    friend class Interface;
+public:
+    DirectorBase()
+    {
+        Initialize();
+    }
+
+    virtual unsigned int GetDepth() const
+    {
+        return m_nDepth;
+    }
+
+    virtual unsigned int GetNodes() const
+    {
+        return m_nNodes;
+    }
+
+    virtual void Initialize()
+    {
+        m_SearchMoves.Clear();
+        m_bPonder = false;
+        m_WhiteTime = m_BlackTime = m_WhiteInc = m_BlackInc = 0;
+        m_nMovesToGo =
+            m_nNodes = m_nMateInMoves = m_nMoveTime = 0;
+        m_nDepth = DEFAULT_SEARCH_DEPTH;
+        m_bInfinite = false;
+        m_SearchStopTime = 0;
+    }
+
+    virtual void Action()
+    {
+        m_SearchStopTime = 0;
+    }
+
+    virtual void Cut()
+    {
+        m_SearchStopTime = 0;
+    }
+
+    virtual void CalculateSearchStopTime(
+        const Clock::ChessTickType currentTime,
+        const int nScore,
+        const int nDepthSearched,
+        const Position &rootPosition,
+        const Moves &mPrincipalVariation
+    )
+    {
+        // nMoves = min(numberOfMovesOutOfBook, 10);
+        //factor = 2 - nMoves / 10
+        //  target = timeLeft / numberOfMovesUntilNextTimeControl
+        //  time = factor * target
+
+
+        currentTime;
+        nScore;
+        nDepthSearched;
+        rootPosition;
+        mPrincipalVariation;
+    }
+
+    virtual bool ShouldCut(
+        const Clock::ChessTickType currentTime,
+        const int nScore,
+        const int nDepthSearched,
+        const Position &rootPosition,
+        const Moves &mPrincipalVariation
+
+    )
+    {
+
+        if ( m_SearchStopTime == 0 )
+            CalculateSearchStopTime( currentTime, nScore, nDepthSearched,
+                                     rootPosition, mPrincipalVariation );
+
+        return ( currentTime >= m_SearchStopTime );
+    }
+
+protected:
+    Moves m_SearchMoves;
+    bool m_bPonder;
+    Clock::ChessTickType m_WhiteTime, m_BlackTime, m_WhiteInc, m_BlackInc;
+    unsigned int m_nMovesToGo;
+    unsigned int m_nDepth;
+    unsigned int m_nNodes;
+    unsigned int m_nMateInMoves;
+    unsigned int m_nMoveTime;
+    unsigned int m_bInfinite;
+    Clock::ChessTickType m_SearchStopTime;
+};
+
+typedef DirectorBase Director;
+
+
 class SearcherBase : Object
 {
 public:
     SearcherBase( Interface &interface ) :
-        m_nNodesSearched( 0 ), m_nDepth( SEARCH_DEPTH )
+        m_nNodesSearched( 0 )
     {
         m_bTerminated = true;
         m_pInterface = &interface;
@@ -2398,11 +2494,6 @@ public:
         return !m_bTerminated;
     }
 
-    void SetDepth( int depth = SEARCH_DEPTH )
-    {
-        m_nDepth = depth;
-    }
-
     virtual void Start( const Position &pos )
     {
         m_Root = pos;
@@ -2414,6 +2505,11 @@ public:
     virtual void Stop()
     {
 
+    }
+
+    virtual void SetDirector( const Director &director )
+    {
+        m_Director = director;
     }
 
     virtual int Evaluate( Position &pos )
@@ -2441,12 +2537,12 @@ protected:
     virtual int Search() = 0;
 
     int m_nNodesSearched;
-    int m_nDepth;
     mutex m_Lock;
     atomic_bool m_bTerminated;
     Interface *m_pInterface;
     thread m_Thread;
     Evaluator m_Evaluator;
+    Director m_Director;
     Clock m_Clock;
 
     Moves m_Result;
@@ -2524,6 +2620,7 @@ public:
 
         m_Result.Clear();
         m_bTerminated = false;
+        m_Director.Action();
         m_Thread = thread( &SearcherThreaded::Search, this );
     }
 
@@ -2535,13 +2632,17 @@ public:
         m_bTerminated = true;
         if ( bCanJoin )
             m_Thread.join();
+
+        m_Director.Cut();
     }
 
 protected:
 
     virtual int Search()
     {
-        for ( int nCurrentDepth = 1; nCurrentDepth <= m_nDepth;
+        unsigned int nSearchDepth = m_Director.GetDepth();
+        for ( unsigned int nCurrentDepth = 1;
+                nCurrentDepth <= nSearchDepth;
                 nCurrentDepth++ )
         {
             Moves PV;
@@ -3226,29 +3327,9 @@ class Game : Object
 public:
     void New()
     {
-        m_Time = m_OTime = 0;
-        m_nMovesPerBaseTime = 40;
-        m_nIncrementTime = 0;
-        m_nBaseTime = 5 * 60;
         m_Position.Setup();
     }
 
-    int Time() const
-    {
-        return m_Time;
-    }
-    void Time( int val )
-    {
-        m_Time = val;
-    }
-    int OTime() const
-    {
-        return m_OTime;
-    }
-    void OTime( int val )
-    {
-        m_OTime = val;
-    }
     Position *GetPosition()
     {
         return &m_Position;
@@ -3260,11 +3341,6 @@ public:
 
 protected:
     friend class Interface;
-    int m_Time, m_OTime; // engine time and opponent time, in centiseconds
-    int m_nMovesPerBaseTime; // number of moves expected in the base time period
-    int m_nBaseTime; // amount of time in seconds in the base time period
-    int m_nIncrementTime; // amount of time in seconds to increment after every move
-
     Position m_Position;
 };
 
@@ -3315,17 +3391,13 @@ public:
     void Run()
     {
         m_Out->setf( ios::unitbuf );
-
         string sInputLine;
-
         RegisterAll();
 
         for ( ;; )
         {
             getline( *m_In, sInputLine );
-
             LockGuardType guard( m_Lock );
-
             Execute( sInputLine );
         }
     }
@@ -3479,6 +3551,7 @@ protected:
     {
         stringstream ss( sParams );
         string sParam;
+        Director director;
 
         while ( ss >> sParam )
         {
@@ -3486,8 +3559,69 @@ protected:
             {
                 int depth;
                 ss >> depth;
-                m_pSearcher->SetDepth( depth );
-                break;
+                director.m_nDepth = depth;
+                continue;
+            }
+            else if ( sParam == "wtime" )
+            {
+                int wtime;
+                ss >> wtime;
+                director.m_WhiteTime = wtime;
+                continue;
+            }
+            else if ( sParam == "btime" )
+            {
+                int btime;
+                ss >> btime;
+                director.m_BlackTime = btime;
+                continue;
+            }
+            else if ( sParam == "winc" )
+            {
+                int winc;
+                ss >> winc;
+                director.m_WhiteInc = winc;
+                continue;
+            }
+            else if ( sParam == "binc" )
+            {
+                int binc;
+                ss >> binc;
+                director.m_BlackInc = binc;
+                continue;
+            }
+            else if ( sParam == "movestogo" )
+            {
+                unsigned int movestogo;
+                ss >> movestogo;
+                director.m_nMovesToGo = movestogo;
+                continue;
+            }
+            else if ( sParam == "nodes" )
+            {
+                unsigned int nodes;
+                ss >> nodes;
+                director.m_nNodes = nodes;
+                continue;
+            }
+            else if ( sParam == "mate" )
+            {
+                unsigned int mate;
+                ss >> mate;
+                director.m_nMateInMoves = mate;
+                continue;
+            }
+            else if ( sParam == "movetime" )
+            {
+                unsigned int movetime;
+                ss >> movetime;
+                director.m_nMoveTime = movetime;
+                continue;
+            }
+            else if ( sParam == "infinite" )
+            {
+                director.m_bInfinite = true;
+                continue;
             }
             else
             {
@@ -3497,8 +3631,9 @@ protected:
                 Notify( ssfail.str() );
                 break;
             }
-        }
+        };
 
+        m_pSearcher->SetDirector( director );
         m_pSearcher->Start( * ( m_pGame->GetPosition() ) );
     }
 
