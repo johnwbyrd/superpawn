@@ -15,6 +15,22 @@ if (MSVC)
 	set(BUILD_PLATFORM "win32")
 endif()
 
+set (BUILD_SHARED_LIBS FALSE) # should force the libraries to be static
+
+if (WIN32)
+    if (BUILD_SHARED_LIBS)
+        set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MDd")
+        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MDd")
+        set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MD")
+        set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MD")
+    else()
+        set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MTd")
+        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MTd")
+        set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
+        set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
+    endif()
+endif()
+
 if( BUILD_DOCS )
 	# Need to change if we ever build docs on some other platform
 	if( MSVC )
@@ -37,7 +53,6 @@ IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  # Warnings are errors; generate lots of warnings
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -Werror")
 endif()
 
@@ -50,10 +65,6 @@ add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 						${CMAKE_SOURCE_DIR}/README.md $<TARGET_FILE_DIR:${PROJECT_NAME}> )
 
 if( BUILD_DOCS )
-# Generate HTML docs
-#	add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-#					   COMMAND ${CMAKE_COMMAND} -E copy_directory
-#							${CMAKE_SOURCE_DIR}/tools/css $<TARGET_FILE_DIR:${PROJECT_NAME}> )
 	if( MSVC )
 		add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 						   COMMAND ${MMD_BINARY}
