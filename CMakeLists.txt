@@ -59,6 +59,11 @@ endif()
 add_executable( ${PROJECT_NAME} Chess.cpp )
 target_link_libraries( ${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
 
+# All targets get the logo file
+add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+					   COMMAND ${CMAKE_COMMAND} -E copy
+						${CMAKE_SOURCE_DIR}/logo/logo-small.bmp $<TARGET_FILE_DIR:${PROJECT_NAME}> )
+
 # All targets can have the markdown format documentation
 add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 					   COMMAND ${CMAKE_COMMAND} -E copy
