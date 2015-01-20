@@ -2405,7 +2405,7 @@ public:
         m_WhiteTime = m_BlackTime = m_WhiteInc = m_BlackInc = 0;
         m_nMovesToGo =
             m_nNodes = m_nMateInMoves = m_nMoveTime = 0;
-        m_nDepth = DEFAULT_SEARCH_DEPTH;
+        m_nDepth = 0;
         m_bInfinite = false;
         m_SearchStopTime = 0;
     }
@@ -2421,35 +2421,54 @@ public:
     }
 
     virtual void CalculateSearchStopTime(
-        const Clock::ChessTickType currentTime,
-        const int nScore,
-        const int nDepthSearched,
+        const Clock::ChessTickType /* currentTime */,
+        const int /* nScore */,
+        const int /* nDepthSearched */,
         const Position &rootPosition,
-        const Moves &mPrincipalVariation
+        const Moves & /* mPrincipalVariation */
     )
     {
-        // nMoves = min(numberOfMovesOutOfBook, 10);
-        //factor = 2 - nMoves / 10
-        //  target = timeLeft / numberOfMovesUntilNextTimeControl
-        //  time = factor * target
+        int ply = rootPosition.GetPly();
+        Color sideToMove = rootPosition.GetColorToMove();
+        Clock::ChessTickType timeLeft, timeInc;
 
+        if ( sideToMove == WHITE )
+        {
+            timeLeft = m_WhiteTime;
+            timeInc = m_WhiteInc;
+        }
+        else
+        {
+            timeLeft = m_BlackTime;
+            timeInc = m_BlackInc;
+        }
 
-        currentTime;
-        nScore;
-        nDepthSearched;
-        rootPosition;
-        mPrincipalVariation;
+        int movesUntilTimeControl;
+        if ( m_nMovesToGo != 0 )
+            movesUntilTimeControl = m_nMovesToGo;
+        else
+            movesUntilTimeControl = ply + 25;
+
+        Clock::ChessTickType factor = 5;
+
+        m_SearchStopTime = timeLeft / movesUntilTimeControl;
+        m_SearchStopTime /= factor;
+
     }
 
     virtual bool ShouldCut(
         const Clock::ChessTickType currentTime,
         const int nScore,
-        const int nDepthSearched,
+        const unsigned int nDepthSearched,
         const Position &rootPosition,
         const Moves &mPrincipalVariation
-
     )
     {
+        if ( m_nDepth != 0 )
+            return ( nDepthSearched >= m_nDepth );
+
+        if ( m_nMoveTime != 0 )
+            return ( currentTime >= m_nMoveTime );
 
         if ( m_SearchStopTime == 0 )
             CalculateSearchStopTime( currentTime, nScore, nDepthSearched,
@@ -2640,38 +2659,31 @@ protected:
 
     virtual int Search()
     {
-        unsigned int nSearchDepth = m_Director.GetDepth();
-        for ( unsigned int nCurrentDepth = 1;
-                nCurrentDepth <= nSearchDepth;
-                nCurrentDepth++ )
+        m_Director.Action();
+        int nCurrentDepth = 0;
+
+        while ( !m_bTerminated )
         {
+            nCurrentDepth++;
             Moves PV;
+            if ( m_Director.ShouldCut( m_Clock.Get(),
+                                       m_Score,
+                                       nCurrentDepth,
+                                       m_Root,
+                                       PV
+                                     ) )
+            {
+                m_bTerminated = true;
+                break;
+            }
+
             m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
                                       nCurrentDepth, m_Root, PV );
             m_Result = PV;
             if ( m_Result.Count() == 0 )
                 Die( "Size of principal variation is zero!" );
 
-            stringstream ss;
-            ss << "info depth " << nCurrentDepth;
-            ss << " pv " << ( string ) PV;
-            ss << " score " ;
-
-            int absScore;
-            absScore = abs( m_Score );
-
-            if ( absScore > CHECKMATE_VALUE )
-            {
-                int mate = ( 1 + KING_VALUE - absScore ) / 2;
-                if ( m_Score < 0 )
-                    mate = -mate;
-
-                ss << "mate " << mate;
-            }
-            else
-                ss << "cp " << m_Score;
-
-            Instruct( ss.str() );
+            ReportCurrentPrincipalVariation( nCurrentDepth, PV );
 
             if ( m_bTerminated )
                 break;
@@ -2679,6 +2691,30 @@ protected:
 
         SearchComplete();
         return m_Score;
+    }
+
+    void ReportCurrentPrincipalVariation( unsigned int nCurrentDepth, Moves PV )
+    {
+        stringstream ss;
+        ss << "info depth " << nCurrentDepth;
+        ss << " pv " << ( string )PV;
+        ss << " score ";
+
+        int absScore;
+        absScore = abs( m_Score );
+
+        if ( absScore > CHECKMATE_VALUE )
+        {
+            int mate = ( 1 + KING_VALUE - absScore ) / 2;
+            if ( m_Score < 0 )
+                mate = -mate;
+
+            ss << "mate " << mate;
+        }
+        else
+            ss << "cp " << m_Score;
+
+        Instruct( ss.str() );
     }
 
     virtual int InternalSearch( int alpha, int beta, int depthleft,
@@ -3531,7 +3567,7 @@ protected:
     INTERFACE_PROTOTYPE( TestOne )
     {
         UCIPosition( sParams );
-        UCIGo( "wtime 300000 btime 300000 winc 0 binc 0 movestogo 1" );
+        UCIGo( "wtime 30000 btime 30000 winc 0 binc 0 movestogo 1" );
         do {
             chrono::milliseconds delay( 500 );
             this_thread::sleep_for( delay );
