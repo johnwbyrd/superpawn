@@ -3,7 +3,7 @@
 Superpawn
 =========
 
-Superpawn is a pedantic C++ [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn
+Superpawn is an experimental C++ [chess engine](http://en.wikipedia.org/wiki/Chess_engine).  Superpawn
 uses the [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
 protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of 
 your choice.
@@ -142,3 +142,5 @@ License
 Source code is provided under the [Creative Commons 3.0 Attribution 
 Unported](http://creativecommons.org/licenses/by/3.0/deed.en_US) license.  Please
 don't pass off this chess engine as your own work.
+
+Feel free to contact or ridicule the author at <mailto:johnwbyrdatgmaildotcom>.
