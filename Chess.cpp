@@ -2457,7 +2457,7 @@ public:
 
         Clock::ChessTickType factor = 5;
 
-        m_SearchStopTime = timeLeft / movesUntilTimeControl;
+        m_SearchStopTime = ( timeLeft + timeInc ) / movesUntilTimeControl;
         m_SearchStopTime /= factor;
 
     }
