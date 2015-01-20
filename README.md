@@ -142,3 +142,5 @@ License
 Source code is provided under the [Creative Commons 3.0 Attribution 
 Unported](http://creativecommons.org/licenses/by/3.0/deed.en_US) license.  Please
 don't pass off this chess engine as your own work.
+
+Feel free to contact or ridicule the author at <mailto:johnwbyrdatgmaildotcom>.
