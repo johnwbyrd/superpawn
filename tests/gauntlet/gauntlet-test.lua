@@ -50,7 +50,7 @@ platform = "win32"
 platform_generic = "win"
 subplatform = "x64"
 hero_engine_name = "Superpawn"
-hero_engine_build_type = "Debug"
+hero_engine_build_type = "Release"
 hero_engine_command = "superpawn.exe"
 
 current_dir = io.popen "cd" : read '*l'
