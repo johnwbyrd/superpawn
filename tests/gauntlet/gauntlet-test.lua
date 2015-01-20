@@ -30,6 +30,7 @@ game_options = game_options .. " -games " .. games
 game_options = game_options .. " -concurrency 2 -wait 1 " 
 game_options = game_options .. " -event " .. build_tag .. " "
 game_options = game_options .. " -site " .. build_tag .. " "
+game_options = game_options .. " -debug "
 -- Testina seems to crash a lot.
 game_options = game_options .. " -recover "
 
