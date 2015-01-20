@@ -10,8 +10,9 @@
 
 /**
 ** \todo Don't keep searching deeper if mate is detected; move immediately
-** \todo Quiescent search
+** \todo Distance to mate reporting is wrong
 ** \todo Reintroduce transposition table
+** \todo Quiescent search
 ** \todo Parse clock requests from interface
 ** \todo Change search based on clock
 ** \todo Fifty-move clock
@@ -234,7 +235,7 @@ public:
 
     int Get( unsigned int index ) const
     {
-        return m_Table[ index ];
+        return m_Table[ ( size_t ) index ];
     }
 
     PieceSquareRawTableType m_Table;
@@ -419,7 +420,7 @@ public:
     }
 
     Moves GenerateMoves( const Square &source, const Position &pos ) const;
-    void AddEnPassantMove( Move &m, Square dest, Moves &moves ) const;
+    void AddEnPassantMove( Move &m, const Square &dest, Moves &moves ) const;
     virtual void AddAndPromote( Moves &moves, Move &m,
                                 const bool bIsPromote ) const;
 };
@@ -826,7 +827,7 @@ public:
         return s1;
     }
 
-    bool operator== ( const Square &right )
+    bool operator== ( const Square &right ) const
     {
         return ( ( i == right.i ) && ( j == right.j ) );
     }
@@ -836,26 +837,26 @@ protected:
     int j; // rank
 };
 
-Square A1( 0, 0 ), A2( 0, 1 ), A3( 0, 2 ), A4( 0, 3 ), A5( 0, 4 ), A6( 0, 5 ),
-       A7( 0, 6 ), A8( 0, 7 );
-Square B1( 1, 0 ), B2( 1, 1 ), B3( 1, 2 ), B4( 1, 3 ), B5( 1, 4 ), B6( 1, 5 ),
-       B7( 1, 6 ), B8( 1, 7 );
-Square C1( 2, 0 ), C2( 2, 1 ), C3( 2, 2 ), C4( 2, 3 ), C5( 2, 4 ), C6( 2, 5 ),
-       C7( 2, 6 ), C8( 2, 7 );
-Square D1( 3, 0 ), D2( 3, 1 ), D3( 3, 2 ), D4( 3, 3 ), D5( 3, 4 ), D6( 3, 5 ),
-       D7( 3, 6 ), D8( 3, 7 );
-Square E1( 4, 0 ), E2( 4, 1 ), E3( 4, 2 ), E4( 4, 3 ), E5( 4, 4 ), E6( 4, 5 ),
-       E7( 4, 6 ), E8( 4, 7 );
-Square F1( 5, 0 ), F2( 5, 1 ), F3( 5, 2 ), F4( 5, 3 ), F5( 5, 4 ), F6( 5, 5 ),
-       F7( 5, 6 ), F8( 5, 7 );
-Square G1( 6, 0 ), G2( 6, 1 ), G3( 6, 2 ), G4( 6, 3 ), G5( 6, 4 ), G6( 6, 5 ),
-       G7( 6, 6 ), G8( 6, 7 );
-Square H1( 7, 0 ), H2( 7, 1 ), H3( 7, 2 ), H4( 7, 3 ), H5( 7, 4 ), H6( 7, 5 ),
-       H7( 7, 6 ), H8( 7, 7 );
+Square A1( 0, 0 ), A2( 0, 1 ), A3( 0, 2 ), A4( 0, 3 ), A5( 0, 4 ), //-V112
+       A6( 0, 5 ), A7( 0, 6 ), A8( 0, 7 );
+Square B1( 1, 0 ), B2( 1, 1 ), B3( 1, 2 ), B4( 1, 3 ), B5( 1, 4 ), //-V112
+       B6( 1, 5 ), B7( 1, 6 ), B8( 1, 7 );
+Square C1( 2, 0 ), C2( 2, 1 ), C3( 2, 2 ), C4( 2, 3 ), C5( 2, 4 ), //-V112
+       C6( 2, 5 ), C7( 2, 6 ), C8( 2, 7 );
+Square D1( 3, 0 ), D2( 3, 1 ), D3( 3, 2 ), D4( 3, 3 ), D5( 3, 4 ), //-V112
+       D6( 3, 5 ), D7( 3, 6 ), D8( 3, 7 );
+Square E1( 4, 0 ), E2( 4, 1 ), E3( 4, 2 ), E4( 4, 3 ), E5( 4, 4 ), //-V112
+       E6( 4, 5 ), E7( 4, 6 ), E8( 4, 7 ); //-V112
+Square F1( 5, 0 ), F2( 5, 1 ), F3( 5, 2 ), F4( 5, 3 ), F5( 5, 4 ), //-V112
+       F6( 5, 5 ), F7( 5, 6 ), F8( 5, 7 );
+Square G1( 6, 0 ), G2( 6, 1 ), G3( 6, 2 ), G4( 6, 3 ), G5( 6, 4 ), //-V112
+       G6( 6, 5 ), G7( 6, 6 ), G8( 6, 7 );
+Square H1( 7, 0 ), H2( 7, 1 ), H3( 7, 2 ), H4( 7, 3 ), H5( 7, 4 ), //-V112
+       H6( 7, 5 ), H7( 7, 6 ), H8( 7, 7 );
 
 int PieceSquareTable::Get( const Square &s ) const
 {
-    return m_Table[ s.I() + s.J() * MAX_FILES ];
+    return m_Table[ ( size_t ) ( s.I() + s.J() * MAX_FILES ) ];
 }
 
 class Move : Object
@@ -954,7 +955,7 @@ public:
     {
         return m_Source;
     }
-    void Source( Square val )
+    void Source( const Square &val )
     {
         m_Source = val;
     }
@@ -962,7 +963,7 @@ public:
     {
         return m_Dest;
     }
-    void Dest( Square val )
+    void Dest( const Square &val )
     {
         m_Dest = val;
     }
@@ -1100,7 +1101,7 @@ public:
         WhitePawn.SetIndex( 1 );
         BlackPawn.SetIndex( 2 );
         WhiteKnight.SetIndex( 3 );
-        BlackKnight.SetIndex( 4 );
+        BlackKnight.SetIndex( 4 ); //-V112
         WhiteBishop.SetIndex( 5 );
         BlackBishop.SetIndex( 6 );
         WhiteRook.SetIndex( 7 );
@@ -1786,7 +1787,7 @@ public:
             m_bVirginH8 = false;
     }
 
-    void CaptureMaterial( const Position &position, Square captureSquare )
+    void CaptureMaterial( const Position &position, const Square &captureSquare )
     {
         m_nMaterialScore = position.GetScore() + ( m_Board.Get(
                                captureSquare )->PieceValue() ) *
@@ -2192,7 +2193,7 @@ public:
     {
         return m_sEnPassant;
     }
-    void EnPassant( Square val )
+    void EnPassant( const Square &val )
     {
         m_sEnPassant = val;
     }
@@ -2443,6 +2444,11 @@ public:
             timeInc = m_BlackInc;
         }
 
+        /* Why does this time management formula sort of work?  I'm not really sure.
+         * It seems to sort of resemble how Stockfish manages its time.
+         * Rather than try to understand why it works, I'll leave it be for the time
+         * being, until something better comes along.
+         */
         int movesUntilTimeControl;
         if ( m_nMovesToGo != 0 )
             movesUntilTimeControl = m_nMovesToGo;
@@ -2486,7 +2492,7 @@ protected:
     unsigned int m_nNodes;
     unsigned int m_nMateInMoves;
     unsigned int m_nMoveTime;
-    unsigned int m_bInfinite;
+    bool m_bInfinite;
     Clock::ChessTickType m_SearchStopTime;
 };
 
@@ -2567,7 +2573,6 @@ protected:
     Moves m_Result;
     int m_Score;
 
-    SearcherBase( const SearcherBase & ) {};
     SearcherBase() {};
 
     Position m_Root;
@@ -2693,7 +2698,8 @@ protected:
         return m_Score;
     }
 
-    void ReportCurrentPrincipalVariation( unsigned int nCurrentDepth, Moves PV )
+    void ReportCurrentPrincipalVariation( unsigned int nCurrentDepth,
+                                          const Moves &PV )
     {
         stringstream ss;
         ss << "info depth " << nCurrentDepth;
@@ -3045,7 +3051,7 @@ void Pawn::AddAndPromote( Moves &moves, Move &m, const bool bIsPromote ) const
         moves.Add( m );
 }
 
-void Pawn::AddEnPassantMove( Move &m, Square dest, Moves &moves ) const
+void Pawn::AddEnPassantMove( Move &m, const Square &dest, Moves &moves ) const
 {
     Pawn *pPawn;
     pPawn = GetColor() ? &WhitePawn : &BlackPawn;

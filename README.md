@@ -124,16 +124,19 @@ Features
 - Vaguely sort of const-correct
 - Compiles cleanly in 32-bit and 64-bit modes
 - Compatible with cmake build systems
-- Transposition tables to help speed up end game
 - Simple test framework based on [cutechess-cli](http://cutechess.com/)
 - Castling, stalemate and draw by repetition detection
 - Reports distance to mate
+- Basic time management controls
 
 Things it doesn't do
 --------------------
 
-- Time controls
-- The fifty move rule
+- Transposition table (latent, needs to be reimplemented)
+- Mate search
+- Search to number of nodes
+- Search to fixed time per UCI
+- Respect the fifty move rule
 - Play chess well
 
 License
