@@ -2476,6 +2476,9 @@ public:
         if ( m_nMoveTime != 0 )
             return ( currentTime >= m_nMoveTime );
 
+        if ( m_bInfinite )
+            return false;
+
         if ( m_SearchStopTime == 0 )
             CalculateSearchStopTime( currentTime, nScore, nDepthSearched,
                                      rootPosition, mPrincipalVariation );
@@ -3402,6 +3405,7 @@ public:
         m_In( in ),
         m_Out( out ),
         m_bShowThinking( false ),
+        m_bLogInputToFile( false ),
         m_pGame( new Game )
     {
         m_pSearcher = shared_ptr<Searcher> ( new Searcher( *this ) );
@@ -3410,6 +3414,17 @@ public:
 
     ~Interface()
     {
+    }
+
+    void LogLineToFile( const string &line )
+    {
+        const char *sFileName = "c:\\temp\\superpawn.log";
+        string outLine = line;
+        outLine.append( "\n" );
+        FILE *fp;
+        fopen_s( &fp, sFileName, "a" );
+        fwrite( line.c_str(), sizeof( char ), outLine.length(), fp );
+        fclose( fp );
     }
 
     ostream *GetOut() const
@@ -3439,6 +3454,9 @@ public:
         for ( ;; )
         {
             getline( *m_In, sInputLine );
+            if ( m_bLogInputToFile )
+                LogLineToFile( sInputLine );
+
             LockGuardType guard( m_Lock );
             Execute( sInputLine );
         }
@@ -3809,6 +3827,7 @@ protected:
     int m_Protover;
     bool m_bShowThinking;
     bool m_bPonder;
+    bool m_bLogInputToFile;
     shared_ptr<Game> m_pGame;
     shared_ptr<Searcher> m_pSearcher;
 
