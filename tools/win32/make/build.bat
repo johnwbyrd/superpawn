@@ -42,7 +42,8 @@ msbuild superpawn.sln /p:Configuration=Release
 if errorlevel 1 goto :fail
 call :create_ancillary_files
 move release\Superpawn.exe release\Superpawn-%BUILD_NUMBER%-x86.exe
-..\..\..\%ZIP_EXE% superpawn-windows-x32.zip release\*.*
+cd release
+..\..\..\..\%ZIP_EXE% ..\superpawn-windows-x32.zip *.*
 popd
 
 mkdir build\win\x64
@@ -55,7 +56,8 @@ msbuild superpawn.sln /p:Configuration=Release
 if errorlevel 1 goto :fail
 call :create_ancillary_files
 move release\Superpawn.exe release\Superpawn-%BUILD_NUMBER%-x64.exe
-..\..\..\%ZIP_EXE% superpawn-windows-x64.zip release\*.*
+cd release
+..\..\..\..\%ZIP_EXE% ..\superpawn-windows-x64.zip *.*
 popd
 
 if "%TESTS%" == "" goto no_tests
