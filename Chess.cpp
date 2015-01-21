@@ -19,6 +19,10 @@
 ** \todo Take castling into account in computing hashes
 **/
 
+#include "BuildInfo.h"
+
+#define WEB_URL "http://chess.johnbyrd.org"
+
 /** Number of rows and columns on the board */
 const unsigned int MAX_FILES = 8;
 
@@ -3448,11 +3452,32 @@ public:
         m_In = val;
     }
 
+    void AnnounceSelf()
+    {
+        {
+            stringstream ss;
+            ss << "Superpawn build number " << BUILD_NUMBER << ", build ID " << BUILD_ID;
+            Notify( ss.str() );
+        }
+        {
+            stringstream ss;
+            ss << "Superpawn built on " << __DATE__ << " " << __TIME__;
+            Notify( ss.str() );
+        }
+        {
+            stringstream ss;
+            ss << "For more info: " << WEB_URL;
+            Notify( ss.str() );
+        }
+    }
+
     void Run()
     {
         m_Out->setf( ios::unitbuf );
         string sInputLine;
         RegisterAll();
+
+        AnnounceSelf();
 
         for ( ;; )
         {
@@ -3526,11 +3551,7 @@ protected:
         Instruct( "id author John Byrd" );
 
         Instruct( "option name Hash type spin default 1 min 1 max 2048" );
-        Instruct( "option name UCI_EngineAbout type string default http://chess.johnbyrd.org" );
-
-        stringstream ss;
-        ss << "Superpawn build " << __DATE__ << " " __TIME__;
-        Notify( ss.str() );
+        Instruct( "option name UCI_EngineAbout type string default " WEB_URL );
 
         string none;
         New( none );

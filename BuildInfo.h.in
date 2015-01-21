@@ -1,0 +1,8 @@
+/*
+ * BuildInfo.h
+ * This file is automatically edited by cmake.  Do not edit manually.
+ */
+ 
+#define BUILD_ID     "$ENV{BUILD_ID}"
+#define BUILD_NUMBER "$ENV{BUILD_NUMBER}"
+#define BUILD_TAG    "$ENV{BUILD_TAG}" 

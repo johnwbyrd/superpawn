@@ -59,6 +59,9 @@ endif()
 add_executable( ${PROJECT_NAME} Chess.cpp )
 target_link_libraries( ${PROJECT_NAME} ${CMAKE_THREAD_LIBS_INIT})
 
+include_directories( ${CMAKE_CURRENT_BINARY_DIR} )
+configure_file( ${CMAKE_SOURCE_DIR}/BuildInfo.h.in ${CMAKE_CURRENT_BINARY_DIR}/BuildInfo.h )
+
 # All targets get the logo file
 add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 					   COMMAND ${CMAKE_COMMAND} -E copy
