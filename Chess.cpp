@@ -3418,6 +3418,8 @@ public:
 
     void LogLineToFile( const string &line )
     {
+// sorry, Windows only...
+#ifdef WIN32
         const char *sFileName = "c:\\temp\\superpawn.log";
         string outLine = line;
         outLine.append( "\n" );
@@ -3425,6 +3427,7 @@ public:
         fopen_s( &fp, sFileName, "a" );
         fwrite( line.c_str(), sizeof( char ), outLine.length(), fp );
         fclose( fp );
+#endif
     }
 
     ostream *GetOut() const
