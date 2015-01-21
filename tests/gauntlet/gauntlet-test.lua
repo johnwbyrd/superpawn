@@ -30,6 +30,7 @@ game_options = game_options .. " -games " .. games
 game_options = game_options .. " -concurrency 2 -wait 1 " 
 game_options = game_options .. " -event " .. build_tag .. " "
 game_options = game_options .. " -site " .. build_tag .. " "
+game_options = game_options .. " -debug "
 -- Testina seems to crash a lot.
 game_options = game_options .. " -recover "
 
@@ -49,7 +50,7 @@ platform = "win32"
 platform_generic = "win"
 subplatform = "x64"
 hero_engine_name = "Superpawn"
-hero_engine_build_type = "Debug"
+hero_engine_build_type = "Release"
 hero_engine_command = "superpawn.exe"
 
 current_dir = io.popen "cd" : read '*l'
