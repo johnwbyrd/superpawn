@@ -91,8 +91,8 @@ enum PieceType
 
 const int NONE_VALUE = 0;
 const int PAWN_VALUE = 100;
-const int KNIGHT_VALUE = 300;
-const int BISHOP_VALUE = 300;
+const int KNIGHT_VALUE = 315;
+const int BISHOP_VALUE = 330;
 const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int CHECKMATE_VALUE = 990000; // any abs. value greater than this is mate
@@ -174,19 +174,20 @@ PieceSquareRawTableType pstBishop =
 
 PieceSquareRawTableType pstRook =
 {
-    0, 0, 0, 30, 10, 30, 0, 0
-    - 5, 0, 0, 0, 0, 0, 0, -5,
-    -5, 0, 0, 0, 0, 0, 0, -5,
-    -5, 0, 0, 0, 0, 0, 0, -5,
-    -5, 0, 0, 0, 0, 0, 0, -5,
-    5, 10, 10, 10, 10, 10, 10, 5,
-    -5, 0, 0, 0, 0, 0, 0, -5,
-    0, 0, 0, 30, 10, 30, 0, 0
+    0,   0,  0, 20, 10, 20,  0,  0
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    20, 20, 20, 20, 20, 20, 20, 20,
+    -5,  0,  0,  0,  0,  0,  0,  0
 };
 
 PieceSquareRawTableType pstWhiteKingEarly =
 {
-    0, 0, 40, 0, 0, 0, 40, 0,
+    0, 0, 60,0, 0, 0,60, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -196,34 +197,33 @@ PieceSquareRawTableType pstWhiteKingEarly =
     0, 0, 0, 0, 0, 0, 0, 0
 };
 
-PieceSquareRawTableType pstBlackKingEarly =
+PieceSquareRawTableType pstWhiteKingLate =
 {
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 60, 0, 0, 0, 60, 0
+    -50, -40, -30, -20, -20, -30, -40, -50,
+    -30, -20, -10,   0,   0, -10, -20, -30,
+    -30, -10,  20,  30,  30,  20, -10, -30,
+    -30, -10,  30,  40,  40,  30, -10, -30,
+    -30, -10,  30,  40,  40,  30, -10, -30,
+    -30, -10,  20,  30,  30,  20, -10, -30,
+    -30, -30,   0,   0,   0,   0, -30, -30,
+    -50, -30, -30, -30, -30, -30, -30, -50
 };
 
-
-class PieceSquareTable : public Object
+class PieceSquareTableBase : public Object
 {
 public:
-    PieceSquareTable()
+    PieceSquareTableBase()
     {
         for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
             m_Table[ i ] = 0;
     }
 
-    PieceSquareTable( const PieceSquareRawTableType &table )
+    PieceSquareTableBase( const PieceSquareRawTableType &table )
     {
         m_Table = table;
     }
 
-    void InvertColor()
+    virtual void InvertColor()
     {
         PieceSquareRawTableType temp;
         temp = m_Table;
@@ -235,15 +235,30 @@ public:
             }
     }
 
-    int Get( const Square &s ) const;
-
-    int Get( unsigned int index ) const
+    virtual int Get( unsigned int index ) const
     {
         return m_Table[ ( size_t ) index ];
     }
 
     PieceSquareRawTableType m_Table;
 };
+
+const int MAX_PIECE_SQUARE_INTERPOLATIONS = 256;
+
+class InterpolatingPieceSquareTable : PieceSquareTableBase
+{
+public:
+    void SetPhase( float fPhase )
+    {
+        m_fPhase = fPhase;
+    }
+protected:
+
+    unsigned int m_nInternalTables;
+    float m_fPhase;
+};
+
+typedef PieceSquareTableBase PieceSquareTable;
 
 /** A centisecond wall clock. */
 class Clock : Object
@@ -372,11 +387,11 @@ public:
         return m_PieceType;
     }
 
-    const PieceSquareTable &GetPieceSquareTable() const
+    const PieceSquareTableBase &GetPieceSquareTable() const
     {
         return m_PieceSquareTable;
     }
-    void SetPieceSquareTable( const PieceSquareTable &val )
+    void SetPieceSquareTable( const PieceSquareTableBase &val )
     {
         m_PieceSquareTable = val;
     }
@@ -387,7 +402,7 @@ protected:
     Piece   *m_pOtherColor;
     PieceType m_PieceType;
     int     m_nIndex;
-    PieceSquareTable m_PieceSquareTable;
+    PieceSquareTableBase m_PieceSquareTable;
 };
 
 class NoPiece : public Piece
@@ -529,6 +544,10 @@ Rook WhiteRook( WHITE ), BlackRook( BLACK );        //-V601
 Queen WhiteQueen( WHITE ), BlackQueen( BLACK );     //-V601
 King WhiteKing( WHITE ), BlackKing( BLACK );        //-V601
 NoPiece None;
+
+const Piece **AllPieces;
+const int AllPiecesSize = 12;
+
 
 class BoardBase : public Object
 {
@@ -701,11 +720,7 @@ public:
                GetPieceSquareTable().Get( index );
     }
 
-    virtual int GetPieceSquareValue( const Square &s ) const
-    {
-        return Get( s )->
-               GetPieceSquareTable().Get( s );
-    }
+    virtual int GetPieceSquareValue( const Square &s ) const;
 };
 
 class Board : public BoardPieceSquare {};
@@ -749,6 +764,11 @@ public:
     bool IsOnBoard() const
     {
         return ( ( ( i & ~7 ) == 0 ) && ( ( j & ~7 ) == 0 ) );
+    }
+
+    unsigned int ToIndex() const
+    {
+        return ( i + j * 8 );
     }
 
     int I() const
@@ -858,9 +878,9 @@ Square G1( 6, 0 ), G2( 6, 1 ), G3( 6, 2 ), G4( 6, 3 ), G5( 6, 4 ), //-V112
 Square H1( 7, 0 ), H2( 7, 1 ), H3( 7, 2 ), H4( 7, 3 ), H5( 7, 4 ), //-V112
        H6( 7, 5 ), H7( 7, 6 ), H8( 7, 7 );
 
-int PieceSquareTable::Get( const Square &s ) const
+int BoardPieceSquare::GetPieceSquareValue( const Square &s ) const
 {
-    return m_Table[ ( size_t ) ( s.I() + s.J() * MAX_FILES ) ];
+    return GetPieceSquareValue( s.ToIndex() );
 }
 
 class Move : Object
@@ -1116,7 +1136,7 @@ public:
         BlackKing.SetIndex( 12 );
 
         WhitePawn.SetPieceSquareTable( pstWhitePawn );
-        PieceSquareTable pstBlackPawn = pstWhitePawn;
+        PieceSquareTableBase pstBlackPawn = pstWhitePawn;
         pstBlackPawn.InvertColor();
         BlackPawn.SetPieceSquareTable( pstBlackPawn );
 
@@ -1127,8 +1147,26 @@ public:
         BlackBishop.SetPieceSquareTable( pstBishop );
 
         WhiteKing.SetPieceSquareTable( pstWhiteKingEarly );
+        PieceSquareTableBase pstBlackKingEarly = pstWhiteKingEarly;
+        pstBlackKingEarly.InvertColor();
         BlackKing.SetPieceSquareTable( pstBlackKingEarly );
+
+        int p = 0;
+        m_AllPieces[p++] = &WhitePawn;
+        m_AllPieces[p++] = &BlackPawn;
+        m_AllPieces[p++] = &WhiteKnight;
+        m_AllPieces[p++] = &BlackKnight;
+        m_AllPieces[p++] = &WhiteBishop;
+        m_AllPieces[p++] = &BlackBishop;
+        m_AllPieces[p++] = &WhiteRook;
+        m_AllPieces[p++] = &BlackRook;
+        m_AllPieces[p++] = &WhiteQueen;
+        m_AllPieces[p++] = &BlackQueen;
+        m_AllPieces[p++] = &WhiteKing;
+        m_AllPieces[p++] = &BlackKing;
+        AllPieces = m_AllPieces;
     }
+    const Piece *m_AllPieces[AllPiecesSize];
 };
 
 class Moves : Object
@@ -1507,6 +1545,77 @@ public :
     }
 };
 
+/* This array must correspond with the AllPieces array exactly. */
+const float fPhaseMaterial[AllPiecesSize] =
+{
+    0.0f, /*pawns*/
+    0.0f,
+    1.5f, /*knights*/
+    1.5f,
+    1.5f, /*bishops*/
+    1.5f,
+    0.5f, /* rooks */
+    0.5f,
+    2.0f, /*queens*/
+    2.0f,
+    0.0f, /*kings*/
+    0.0f
+};
+
+static float s_fMaximumMaterial;
+
+class Material : Object
+{
+    friend class Position;
+protected:
+    void Initialize()
+    {
+        m_fPhase = 0.0f;
+        for ( int i = 0; i < AllPiecesSize; i++ )
+            m_nCount[i] = 0;
+    }
+
+    void UpdateFrom( const Position &pos );
+    void CalculateMaximumMaterial()
+    {
+        s_fMaximumMaterial = GetMaterial();
+    }
+
+    void CaptureMaterial( const Piece *pPiece )
+    {
+        for ( int i = 0; i < AllPiecesSize; i++ )
+        {
+            if ( AllPieces[i] == pPiece )
+            {
+                m_nCount[i]--;
+                m_fPhase = 0.0f;
+                return;
+            }
+        }
+        Die( "Could not find piece to capture!" );
+    }
+
+    float GetMaterial()
+    {
+        float fMaterial = 0.0f;
+        for ( int i = 0; i < AllPiecesSize; i++ )
+            fMaterial += m_nCount[i] * fPhaseMaterial[i];
+        return fMaterial;
+    }
+
+    float GetPhase()
+    {
+        if ( m_fPhase == 0.0f )
+            m_fPhase = 1.0f - ( GetMaterial() / s_fMaximumMaterial );
+
+        return m_fPhase;
+    }
+
+protected:
+    unsigned int m_nCount[ AllPiecesSize ];
+    float m_fPhase;
+};
+
 class Position : Object
 {
     friend class PositionHasher;
@@ -1514,6 +1623,7 @@ class Position : Object
      * castling at the moment; this could be refactored I suppose
      */
     friend class King;
+    friend class Material;
 
 public:
     Position()
@@ -1586,6 +1696,7 @@ public:
         m_sEnPassant.Set( -1, -1 );
         m_Moves.Clear();
         m_Board.Initialize();
+        m_Material.Initialize();
         m_bIsCheckDetermined = false;
         m_bIsCheck = false;
         m_PreviousPositions.clear();
@@ -1714,6 +1825,7 @@ public:
     {
         m_Board = position.m_Board;
         m_ColorToMove = position.m_ColorToMove;
+        m_Material = position.m_Material;
         m_nMaterialScore = position.m_nMaterialScore;
         m_PreviousPositions = position.m_PreviousPositions;
 
@@ -1766,6 +1878,7 @@ public:
                      move.GetPromoteTo() );
     }
 
+    /** This is the sexiest function in the entire program. */
     void DevirginizeKing( const Piece *pPiece )
     {
         if ( pPiece == &WhiteKing )
@@ -1775,7 +1888,7 @@ public:
             m_bVirginBlackKing = false;
     }
 
-    /* This is the sexiest function in the entire program. */
+    /* This is the second sexiest function in the entire program. */
     void DevirginizeRooks( Square &source )
     {
         if ( source == A1 )
@@ -1793,9 +1906,12 @@ public:
 
     void CaptureMaterial( const Position &position, const Square &captureSquare )
     {
-        m_nMaterialScore = position.GetScore() + ( m_Board.Get(
-                               captureSquare )->PieceValue() ) *
-                           GetColorBias();
+        const Piece *pCaptured = m_Board.Get( captureSquare );
+        m_nMaterialScore = position.GetScore() +
+                           pCaptured->PieceValue() * GetColorBias();
+
+        if ( pCaptured != &None )
+            m_Material.CaptureMaterial( pCaptured );
 
         if ( captureSquare == A1 )
             m_bVirginA1 = false;
@@ -1922,6 +2038,8 @@ public:
         Initialize();
         m_Board.Setup();
         m_ColorToMove = WHITE;
+        m_Material.UpdateFrom( *this );
+        m_Material.CalculateMaximumMaterial();
     }
 
     void Dump() const
@@ -2213,10 +2331,16 @@ public:
         return *( m_PreviousPositions.end() - 1 );
     }
 
+    float GetPhase()
+    {
+        return m_Material.GetPhase();
+    }
+
 
 protected:
     Board   m_Board;
     Color   m_ColorToMove;
+    Material m_Material;
     unsigned int    m_nPly;
     int m_nMaterialScore;
     /** Virgin rooks; can tell whether any of the four rooks has been moved */
@@ -2231,6 +2355,27 @@ protected:
     typedef std::vector< HashValue > PreviousPositionType;
     PreviousPositionType m_PreviousPositions;
 };
+
+void Material::UpdateFrom( const Position &pos )
+{
+    Initialize();
+    Board board = pos.GetBoard();
+    for ( int square = 0; square < MAX_SQUARES; square++ )
+    {
+        const Piece *pPiece = board.Get( square );
+        for ( int p = 0; p < AllPiecesSize; p++ )
+        {
+            if ( pPiece == &None )
+                continue;
+
+            if ( pPiece == AllPieces[p] )
+            {
+                m_nCount[p]++;
+                break;
+            }
+        }
+    }
+}
 
 HashValue PositionHasher::GetHash() const
 {
@@ -2381,6 +2526,7 @@ void Position::UpdateScore()
 {
     EvaluatorSlowMaterial slow;
     SetScore( slow.Evaluate( *this ) );
+    m_Material.UpdateFrom( *this );
 }
 
 /** Keeps track of the search and decides whether it should continue. */
@@ -2459,7 +2605,7 @@ public:
         else
             movesUntilTimeControl = ply + 25;
 
-        Clock::ChessTickType factor = 3;
+        Clock::ChessTickType factor = 1;
 
         m_SearchStopTime = ( timeLeft + timeInc ) / movesUntilTimeControl;
         m_SearchStopTime /= factor;
@@ -2921,6 +3067,10 @@ protected:
         /* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872
          */
 
+        float fPhase = pos.GetPhase();
+        if ( fPhase == 30.0f )
+            Die( "Not possible!" );
+
         int score = 0;
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
@@ -3140,7 +3290,7 @@ void Pawn::AddAndPromote( Moves &moves, Move &m, const bool bIsPromote ) const
 void Pawn::AddEnPassantMove( Move &m, const Square &dest, Moves &moves ) const
 {
     Pawn *pPawn;
-    pPawn = GetColor() ? &WhitePawn : &BlackPawn;
+    pPawn = GetColor() ? &WhitePawn :&BlackPawn;
     m.Dest( dest );
     m.Score( pPawn->PieceValue() );
     AddAndPromote( moves, m, false );
