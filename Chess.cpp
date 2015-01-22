@@ -12,9 +12,6 @@
 ** \todo Don't keep searching deeper if mate is detected; move immediately
 ** \todo Distance to mate reporting is wrong
 ** \todo Reintroduce transposition table
-** \todo Quiescent search
-** \todo Parse clock requests from interface
-** \todo Change search based on clock
 ** \todo Fifty-move clock
 ** \todo Take castling into account in computing hashes
 **/
@@ -215,32 +212,32 @@ public:
     PieceSquareTableBase()
     {
         for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
-            m_Table[ i ] = 0;
+            m_SourceTable[ i ] = 0;
     }
 
     PieceSquareTableBase( const PieceSquareRawTableType &table )
     {
-        m_Table = table;
+        m_SourceTable = table;
     }
 
     virtual void InvertColor()
     {
         PieceSquareRawTableType temp;
-        temp = m_Table;
+        temp = m_SourceTable;
         for ( unsigned int i = 0; i < MAX_FILES; i++ )
             for ( unsigned int j = 0; j < MAX_FILES; j++ )
             {
-                m_Table[ i + j * MAX_FILES ] =
+                m_SourceTable[ i + j * MAX_FILES ] =
                     temp[ i + ( ( MAX_FILES - 1 ) - j ) * MAX_FILES];
             }
     }
 
     virtual int Get( unsigned int index ) const
     {
-        return m_Table[ ( size_t ) index ];
+        return m_SourceTable[ ( size_t ) index ];
     }
 
-    PieceSquareRawTableType m_Table;
+    PieceSquareRawTableType m_SourceTable;
 };
 
 const int MAX_PIECE_SQUARE_INTERPOLATIONS = 256;
@@ -248,14 +245,29 @@ const int MAX_PIECE_SQUARE_INTERPOLATIONS = 256;
 class InterpolatingPieceSquareTable : PieceSquareTableBase
 {
 public:
+    InterpolatingPieceSquareTable( const PieceSquareRawTableType &table,
+                                   const float fInterpolationFactor = 0.0f )
+    {
+        /* for now, we're order sensitive on this. */
+        PieceSquareTableBase baseTable( table );
+        m_SourceTables.push_back( baseTable );
+        m_Phases.push_back( fInterpolationFactor );
+    }
+
     void SetPhase( float fPhase )
     {
-        m_fPhase = fPhase;
+        float fIndex = fPhase * ( float )m_InterpolatedTables.size();
+        m_nCurrentTable = ( int )fIndex;
     }
-protected:
 
-    unsigned int m_nInternalTables;
+protected:
+    typedef vector< PieceSquareTableBase > TablesType;
+    typedef vector< float > PhaseType;
+    TablesType m_InterpolatedTables;
+    TablesType m_SourceTables;
+    PhaseType m_Phases;
     float m_fPhase;
+    unsigned int m_nCurrentTable;
 };
 
 typedef PieceSquareTableBase PieceSquareTable;
@@ -387,11 +399,12 @@ public:
         return m_PieceType;
     }
 
-    const PieceSquareTableBase &GetPieceSquareTable() const
+    const PieceSquareTable &GetPieceSquareTable() const
     {
         return m_PieceSquareTable;
     }
-    void SetPieceSquareTable( const PieceSquareTableBase &val )
+
+    void SetPieceSquareTable( const PieceSquareTable &val )
     {
         m_PieceSquareTable = val;
     }
@@ -402,7 +415,7 @@ protected:
     Piece   *m_pOtherColor;
     PieceType m_PieceType;
     int     m_nIndex;
-    PieceSquareTableBase m_PieceSquareTable;
+    PieceSquareTable m_PieceSquareTable;
 };
 
 class NoPiece : public Piece
@@ -3639,7 +3652,8 @@ public:
         m_Out( out ),
         m_bShowThinking( false ),
         m_bLogInputToFile( false ),
-        m_pGame( new Game )
+        m_pGame( new Game ),
+        m_bIsRunning( true )
     {
         m_pSearcher = shared_ptr<Searcher> ( new Searcher( *this ) );
         s_pDefaultInterface = this;
@@ -3708,7 +3722,7 @@ public:
 
         AnnounceSelf();
 
-        for ( ;; )
+        while ( m_bIsRunning )
         {
             getline( *m_In, sInputLine );
             if ( m_bLogInputToFile )
@@ -4016,7 +4030,7 @@ protected:
     INTERFACE_PROTOTYPE_NO_PARAMS( Quit )
     {
         Notify( "Engine exiting" );
-        exit( 0 );
+        m_bIsRunning = false;
     }
 
     int TimeToSeconds( const string &sTime )
@@ -4083,6 +4097,7 @@ protected:
     bool m_bLogInputToFile;
     shared_ptr<Game> m_pGame;
     shared_ptr<Searcher> m_pSearcher;
+    bool m_bIsRunning;
 
 protected:
     unordered_map<string, InterfaceFunctionType> m_CommandMap;
