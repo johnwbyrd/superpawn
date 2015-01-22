@@ -2678,12 +2678,13 @@ protected:
         {
             nCurrentDepth++;
             Moves PV;
-            if ( m_Director.ShouldCut( m_Clock.Get(),
-                                       m_Score,
-                                       nCurrentDepth,
-                                       m_Root,
-                                       PV
-                                     ) )
+            if ( ( nCurrentDepth > 1 ) &&
+                    m_Director.ShouldCut( m_Clock.Get(),
+                                          m_Score,
+                                          nCurrentDepth,
+                                          m_Root,
+                                          PV
+                                        ) )
             {
                 m_bTerminated = true;
                 break;
@@ -2822,6 +2823,13 @@ protected:
         return false;
     }
 
+    virtual void GetMoves( Moves &myMoves, Position &pos, const int /*depth*/ )
+    {
+        myMoves = pos.GetMoves();
+        if ( myMoves.IsEmpty() )
+            Die( "No moves could be generated!" );
+    }
+
     void FilterCheckResolvingMoves( Moves &myMoves, Position &pos )
     {
         Moves checkResolvingMoves;
@@ -2875,6 +2883,35 @@ protected:
         return false;
     }
 
+    int AttenuateForMate( int score )
+    {
+        if ( abs( score ) > CHECKMATE_VALUE )
+        {
+            int attenuate = ( score > 0 ) ? -1 : 1;
+            score += attenuate;
+        }
+        return score;
+    }
+
+    virtual bool IsFrontier( int &score, const int depth, Position &pos )
+    {
+        if ( depth <= 0 )
+        {
+            Report( pos );
+            score = Evaluate( pos );
+            return true;
+        }
+
+        return false;
+    }
+
+    virtual int SearchNode( int beta, int alpha, int depth, Position &nextPos,
+                            Moves &currentPV )
+    {
+        return -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
+                                          currentPV );
+    }
+
     virtual int SearchPrincipalVariation( int alpha, int beta, int depth,
                                           Position &pos, Moves &pv )
     {
@@ -2882,22 +2919,17 @@ protected:
          * http://chessprogramming.wikispaces.com/Principal+Variation+Search */
         /* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872
          */
-        if ( depth <= 0 )
-        {
-            Report( pos );
-            return Evaluate( pos );
-        }
 
         int score = 0;
+        if ( IsFrontier( score, depth, pos ) )
+            return score;
+
         m_nNodesSearched++;
 
         Move bestMove = NullMove;
-
         Moves bestPV, currentPV, myMoves;
 
-        myMoves = pos.GetMoves();
-        if ( myMoves.IsEmpty() )
-            Die( "No moves could be generated!" );
+        GetMoves( myMoves, pos, depth );
 
         if ( bestMove != NullMove )
         {
@@ -2915,16 +2947,10 @@ protected:
             currentPV = pv;
             currentPV.Make( move );
             Position nextPos( pos, move );
-
-            score = -SearchPrincipalVariation( -beta, -alpha, depth - 1, nextPos,
-                                               currentPV );
+            score = SearchNode( beta, alpha, depth, nextPos, currentPV );
 
             // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
-            if ( abs( score ) > CHECKMATE_VALUE )
-            {
-                int attenuate = ( score > 0 ) ? -1 : 1;
-                score += attenuate;
-            }
+            score = AttenuateForMate( score );
 
             if ( bFirstSearch )
             {
@@ -2964,9 +2990,53 @@ protected:
         pv = bestPV;
         return alpha;
     }
+
 };
 
-typedef SearcherPrincipalVariation Searcher;
+class SearcherQuiescence : public SearcherPrincipalVariation
+{
+    typedef SearcherPrincipalVariation super;
+
+public:
+    SearcherQuiescence( Interface &interface ) :
+        super( interface )
+    { }
+
+    virtual bool IsFrontier( int &score, const int depth, Position &pos )
+    {
+        if ( depth <= 0 )
+        {
+            Moves captures = pos.GetCaptures();
+            if ( captures.IsEmpty() )
+            {
+                Report( pos );
+                score = Evaluate( pos );
+                return true;
+            }
+        }
+
+        Report( pos );
+        return false;
+    }
+
+    virtual void GetMoves( Moves &myMoves, Position &pos, const int depth )
+    {
+        if ( depth > 0 )
+        {
+            myMoves = pos.GetMoves();
+            if ( myMoves.IsEmpty() )
+                Die( "No moves could be generated!" );
+        }
+        else
+        {
+            myMoves = pos.GetCaptures();
+            if ( myMoves.IsEmpty() )
+                Die( "No captures could be generated!" );
+        }
+    }
+};
+
+typedef SearcherQuiescence Searcher;
 
 const Piece *BoardBase::Set( const Square &s, const Piece *piece )
 {
