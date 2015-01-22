@@ -2459,7 +2459,7 @@ public:
         else
             movesUntilTimeControl = ply + 25;
 
-        Clock::ChessTickType factor = 5;
+        Clock::ChessTickType factor = 3;
 
         m_SearchStopTime = ( timeLeft + timeInc ) / movesUntilTimeControl;
         m_SearchStopTime /= factor;
@@ -2893,7 +2893,8 @@ protected:
         return score;
     }
 
-    virtual bool IsFrontier( int &score, const int depth, Position &pos )
+    virtual bool IsFrontier( int &score, Position &pos, int &/*alpha*/,
+                             int /*beta*/, int depth )
     {
         if ( depth <= 0 )
         {
@@ -2921,7 +2922,7 @@ protected:
          */
 
         int score = 0;
-        if ( IsFrontier( score, depth, pos ) )
+        if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
 
         m_nNodesSearched++;
@@ -3002,17 +3003,25 @@ public:
         super( interface )
     { }
 
-    virtual bool IsFrontier( int &score, const int depth, Position &pos )
+    virtual bool IsFrontier( int &score, Position &pos, int &alpha, int beta,
+                             int depth )
     {
         if ( depth <= 0 )
         {
-            Moves captures = pos.GetCaptures();
-            if ( captures.IsEmpty() )
+            score = Evaluate( pos );
+            if ( score >= beta )
             {
-                Report( pos );
-                score = Evaluate( pos );
+                score = beta;
                 return true;
             }
+            if ( alpha < score )
+                alpha = score;
+            Report( pos );
+            Moves captures = pos.GetCaptures();
+            if ( captures.IsEmpty() )
+                return true;
+
+            return false;
         }
 
         Report( pos );
