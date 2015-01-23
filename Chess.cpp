@@ -145,7 +145,7 @@ PieceSquareRawTableType psrtKnight =
     -40, -30, -30, -30, -30, -30, -30, -40
 };
 
-PieceSquareRawTableType psrtWhitePawn =
+PieceSquareRawTableType psrtWhitePawnEarly =
 {
     0,   0,   0,   0,   0,   0,   0,   0,
     5,   5,  10, -20, -20,  10,   5,   5,
@@ -156,6 +156,20 @@ PieceSquareRawTableType psrtWhitePawn =
     80, 80,  80,  80,  80,  80,  80,  80,
     0,   0,   0,   0,   0,   0,   0,   0
 };
+
+/* Go for the touchdown!*/
+PieceSquareRawTableType psrtWhitePawnLate =
+{
+    0,   0,   0,   0,   0,   0,   0,   0,
+    -20, -20, -20, -40, -40, -20, -20, -20,
+    -5,  -5,  -5,  -5,  -5,  -5,  -5,  -5,
+    20,  20,  20,  40,  40,  20,  20,  20,
+    30,  30,  30,  50,  50,  30,  30,  30,
+    60,  60,  60,  70,  70,  60,  60,  60,
+    90,  90,  90,  90,  90,  90,  90,  90,
+    0,   0,   0,   0,   0,   0,   0,   0
+};
+
 
 PieceSquareRawTableType psrtBishop =
 {
@@ -199,8 +213,8 @@ PieceSquareRawTableType psrtWhiteKingLate =
     -50, -40, -30, -20, -20, -30, -40, -50,
     -30, -20, -10,   0,   0, -10, -20, -30,
     -30, -10,  20,  30,  30,  20, -10, -30,
-    -30, -10,  30,  40,  40,  30, -10, -30,
-    -30, -10,  30,  40,  40,  30, -10, -30,
+    -30, -10,  30,  50,  50,  30, -10, -30,
+    -30, -10,  30,  50,  50,  30, -10, -30,
     -30, -10,  20,  30,  30,  20, -10, -30,
     -30, -30,   0,   0,   0,   0, -30, -30,
     -50, -30, -30, -30, -30, -30, -30, -50
@@ -276,16 +290,20 @@ public:
 
     virtual int Get( unsigned int index, const float fPhase = 0.0f ) const
     {
+
+        size_t nSize = m_InterpolatedTables.size();
+
         if ( m_InterpolatedTables.size() == 1 )
             return m_InterpolatedTables[0].Get( index );
 
         float fTable = fPhase * ( float )m_InterpolatedTables.size();
-        unsigned int nTable = ( int )fTable;
-        if ( nTable > m_InterpolatedTables.size() )
-            Die( "Table interpolation out of range!" );
+        int nTable = ( int )fTable;
 
-        if ( index > MAX_SQUARES )
-            Die( "Index for interpolation out of range!" );
+        if ( nTable >= ( int )nSize )
+            nTable = ( int )nSize - 1;
+
+        if ( nTable < 0 )
+            nTable = 0;
 
         return m_InterpolatedTables[nTable].Get( index );
     }
@@ -634,7 +652,9 @@ void PieceSquareTableInitializer::Initialize()
     PieceSquareTable pstWhiteBishop, pstBlackBishop, pstWhiteRook, pstBlackRook;
     PieceSquareTable pstWhiteQueen, pstBlackQueen, pstWhiteKing, pstBlackKing;
 
-    pstWhitePawn = PieceSquareTable( psrtWhitePawn );
+    pstWhitePawn = PieceSquareTable();
+    pstWhitePawn.Append( psrtWhitePawnEarly, 0.0f );
+    pstWhitePawn.Append( psrtWhitePawnLate, 1.0f );
     pstWhitePawn.CalculateInterpolations();
     pstBlackPawn = pstWhitePawn;
     pstBlackPawn.InvertColor();
@@ -1733,7 +1753,15 @@ protected:
     float GetPhase()
     {
         if ( m_fPhase == 0.0f )
+        {
             m_fPhase = 1.0f - ( GetMaterial() / s_fMaximumMaterial );
+
+            if ( m_fPhase > 1.0f )
+                m_fPhase = 1.0f;
+            if ( m_fPhase < 0.0f )
+                m_fPhase = 0.0f;
+
+        }
 
         return m_fPhase;
     }
@@ -2632,8 +2660,8 @@ public:
     EvaluatorStandard()
     {
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 0.1f );
-        m_Weighted.Add( m_PieceSquareEvaluator );
+        m_Weighted.Add( m_SimpleMobility, 0.05f );
+        m_Weighted.Add( m_PieceSquareEvaluator, 0.5f );
     }
 
     virtual int Evaluate( Position &pos ) const
