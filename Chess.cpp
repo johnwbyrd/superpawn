@@ -171,7 +171,7 @@ PieceSquareRawTableType psrtBishop =
 
 PieceSquareRawTableType psrtRook =
 {
-    0,   0,  0, 20, 10, 20,  0,  0
+    0,   0,  0, 20, 20, 20,  0,  0
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
@@ -240,19 +240,32 @@ public:
     PieceSquareRawTableType m_SourceTable;
 };
 
-const int MAX_PIECE_SQUARE_INTERPOLATIONS = 256;
+const int MAX_PIECE_SQUARE_INTERPOLATIONS = 64;
 
-class InterpolatingPieceSquareTable : PieceSquareTableBase
+class PieceSquareTableInterpolating : PieceSquareTableBase
 {
 public:
-    InterpolatingPieceSquareTable( const PieceSquareRawTableType &table,
-                                   const float fInterpolationFactor = 0.0f ) :
-        m_nCurrentTable( 0 )
+    PieceSquareTableInterpolating() :
+        m_nCurrentTable( 0 ),
+        m_fPhase( 0.0f )
+    {
+
+    }
+
+    void Append( const PieceSquareRawTableType &table,
+                 const float fInterpolationFactor = 0.0f )
     {
         /* for now, we're order sensitive on this. */
         PieceSquareTableBase baseTable( table );
         m_SourceTables.push_back( baseTable );
         m_Phases.push_back( fInterpolationFactor );
+    }
+
+    PieceSquareTableInterpolating( const PieceSquareRawTableType &table,
+                                   const float fInterpolationFactor = 0.0f ) :
+        m_nCurrentTable( 0 )
+    {
+        Append( table, fInterpolationFactor );
     }
 
     virtual void InvertColor()
@@ -261,15 +274,26 @@ public:
             table.InvertColor();
     }
 
-    virtual int Get( unsigned int index ) const
+    virtual int Get( unsigned int index, const float fPhase = 0.0f ) const
     {
-        return m_SourceTables[m_nCurrentTable].Get( index );
+        if ( m_InterpolatedTables.size() == 1 )
+            return m_InterpolatedTables[0].Get( index );
+
+        float fTable = fPhase * ( float )m_InterpolatedTables.size();
+        unsigned int nTable = ( int )fTable;
+        if ( nTable > m_InterpolatedTables.size() )
+            Die( "Table interpolation out of range!" );
+
+        if ( index > MAX_SQUARES )
+            Die( "Index for interpolation out of range!" );
+
+        return m_InterpolatedTables[nTable].Get( index );
     }
 
     virtual void CalculateInterpolations()
     {
         /* Only implemented for up to two children.  Could reimplement for more. */
-        switch ( m_nCurrentTable )
+        switch ( m_SourceTables.size() )
         {
         case 1:
             m_nCurrentTable = 0;
@@ -297,12 +321,6 @@ public:
         }
     }
 
-    void SetPhase( float fPhase )
-    {
-        float fIndex = fPhase * ( float )m_InterpolatedTables.size();
-        m_nCurrentTable = ( int )fIndex;
-    }
-
 protected:
     typedef vector< PieceSquareTableBase > TablesType;
     typedef vector< float > PhaseType;
@@ -313,15 +331,16 @@ protected:
     unsigned int m_nCurrentTable;
 };
 
-typedef PieceSquareTableBase PieceSquareTable;
-vector< PieceSquareTable > pieceSquareTables;
+typedef PieceSquareTableInterpolating PieceSquareTable;
 
 class PieceSquareTableInitializer : Object
 {
-    void Initialize()
+public:
+    PieceSquareTableInitializer()
     {
-
+        Initialize();
     }
+    void Initialize();
 };
 
 /** A centisecond wall clock. */
@@ -608,6 +627,64 @@ Bishop WhiteBishop( WHITE ), BlackBishop( BLACK );   //-V601
 Rook WhiteRook( WHITE ), BlackRook( BLACK );        //-V601
 Queen WhiteQueen( WHITE ), BlackQueen( BLACK );     //-V601
 King WhiteKing( WHITE ), BlackKing( BLACK );        //-V601
+
+void PieceSquareTableInitializer::Initialize()
+{
+    PieceSquareTable pstWhitePawn, pstBlackPawn, pstWhiteKnight, pstBlackKnight;
+    PieceSquareTable pstWhiteBishop, pstBlackBishop, pstWhiteRook, pstBlackRook;
+    PieceSquareTable pstWhiteQueen, pstBlackQueen, pstWhiteKing, pstBlackKing;
+
+    pstWhitePawn = PieceSquareTable( psrtWhitePawn );
+    pstWhitePawn.CalculateInterpolations();
+    pstBlackPawn = pstWhitePawn;
+    pstBlackPawn.InvertColor();
+
+    pstWhiteBishop = PieceSquareTable( psrtBishop );
+    pstWhiteBishop.CalculateInterpolations();
+    pstBlackBishop = pstWhiteBishop;
+    pstBlackBishop.InvertColor();
+
+    pstWhiteKnight = PieceSquareTable( psrtKnight );
+    pstWhiteKnight.CalculateInterpolations();
+    pstBlackKnight = pstWhiteKnight;
+    pstBlackKnight.InvertColor();
+
+    pstWhiteRook = PieceSquareTable( psrtRook );
+    pstWhiteRook.CalculateInterpolations();
+    pstBlackRook = pstWhiteRook;
+    pstBlackRook.InvertColor();
+
+    pstWhiteQueen = PieceSquareTable( psrtDefault );
+    pstWhiteQueen.CalculateInterpolations();
+    pstBlackQueen = pstWhiteQueen;
+    pstBlackQueen.InvertColor();
+
+    pstWhiteKing = PieceSquareTable();
+    pstWhiteKing.Append( psrtWhiteKingEarly, 0.0f );
+    pstWhiteKing.Append( psrtWhiteKingLate, 1.0f );
+    pstWhiteKing.CalculateInterpolations();
+    pstBlackKing = pstWhiteKing;
+    pstBlackKing.InvertColor();
+
+    WhitePawn.SetPieceSquareTable( pstWhitePawn );
+    BlackPawn.SetPieceSquareTable( pstBlackPawn );
+
+    WhiteBishop.SetPieceSquareTable( pstWhiteBishop );
+    BlackBishop.SetPieceSquareTable( pstBlackBishop );
+
+    WhiteKnight.SetPieceSquareTable( pstWhiteKnight );
+    BlackKnight.SetPieceSquareTable( pstBlackKnight );
+
+    WhiteRook.SetPieceSquareTable( pstWhiteRook );
+    BlackRook.SetPieceSquareTable( pstBlackRook );
+
+    WhiteQueen.SetPieceSquareTable( pstWhiteQueen );
+    BlackQueen.SetPieceSquareTable( pstBlackQueen );
+
+    WhiteKing.SetPieceSquareTable( pstWhiteKing );
+    BlackKing.SetPieceSquareTable( pstBlackKing );
+}
+
 NoPiece None;
 
 const Piece **AllPieces;
@@ -779,13 +856,13 @@ public:
 class BoardPieceSquare : public BoardHashing
 {
 public:
-    virtual int GetPieceSquareValue( int index ) const
+    virtual int GetPieceSquareValue( int index, const float fPhase ) const
     {
         return Get( index )->
-               GetPieceSquareTable().Get( index );
+               GetPieceSquareTable().Get( index, fPhase );
     }
 
-    virtual int GetPieceSquareValue( const Square &s ) const;
+    virtual int GetPieceSquareValue( const Square &s, const float fPhase ) const;
 };
 
 class Board : public BoardPieceSquare {};
@@ -943,9 +1020,10 @@ Square G1( 6, 0 ), G2( 6, 1 ), G3( 6, 2 ), G4( 6, 3 ), G5( 6, 4 ), //-V112
 Square H1( 7, 0 ), H2( 7, 1 ), H3( 7, 2 ), H4( 7, 3 ), H5( 7, 4 ), //-V112
        H6( 7, 5 ), H7( 7, 6 ), H8( 7, 7 );
 
-int BoardPieceSquare::GetPieceSquareValue( const Square &s ) const
+int BoardPieceSquare::GetPieceSquareValue( const Square &s,
+        const float fPhase ) const
 {
-    return GetPieceSquareValue( s.ToIndex() );
+    return GetPieceSquareValue( s.ToIndex(), fPhase );
 }
 
 class Move : Object
@@ -1199,22 +1277,6 @@ public:
         BlackQueen.SetIndex( 10 );
         WhiteKing.SetIndex( 11 );
         BlackKing.SetIndex( 12 );
-
-        WhitePawn.SetPieceSquareTable( psrtWhitePawn );
-        PieceSquareTableBase pstBlackPawn = psrtWhitePawn;
-        pstBlackPawn.InvertColor();
-        BlackPawn.SetPieceSquareTable( pstBlackPawn );
-
-        WhiteKnight.SetPieceSquareTable( psrtKnight );
-        BlackKnight.SetPieceSquareTable( psrtKnight );
-
-        WhiteBishop.SetPieceSquareTable( psrtBishop );
-        BlackBishop.SetPieceSquareTable( psrtBishop );
-
-        WhiteKing.SetPieceSquareTable( psrtWhiteKingEarly );
-        PieceSquareTableBase pstBlackKingEarly = psrtWhiteKingEarly;
-        pstBlackKingEarly.InvertColor();
-        BlackKing.SetPieceSquareTable( pstBlackKingEarly );
 
         int p = 0;
         m_AllPieces[p++] = &WhitePawn;
@@ -2500,7 +2562,7 @@ public:
             piece = board.Get( i );
             if ( piece != &None )
             {
-                nScore += ( board.GetPieceSquareValue( i ) *
+                nScore += ( board.GetPieceSquareValue( i, pos.GetPhase() ) *
                             ( ( piece->GetColor() == WHITE ) ? 1 : -1 ) );
             }
         }
@@ -4185,6 +4247,7 @@ int main( int , char ** )
 {
     Clock c;
     PieceInitializer pieceInitializer;
+    PieceSquareTableInitializer pieceSquareTableInitializer;
     HashInitializer hashInitializer;
     HashTableInitializer hashTableInitializer;
     Interface i;
