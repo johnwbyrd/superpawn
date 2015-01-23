@@ -119,7 +119,7 @@ typedef INTERFACE_FUNCTION_RETURN_TYPE( Interface::*InterfaceFunctionType )(
 
 typedef std::array<int, MAX_SQUARES> PieceSquareRawTableType;
 
-PieceSquareRawTableType pstDefault =
+PieceSquareRawTableType psrtDefault =
 {
     0,  0,  0,  0,  0,  0,  0,  0,
     0,  0,  0,  0,  0,  0,  0,  0,
@@ -133,7 +133,7 @@ PieceSquareRawTableType pstDefault =
 
 
 /* "A knight on the rim is grim." */
-PieceSquareRawTableType pstKnight =
+PieceSquareRawTableType psrtKnight =
 {
     -40, -30, -30, -30, -30, -30, -30, -40,
     -40, -20,   0,   0,   0,   0, -20, -40,
@@ -145,7 +145,7 @@ PieceSquareRawTableType pstKnight =
     -40, -30, -30, -30, -30, -30, -30, -40
 };
 
-PieceSquareRawTableType pstWhitePawn =
+PieceSquareRawTableType psrtWhitePawn =
 {
     0,   0,   0,   0,   0,   0,   0,   0,
     5,   5,  10, -20, -20,  10,   5,   5,
@@ -157,7 +157,7 @@ PieceSquareRawTableType pstWhitePawn =
     0,   0,   0,   0,   0,   0,   0,   0
 };
 
-PieceSquareRawTableType pstBishop =
+PieceSquareRawTableType psrtBishop =
 {
     -20, -10, -10, -10, -10, -10, -10, -20,
     -10,   0,   0,   0,   0,   0,   0, -10,
@@ -169,7 +169,7 @@ PieceSquareRawTableType pstBishop =
     -20, -10, -10, -10, -10, -10, -10, -20
 };
 
-PieceSquareRawTableType pstRook =
+PieceSquareRawTableType psrtRook =
 {
     0,   0,  0, 20, 10, 20,  0,  0
     -5,  0,  0,  0,  0,  0,  0, -5,
@@ -182,7 +182,7 @@ PieceSquareRawTableType pstRook =
     -5,  0,  0,  0,  0,  0,  0,  0
 };
 
-PieceSquareRawTableType pstWhiteKingEarly =
+PieceSquareRawTableType psrtWhiteKingEarly =
 {
     0, 0, 60,0, 0, 0,60, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -194,7 +194,7 @@ PieceSquareRawTableType pstWhiteKingEarly =
     0, 0, 0, 0, 0, 0, 0, 0
 };
 
-PieceSquareRawTableType pstWhiteKingLate =
+PieceSquareRawTableType psrtWhiteKingLate =
 {
     -50, -40, -30, -20, -20, -30, -40, -50,
     -30, -20, -10,   0,   0, -10, -20, -30,
@@ -246,12 +246,55 @@ class InterpolatingPieceSquareTable : PieceSquareTableBase
 {
 public:
     InterpolatingPieceSquareTable( const PieceSquareRawTableType &table,
-                                   const float fInterpolationFactor = 0.0f )
+                                   const float fInterpolationFactor = 0.0f ) :
+        m_nCurrentTable( 0 )
     {
         /* for now, we're order sensitive on this. */
         PieceSquareTableBase baseTable( table );
         m_SourceTables.push_back( baseTable );
         m_Phases.push_back( fInterpolationFactor );
+    }
+
+    virtual void InvertColor()
+    {
+        for ( auto &table : m_InterpolatedTables )
+            table.InvertColor();
+    }
+
+    virtual int Get( unsigned int index ) const
+    {
+        return m_SourceTables[m_nCurrentTable].Get( index );
+    }
+
+    virtual void CalculateInterpolations()
+    {
+        /* Only implemented for up to two children.  Could reimplement for more. */
+        switch ( m_nCurrentTable )
+        {
+        case 1:
+            m_nCurrentTable = 0;
+            m_InterpolatedTables.push_back( m_SourceTables[0] );
+            break;
+        case 2:
+            for ( unsigned int i = 0; i < MAX_PIECE_SQUARE_INTERPOLATIONS; i++ )
+            {
+                m_nCurrentTable = 0;
+                PieceSquareRawTableType pstInterpolated;
+                for ( unsigned int sq = 0; sq < MAX_SQUARES; sq++ )
+                {
+                    float fScale;
+                    fScale = ( float )i / ( float )MAX_PIECE_SQUARE_INTERPOLATIONS;
+                    pstInterpolated[sq] = ( int ) (
+                                              ( 1.0f - fScale ) * m_SourceTables[0].Get( sq ) +
+                                              fScale * m_SourceTables[1].Get( sq ) );
+                }
+                PieceSquareTableBase tableBase( pstInterpolated );
+                m_InterpolatedTables.push_back( tableBase );
+            }
+            break;
+        default:
+            Die( "Unsupported number of interpolated table sources!" );
+        }
     }
 
     void SetPhase( float fPhase )
@@ -271,6 +314,15 @@ protected:
 };
 
 typedef PieceSquareTableBase PieceSquareTable;
+vector< PieceSquareTable > pieceSquareTables;
+
+class PieceSquareTableInitializer : Object
+{
+    void Initialize()
+    {
+
+    }
+};
 
 /** A centisecond wall clock. */
 class Clock : Object
@@ -338,7 +390,7 @@ public:
         m_Color = BLACK;
         m_PieceType = NONE;
         m_pOtherColor = NULL;
-        m_PieceSquareTable = pstDefault;
+        m_PieceSquareTable = psrtDefault;
     }
 
     Piece( Color color )
@@ -346,7 +398,7 @@ public:
         m_Color = color;
         m_PieceType = NONE;
         m_pOtherColor = NULL;
-        m_PieceSquareTable = pstDefault;
+        m_PieceSquareTable = psrtDefault;
     }
 
     virtual int PieceValue() const = 0;
@@ -1148,19 +1200,19 @@ public:
         WhiteKing.SetIndex( 11 );
         BlackKing.SetIndex( 12 );
 
-        WhitePawn.SetPieceSquareTable( pstWhitePawn );
-        PieceSquareTableBase pstBlackPawn = pstWhitePawn;
+        WhitePawn.SetPieceSquareTable( psrtWhitePawn );
+        PieceSquareTableBase pstBlackPawn = psrtWhitePawn;
         pstBlackPawn.InvertColor();
         BlackPawn.SetPieceSquareTable( pstBlackPawn );
 
-        WhiteKnight.SetPieceSquareTable( pstKnight );
-        BlackKnight.SetPieceSquareTable( pstKnight );
+        WhiteKnight.SetPieceSquareTable( psrtKnight );
+        BlackKnight.SetPieceSquareTable( psrtKnight );
 
-        WhiteBishop.SetPieceSquareTable( pstBishop );
-        BlackBishop.SetPieceSquareTable( pstBishop );
+        WhiteBishop.SetPieceSquareTable( psrtBishop );
+        BlackBishop.SetPieceSquareTable( psrtBishop );
 
-        WhiteKing.SetPieceSquareTable( pstWhiteKingEarly );
-        PieceSquareTableBase pstBlackKingEarly = pstWhiteKingEarly;
+        WhiteKing.SetPieceSquareTable( psrtWhiteKingEarly );
+        PieceSquareTableBase pstBlackKingEarly = psrtWhiteKingEarly;
         pstBlackKingEarly.InvertColor();
         BlackKing.SetPieceSquareTable( pstBlackKingEarly );
 
