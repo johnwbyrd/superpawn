@@ -3936,7 +3936,8 @@ public:
     {
         {
             stringstream ss;
-            ss << "Superpawn build number " << BUILD_NUMBER << ", build ID " << BUILD_ID;
+            ss << "Superpawn " << BUILD_BRANCH << " number " << BUILD_NUMBER <<
+               ", build ID " << BUILD_ID;
             Notify( ss.str() );
         }
         {

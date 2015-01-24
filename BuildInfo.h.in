@@ -6,3 +6,4 @@
 #define BUILD_ID     "$ENV{BUILD_ID}"
 #define BUILD_NUMBER "$ENV{BUILD_NUMBER}"
 #define BUILD_TAG    "$ENV{BUILD_TAG}" 
+#define BUILD_BRANCH "$ENV{BUILD_BRANCH}"
