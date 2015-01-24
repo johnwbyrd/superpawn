@@ -4004,12 +4004,10 @@ public:
             ( *m_Out ) << "# " << sParams << endl;
             break;
 
+        default:
         case PROTOCOL_UCI:
             ( *m_Out ) << "info string " << sParams << endl;
             break;
-
-        default:
-            ( *m_Out ) << sParams << endl;
         }
     }
 
