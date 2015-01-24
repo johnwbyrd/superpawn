@@ -1180,6 +1180,11 @@ public:
         return m_Moves.size();
     }
 
+    Move &GetLast()
+    {
+        return m_Moves.at( m_Moves.size() - 1 );
+    }
+
     void Make( const Move &move )
     {
         m_Moves.push_back( move );
@@ -1374,9 +1379,23 @@ private:
 enum HashEntryType
 {
     HET_NONE = 0x0,
-    HET_EXACT = 0x1,
-    HET_LOWER_BOUND = 0x2,
-    HET_UPPER_BOUND = 0x4,
+    /* PV-nodes (Knuth's Type 1) are nodes that have a score that ends
+     * up being inside the window. So if the bounds passed are [a,b],
+     * with the score returned s, a<s<b. These nodes have all moves searched,
+     * and the value returned is exact (i.e., not a bound), which propagates
+     * up to the root along with a principal variation.*/
+    HET_PRINCIPAL_VARIATION = 0x1,
+    /* Cut-nodes (Knuth's Type 2), otherwise known as fail-high nodes,
+     * are nodes in which a beta-cutoff was performed. So with bounds
+     * [a,b], s>=b. A minimum of one move at a Cut-node needs to be
+     * searched. The score returned is a lower bound (might be greater)
+     * on the exact score of the node*/
+    HET_CUT_NODE = 0x2,
+    /** All-nodes (Knuth's Type 3), otherwise known as fail-low nodes,
+     * are nodes in which no move's score exceeded alpha. With bounds
+     * [a,b], s<=a. Every move at an All-node is searched, and the score
+     * returned is an upper bound, the exact score might be less. */
+    HET_ALL_NODE = 0x4,
 };
 
 class PositionHashEntry : public Object
@@ -2754,56 +2773,69 @@ protected:
     }
 
     /* Returns true if no search is necessary at this node due to a transposition table hit. */
-    virtual bool CheckTranspositionTable( Move &bestMove, int &nSearchResult,
-                                          const Position &pos, const int alpha, const int beta, const int depth )
+    virtual bool CheckTranspositionTable( Move &bestMove,
+                                          int &nSearchResult,
+                                          const Position &pos, const int alpha,
+                                          const int beta, const int depth )
     {
         const PositionHashEntry *pEntry = pos.LookUp();
         bestMove = NullMove;
 
+        /* Logic copied heavily from Bob Hyatt at http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
         /* See if an entry in the hash table exists at this depth for this
         * position...
         */
         if ( pEntry )
         {
-            if ( depth <= pEntry->m_Depth )
+            /* 1. Is the draft >= remaining depth of search (was this hash entry stored
+             * from a search at least as deep as the current one ? )
+             */
+            if ( pEntry->m_Depth >= depth )
             {
-                /* We got a hash table hit */
+                /*
+                2. If so, there are three types of entries with 3 different actions.  All of these
+                depend on the hash entry "type"
+                */
                 switch ( pEntry->m_TypeBits )
                 {
-                case HET_EXACT:
+                /*
+                a. EXACT. Return the score from the table.  When you get back to search,
+                you do not need to search any further, you can use that score as the
+                "search result" and return.
+                */
+                case HET_PRINCIPAL_VARIATION:
                     bestMove = pEntry->m_BestMove;
                     nSearchResult = pEntry->m_Score;
                     return true;
 
-                case HET_LOWER_BOUND:
-                    /* If the value from the table, which is a "lower bound"
-                    * (but is actually beta at the time the entry was stored)
-                    * is >= beta, return a "fail high" indication to search
-                    * which says "just return beta, no need to do a search."
-                    */
+                /*
+                b. UPPER.  If the value from the table, which is an "upper bound" (but is
+                actually alpha at the time the entry was stored ) is less than or equal to
+                the current alpha value, return a "fail low" indication to search which says
+                "just return alpha, no need to search".  This test ensures that the stored
+                "upper bound" is <= the current alpha value, otherwise we don't know whether
+                to fail low or not.
+                */
+                case HET_ALL_NODE:
+                    if ( pEntry->m_Score <= alpha )
+                    {
+                        bestMove = pEntry->m_BestMove;
+                        nSearchResult = pEntry->m_Score;
+                        return true;
+                    }
+                    break;
+
+                /*
+                c. LOWER.  If the value from the table, which is a "lower bound" ( but is actually
+                beta at the time the entry was stored ) is >= beta, return a "fail high"
+                indication to search which says "just return beta, no need to do a search." */
+                case HET_CUT_NODE:
                     if ( pEntry->m_Score >= beta )
                     {
+                        bestMove = pEntry->m_BestMove;
                         nSearchResult = beta;
                         return true;
                     }
-
-                    break;
-
-                case HET_UPPER_BOUND:
-                    /*  If the value from the table, which is an "upper bound"
-                    *  (but is actually alpha at the time the entry was stored)
-                    *  is less than or equal to the current alpha value, return a
-                    *  "fail low" indication to search which says "just return alpha,
-                    *  no need to search". This test ensures that the stored
-                    * "upper bound" is <= the current alpha value, otherwise
-                    * we don't know whether to fail low or not.
-                    */
-                    if ( pEntry->m_Score <= alpha )
-                    {
-                        nSearchResult = alpha;
-                        return true;
-                    }
-
                     break;
 
                 default:
@@ -2815,8 +2847,7 @@ protected:
             * simply return.  So seed this search with the exact value
             * from the hash table.
             */
-            if ( pEntry->m_TypeBits == HET_EXACT )
-                bestMove = pEntry->m_BestMove;
+            bestMove = pEntry->m_BestMove;
         }
 
         /* The caller does need to do a full width search */
@@ -2913,6 +2944,17 @@ protected:
                                           currentPV );
     }
 
+    virtual bool CheckPreviousSearchResults( int &/*score*/, Position &/*pos*/,
+            Moves &/*pv*/, int &/*alpha*/, int &/*beta*/, const int /*depth*/ )
+    {
+        return false;
+    }
+
+    virtual void CacheNodeType( const HashEntryType &/*het*/, Position &/*pos*/,
+                                const int /*score*/,
+                                const Move &/*move*/ )
+    {}
+
     virtual int SearchPrincipalVariation( int alpha, int beta, int depth,
                                           Position &pos, Moves &pv )
     {
@@ -2922,13 +2964,16 @@ protected:
          */
 
         int score = 0;
+        Move bestMove = NullMove;
+        Moves bestPV, currentPV, myMoves;
+
+        if ( CheckPreviousSearchResults( score, pos, pv, alpha, beta, depth ) )
+            return score;
+
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
 
         m_nNodesSearched++;
-
-        Move bestMove = NullMove;
-        Moves bestPV, currentPV, myMoves;
 
         GetMoves( myMoves, pos, depth );
 
@@ -2942,6 +2987,7 @@ protected:
             return score;
 
         bool bFirstSearch = true;
+        bool bAlphaExceeded = false;
 
         for ( auto &move : myMoves )
         {
@@ -2971,6 +3017,7 @@ protected:
                 * greater) on the exact score of the node.
                 */
                 pv = bestPV;
+                CacheNodeType( HET_CUT_NODE, pos, score, bestPV.GetLast() );
                 return beta;   // fail-high beta-cutoff
             }
 
@@ -2979,6 +3026,7 @@ protected:
                 /* The score is between alpha and beta.  We have a new best move.  This could
                 * be an exact entry in the hash table, if it survives the rest of the search at this level.
                 */
+                bAlphaExceeded = true;
                 alpha = score; // alpha acts like max in MiniMax
                 bestPV = currentPV;
                 bestMove = move;
@@ -2987,6 +3035,11 @@ protected:
             if ( m_bTerminated )
                 break;
         }
+
+        if ( bAlphaExceeded )
+            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, bestPV.GetLast() );
+        else
+            CacheNodeType( HET_ALL_NODE, pos, score, bestPV.GetLast() );
 
         pv = bestPV;
         return alpha;
