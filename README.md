@@ -128,15 +128,12 @@ Features
 - Castling, stalemate and draw by repetition detection
 - Reports distance to mate
 - Basic time management controls
+- Basic transposition table
 
 Things it doesn't do
 --------------------
 
-- Transposition table (latent, needs to be reimplemented)
-- Mate search
-- Search to number of nodes
-- Search to fixed time per UCI
-- Respect the fifty move rule
+- Understand the fifty move rule
 - Play chess well
 
 License

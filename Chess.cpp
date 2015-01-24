@@ -9,11 +9,10 @@
  **/
 
 /**
-** \todo Don't keep searching deeper if mate is detected; move immediately
 ** \todo Distance to mate reporting is wrong
-** \todo Reintroduce transposition table
-** \todo Fifty-move clock
 ** \todo Take castling into account in computing hashes
+** \todo Fifty-move clock
+** \todo Better endgame logic for say KRK
 **/
 
 #include "BuildInfo.h"
