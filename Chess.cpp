@@ -88,8 +88,8 @@ enum PieceType
 
 const int NONE_VALUE = 0;
 const int PAWN_VALUE = 100;
-const int KNIGHT_VALUE = 315;
-const int BISHOP_VALUE = 330;
+const int KNIGHT_VALUE = 300;
+const int BISHOP_VALUE = 310;
 const int ROOK_VALUE = 500;
 const int QUEEN_VALUE = 900;
 const int CHECKMATE_VALUE = 990000; // any abs. value greater than this is mate
@@ -150,10 +150,10 @@ PieceSquareRawTableType psrtWhitePawnEarly =
     0,   0,   0,   0,   0,   0,   0,   0,
     5,   5,  10, -20, -20,  10,   5,   5,
     5,  -5,  -5,   0,   0,  -5,  -5,   5,
-    0,   0,  10,  40,  40,  10,   0,   0,
-    20, 20,  30,  50,  50,  30,  20,  20,
-    40, 40,  40,  60,  60,  40,  40,  40,
-    80, 80,  80,  80,  80,  80,  80,  80,
+    0,   0,  10,  20,  20,  10,   0,   0,
+    10, 10,  20,  30,  30,  20,  10,  10,
+    20, 20,  30,  40,  40,  30,  20,  20,
+    30, 30,  40,  50,  50,  40,  30,  30,
     0,   0,   0,   0,   0,   0,   0,   0
 };
 
@@ -652,9 +652,7 @@ void PieceSquareTableInitializer::Initialize()
     PieceSquareTable pstWhiteBishop, pstBlackBishop, pstWhiteRook, pstBlackRook;
     PieceSquareTable pstWhiteQueen, pstBlackQueen, pstWhiteKing, pstBlackKing;
 
-    pstWhitePawn = PieceSquareTable();
-    pstWhitePawn.Append( psrtWhitePawnEarly, 0.0f );
-    pstWhitePawn.Append( psrtWhitePawnLate, 1.0f );
+    pstWhitePawn = PieceSquareTable( psrtWhitePawnEarly );
     pstWhitePawn.CalculateInterpolations();
     pstBlackPawn = pstWhitePawn;
     pstBlackPawn.InvertColor();
@@ -1543,9 +1541,7 @@ public:
     {
         m_pPosition = &pPos;
     }
-    /** \todo Update this hash value based on all relevant
-     ** position data including castling and other rights
-     **/
+
     HashValue GetHash() const;
 
 protected:
@@ -2660,8 +2656,8 @@ public:
     EvaluatorStandard()
     {
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 0.05f );
-        m_Weighted.Add( m_PieceSquareEvaluator, 0.5f );
+        m_Weighted.Add( m_SimpleMobility, 0.08f );
+        m_Weighted.Add( m_PieceSquareEvaluator );
     }
 
     virtual int Evaluate( Position &pos ) const
@@ -2760,11 +2756,15 @@ public:
         else
             movesUntilTimeControl = ply + 25;
 
-        Clock::ChessTickType factor = 1;
+        Clock::ChessTickType factor;
+        factor = ( abs( ply - 40 ) + 1 ) / 2;
+        if ( factor > 6 )
+            factor = 6;
+        if ( factor < 1 )
+            factor = 1;
 
         m_SearchStopTime = ( timeLeft + timeInc ) / movesUntilTimeControl;
         m_SearchStopTime /= factor;
-
     }
 
     virtual bool ShouldCut(
@@ -3222,10 +3222,6 @@ protected:
         /* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872
          */
 
-        float fPhase = pos.GetPhase();
-        if ( fPhase == 30.0f )
-            Die( "Not possible!" );
-
         int score = 0;
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
@@ -3292,6 +3288,7 @@ protected:
             if ( m_bTerminated )
                 break;
         }
+
 
         pv = bestPV;
         return alpha;
