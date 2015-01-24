@@ -3118,12 +3118,8 @@ protected:
             }
         }
 
-        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
-        {
-            // draw by repetition
-            score = 0;
+        if ( IsDrawByRepetition( pos, score ) )
             return true;
-        }
 
         if ( pos.IsStalemate() )
         {
@@ -3131,6 +3127,17 @@ protected:
             return true;
         }
 
+        return false;
+    }
+
+    bool IsDrawByRepetition( Position &pos, int &score )
+    {
+        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
+        {
+            // draw by repetition
+            score = 0;
+            return true;
+        }
         return false;
     }
 
@@ -3192,7 +3199,12 @@ protected:
 
         if ( CheckPreviousSearchResults( score, pos, bestMove, pv, alpha, beta,
                                          depth ) )
+        {
+            /* transposition table doesn't count repetitions, so check those first
+             * before returning */
+            IsDrawByRepetition( pos, score );
             return score;
+        }
 
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
