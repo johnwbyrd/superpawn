@@ -3208,7 +3208,10 @@ protected:
         }
 
         if ( IsEndOfGame( score, pos, myMoves ) )
+        {
+            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, depth, NullMove );
             return score;
+        }
 
         bool bFirstSearch = true;
         bool bAlphaExceeded = false;
@@ -3296,7 +3299,10 @@ public:
             Report( pos );
             Moves captures = pos.GetCaptures();
             if ( captures.IsEmpty() )
+            {
+                /* we will stand pat at this depth */
                 return true;
+            }
 
             return false;
         }
