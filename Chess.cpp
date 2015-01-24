@@ -276,7 +276,8 @@ public:
 
     PieceSquareTableInterpolating( const PieceSquareRawTableType &table,
                                    const float fInterpolationFactor = 0.0f ) :
-        m_nCurrentTable( 0 )
+        m_nCurrentTable( 0 ),
+        m_fPhase( 0.0f )
     {
         Append( table, fInterpolationFactor );
     }
@@ -2530,7 +2531,7 @@ void Material::UpdateFrom( const Position &pos )
 {
     Initialize();
     Board board = pos.GetBoard();
-    for ( int square = 0; square < MAX_SQUARES; square++ )
+    for ( unsigned int square = 0; square < MAX_SQUARES; square++ )
     {
         const Piece *pPiece = board.Get( square );
         for ( int p = 0; p < AllPiecesSize; p++ )
