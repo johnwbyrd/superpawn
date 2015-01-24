@@ -345,8 +345,8 @@ protected:
     TablesType m_InterpolatedTables;
     TablesType m_SourceTables;
     PhaseType m_Phases;
-    float m_fPhase;
     unsigned int m_nCurrentTable;
+    float m_fPhase;
 };
 
 typedef PieceSquareTableInterpolating PieceSquareTable;
