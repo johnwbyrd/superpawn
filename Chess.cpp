@@ -160,11 +160,11 @@ PieceSquareRawTableType psrtWhitePawnEarly =
 /* Go for the touchdown!*/
 PieceSquareRawTableType psrtWhitePawnLate =
 {
-    0,   0,   0,   0,   0,   0,   0,   0,
-    -20, -20, -20, -40, -40, -20, -20, -20,
-    -5,  -5,  -5,  -5,  -5,  -5,  -5,  -5,
-    20,  20,  20,  40,  40,  20,  20,  20,
-    30,  30,  30,  50,  50,  30,  30,  30,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    5, 5, 10, -20, -20, 10, 5, 5,
+    5, -5, -5, 0, 0, -5, -5, 5,
+    0, 0, 10, 20, 20, 10, 0, 0,
+    30, 30, 30, 50, 50, 30, 30, 30,
     60,  60,  60,  70,  70,  60,  60,  60,
     90,  90,  90,  90,  90,  90,  90,  90,
     0,   0,   0,   0,   0,   0,   0,   0
@@ -198,7 +198,7 @@ PieceSquareRawTableType psrtRook =
 
 PieceSquareRawTableType psrtWhiteKingEarly =
 {
-    0, 0, 60,0, 0, 0,60, 0,
+    0, 0, 70,0, 0, 0,70, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
@@ -652,7 +652,9 @@ void PieceSquareTableInitializer::Initialize()
     PieceSquareTable pstWhiteBishop, pstBlackBishop, pstWhiteRook, pstBlackRook;
     PieceSquareTable pstWhiteQueen, pstBlackQueen, pstWhiteKing, pstBlackKing;
 
-    pstWhitePawn = PieceSquareTable( psrtWhitePawnEarly );
+    pstWhitePawn = PieceSquareTable();
+    pstWhitePawn.Append( psrtWhitePawnEarly , 0.0f );
+    pstWhitePawn.Append( psrtWhitePawnLate, 1.0f );
     pstWhitePawn.CalculateInterpolations();
     pstBlackPawn = pstWhitePawn;
     pstBlackPawn.InvertColor();
@@ -2656,7 +2658,7 @@ public:
     EvaluatorStandard()
     {
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 0.08f );
+        m_Weighted.Add( m_SimpleMobility, 0.1f );
         m_Weighted.Add( m_PieceSquareEvaluator );
     }
 
@@ -2757,9 +2759,9 @@ public:
             movesUntilTimeControl = ply + 25;
 
         Clock::ChessTickType factor;
-        factor = ( abs( ply - 40 ) + 1 ) / 2;
-        if ( factor > 6 )
-            factor = 6;
+        factor = ( abs( ply - 17 ) + 1 ) / 2;
+        if ( factor > 4 )
+            factor = 4;
         if ( factor < 1 )
             factor = 1;
 
