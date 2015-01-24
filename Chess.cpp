@@ -1356,13 +1356,17 @@ public:
             ++it;
         }
 
-        Die( "Expected to find the bump element in the array, but it didn't exist -- bad hash table?" );
         return false;
     }
 
     size_t Count() const
     {
         return m_Moves.size();
+    }
+
+    Move &GetLast()
+    {
+        return m_Moves.at( m_Moves.size() - 1 );
     }
 
     void Make( const Move &move )
@@ -1557,9 +1561,23 @@ private:
 enum HashEntryType
 {
     HET_NONE = 0x0,
-    HET_EXACT = 0x1,
-    HET_LOWER_BOUND = 0x2,
-    HET_UPPER_BOUND = 0x4,
+    /* PV-nodes (Knuth's Type 1) are nodes that have a score that ends
+     * up being inside the window. So if the bounds passed are [a,b],
+     * with the score returned s, a<s<b. These nodes have all moves searched,
+     * and the value returned is exact (i.e., not a bound), which propagates
+     * up to the root along with a principal variation.*/
+    HET_PRINCIPAL_VARIATION = 0x1,
+    /* Cut-nodes (Knuth's Type 2), otherwise known as fail-high nodes,
+     * are nodes in which a beta-cutoff was performed. So with bounds
+     * [a,b], s>=b. A minimum of one move at a Cut-node needs to be
+     * searched. The score returned is a lower bound (might be greater)
+     * on the exact score of the node*/
+    HET_CUT_NODE = 0x2,
+    /** All-nodes (Knuth's Type 3), otherwise known as fail-low nodes,
+     * are nodes in which no move's score exceeded alpha. With bounds
+     * [a,b], s<=a. Every move at an All-node is searched, and the score
+     * returned is an upper bound, the exact score might be less. */
+    HET_ALL_NODE = 0x4,
 };
 
 class PositionHashEntry : public Object
@@ -1616,7 +1634,7 @@ public:
         if ( pHE->m_Hash == entry.m_Hash )
         {
             /* Only overwrite if the search depth is farther */
-            if ( pHE->m_Ply > entry.m_Ply )
+            if ( pHE->m_Depth > entry.m_Depth )
                 return;
         }
         m_pEntries[ loc ] = entry;
@@ -3056,76 +3074,6 @@ protected:
         return SearchPrincipalVariation( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
     }
 
-    /* Returns true if no search is necessary at this node due to a transposition table hit. */
-    virtual bool CheckTranspositionTable( Move &bestMove, int &nSearchResult,
-                                          const Position &pos, const int alpha, const int beta, const int depth )
-    {
-        const PositionHashEntry *pEntry = pos.LookUp();
-        bestMove = NullMove;
-
-        /* See if an entry in the hash table exists at this depth for this
-        * position...
-        */
-        if ( pEntry )
-        {
-            if ( depth <= pEntry->m_Depth )
-            {
-                /* We got a hash table hit */
-                switch ( pEntry->m_TypeBits )
-                {
-                case HET_EXACT:
-                    bestMove = pEntry->m_BestMove;
-                    nSearchResult = pEntry->m_Score;
-                    return true;
-
-                case HET_LOWER_BOUND:
-                    /* If the value from the table, which is a "lower bound"
-                    * (but is actually beta at the time the entry was stored)
-                    * is >= beta, return a "fail high" indication to search
-                    * which says "just return beta, no need to do a search."
-                    */
-                    if ( pEntry->m_Score >= beta )
-                    {
-                        nSearchResult = beta;
-                        return true;
-                    }
-
-                    break;
-
-                case HET_UPPER_BOUND:
-                    /*  If the value from the table, which is an "upper bound"
-                    *  (but is actually alpha at the time the entry was stored)
-                    *  is less than or equal to the current alpha value, return a
-                    *  "fail low" indication to search which says "just return alpha,
-                    *  no need to search". This test ensures that the stored
-                    * "upper bound" is <= the current alpha value, otherwise
-                    * we don't know whether to fail low or not.
-                    */
-                    if ( pEntry->m_Score <= alpha )
-                    {
-                        nSearchResult = alpha;
-                        return true;
-                    }
-
-                    break;
-
-                default:
-                    Die( "Unknown PositionHashEntry type; hash table corruption?" );
-                };
-            };
-
-            /* We got an exact match but the search wasn't deep enough to
-            * simply return.  So seed this search with the exact value
-            * from the hash table.
-            */
-            if ( pEntry->m_TypeBits == HET_EXACT )
-                bestMove = pEntry->m_BestMove;
-        }
-
-        /* The caller does need to do a full width search */
-        return false;
-    }
-
     virtual void GetMoves( Moves &myMoves, Position &pos, const int /*depth*/ )
     {
         myMoves = pos.GetMoves();
@@ -3216,6 +3164,18 @@ protected:
                                           currentPV );
     }
 
+    virtual bool CheckPreviousSearchResults( int &/*score*/, Position &/*pos*/,
+            Move &/*bestMove*/, Moves &/*pv*/, int &/*alpha*/, int &/*beta*/,
+            const int /*depth*/ )
+    {
+        return false;
+    }
+
+    virtual void CacheNodeType( const HashEntryType &/*het*/, Position &/*pos*/,
+                                const int /*score*/, const int /* depth */,
+                                const Move &/*move*/ )
+    {}
+
     virtual int SearchPrincipalVariation( int alpha, int beta, int depth,
                                           Position &pos, Moves &pv )
     {
@@ -3225,26 +3185,33 @@ protected:
          */
 
         int score = 0;
-        if ( IsFrontier( score, pos, alpha, beta, depth ) )
-            return score;
+        Move bestMove = NullMove;
+        Moves bestPV, currentPV, myMoves;
 
         m_nNodesSearched++;
 
-        Move bestMove = NullMove;
-        Moves bestPV, currentPV, myMoves;
+        if ( CheckPreviousSearchResults( score, pos, bestMove, pv, alpha, beta,
+                                         depth ) )
+            return score;
+
+        if ( IsFrontier( score, pos, alpha, beta, depth ) )
+            return score;
 
         GetMoves( myMoves, pos, depth );
 
         if ( bestMove != NullMove )
         {
             /* We got a recommendation from the transposition table. */
-            myMoves.Bump( bestMove );
+            if ( myMoves.Bump( bestMove ) == false )
+            {
+            }
         }
 
         if ( IsEndOfGame( score, pos, myMoves ) )
             return score;
 
         bool bFirstSearch = true;
+        bool bAlphaExceeded = false;
 
         for ( auto &move : myMoves )
         {
@@ -3274,6 +3241,7 @@ protected:
                 * greater) on the exact score of the node.
                 */
                 pv = bestPV;
+                CacheNodeType( HET_CUT_NODE, pos, score, depth, move );
                 return beta;   // fail-high beta-cutoff
             }
 
@@ -3282,6 +3250,7 @@ protected:
                 /* The score is between alpha and beta.  We have a new best move.  This could
                 * be an exact entry in the hash table, if it survives the rest of the search at this level.
                 */
+                bAlphaExceeded = true;
                 alpha = score; // alpha acts like max in MiniMax
                 bestPV = currentPV;
                 bestMove = move;
@@ -3291,6 +3260,10 @@ protected:
                 break;
         }
 
+        if ( bAlphaExceeded )
+            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, depth, bestMove );
+        else
+            CacheNodeType( HET_ALL_NODE, pos, score, depth, bestMove );
 
         pv = bestPV;
         return alpha;
@@ -3349,7 +3322,130 @@ public:
     }
 };
 
-typedef SearcherQuiescence Searcher;
+class SearcherCaching : public SearcherQuiescence
+{
+public:
+    typedef SearcherQuiescence super;
+    SearcherCaching( Interface &interface ) :
+        super( interface )
+    { }
+protected:
+    virtual void CacheNodeType( const HashEntryType &het, Position &pos,
+                                const int score, const int depth,
+                                const Move &move )
+    {
+        PositionHashEntry phe;
+        phe.m_Depth = depth;
+        phe.m_BestMove = move;
+        phe.m_TypeBits = het;
+        phe.m_Score = score;
+        PositionHasher ph( pos );
+        phe.m_Hash = ph.GetHash();
+        s_pPositionHashTable->Insert( phe );
+    }
+
+    /* Returns true if no search is necessary at this node due to a transposition table hit. */
+    virtual bool CheckTranspositionTable( Move &bestMove,
+                                          int &nSearchResult,
+                                          const Position &pos, const int alpha,
+                                          const int beta, const int depth )
+    {
+        const PositionHashEntry *pEntry = pos.LookUp();
+        bestMove = NullMove;
+
+        /* Logic copied heavily from Bob Hyatt at http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
+        /* See if an entry in the hash table exists at this depth for this
+        * position...
+        */
+        if ( pEntry )
+        {
+            /* 1. Is the draft >= remaining depth of search (was this hash entry stored
+            * from a search at least as deep as the current one ? )
+            */
+            if ( pEntry->m_Depth >= depth )
+            {
+                /*
+                2. If so, there are three types of entries with 3 different actions.  All of these
+                depend on the hash entry "type"
+                */
+                switch ( pEntry->m_TypeBits )
+                {
+                /*
+                a. EXACT. Return the score from the table.  When you get back to search,
+                you do not need to search any further, you can use that score as the
+                "search result" and return.
+                */
+                case HET_PRINCIPAL_VARIATION:
+                    bestMove = pEntry->m_BestMove;
+                    nSearchResult = pEntry->m_Score;
+                    return true;
+
+                /*
+                b. UPPER.  If the value from the table, which is an "upper bound" (but is
+                actually alpha at the time the entry was stored ) is less than or equal to
+                the current alpha value, return a "fail low" indication to search which says
+                "just return alpha, no need to search".  This test ensures that the stored
+                             "upper bound" is <= the current alpha value, otherwise we don't know whether
+                             to fail low or not.
+                             */
+                case HET_ALL_NODE:
+                    if ( pEntry->m_Score <= alpha )
+                    {
+                        bestMove = pEntry->m_BestMove;
+                        nSearchResult = pEntry->m_Score;
+                        return true;
+                    }
+                    break;
+
+                /*
+                c. LOWER.  If the value from the table, which is a "lower
+                bound" ( but is actually
+                beta at the time the entry was stored ) is >= beta, return a "fail high"
+                indication to search which says "just return beta, no need to do a search." */
+                case HET_CUT_NODE:
+                    if ( pEntry->m_Score >= beta )
+                    {
+                        bestMove = pEntry->m_BestMove;
+                        nSearchResult = beta;
+                        return true;
+                    }
+                    break;
+
+                default:
+                    Die( "Unknown PositionHashEntry type; hash table corruption?" );
+                };
+            };
+
+            /* We got an exact match but the search wasn't deep enough to
+            * simply return.  So seed this search with the exact value
+            * from the hash table.
+            */
+            bestMove = pEntry->m_BestMove;
+        }
+
+        /* The caller does need to do a full width search */
+        return false;
+    }
+
+    virtual bool CheckPreviousSearchResults( int &score, Position &pos,
+            Move &bestMove, Moves &pv, int &alpha, int &beta, const int depth )
+    {
+        int nSearchResult;
+        bool bFound = CheckTranspositionTable( bestMove, nSearchResult, pos, alpha,
+                                               beta, depth );
+        if ( bFound )
+        {
+            pv.Add( bestMove );
+            score = nSearchResult;
+            return true;
+        }
+
+        return false;
+    }
+
+};
+
+typedef SearcherCaching Searcher;
 
 const Piece *BoardBase::Set( const Square &s, const Piece *piece )
 {
@@ -3806,7 +3902,7 @@ public:
 
     void LogLineToFile( const string &line )
     {
-// sorry, Windows only...
+        // sorry, Windows only...
 #ifdef WIN32
         const char *sFileName = "c:\\temp\\superpawn.log";
         string outLine = line;
@@ -4008,11 +4104,11 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
-        TestOne( "startpos moves g1f3 e7e6 e2e4 d8f6 b1c3 f6f4 d2d4 f4d6 e4e5 d6b4 f1d3 b4a5 e1g1 c7c5 d4c5 a5c5 c1e3 c5b4 c3b5 b8a6 a2a3 b4g4 b5a7 a8a7 e3a7 a6c7 d1d2 f7f6 d2c3 e8d8 a7b6 d8e7 c3c7 e7f7 c7c8 g8e7 c8d7 g4f4 b6e3 f4g4 f3d4 f6e5 h2h3 g4h5 d7e6 f7e8 d3b5 e8d8" );
-        TestOne( "startpos moves e2e4 d7d5 e4d5 d8d5 c2c4 d5e4 f1e2 e4g2 e2f3 g2g6 d1b3 g6a6 c4c5 e7e5 f3e2 a6a5 b3d5 b8c6 b2b4 a5b4 e2h5 g7g6 h5f3 b4d4 d5d4 c6d4 f3d1 f8c5 c1b2 g8f6 g1f3 d4f3 d1f3 c5d4 b2d4 e5d4 h1g1 e8g8 g1g5 h7h6 g5c5 f8e8 e1d1 c8g4 f3g4 f6g4 d1c2 g4f2 c5c4 d4d3 c2b3 a8c8 c4f4 f2e4 b3c4 c8d8 f4h4 g6g5 h4h3 e8e6 a2a4 e6c6 c4b3 c6a6 b3a3" );
-        TestOne( "startpos moves g1f3 e7e6 d2d4 d8f6 a2a3 c7c5 d4c5 b8c6 e2e4 f8c5 f1b5 a7a6 b5c6 b7c6 e4e5 f6g6 f3g5 c5b6 b1c3 b6c7 c1f4 h7h6 d1d3 h6g5 d3g6 f7g6 f4g5 c7e5 f2f4 e5c3 b2c3 g8f6 g5f6 g7f6 c3c4 g6g5 f4g5 f6g5 a3a4 h8h4 c4c5 h4c4 a1a3 c4c5 a3h3 c5c2 h3h8 e8f7 e1d1 c2g2 h2h3 g2g3 a4a5 f7g7 h8e8 g7f7" );
-        TestOne( "startpos moves b1c3 e7e5 e2e3 g8f6 g1f3 e5e4 e1e2 e4f3 e2d3 b7b6 c3b5 c8a6" );
-        TestOne( "fen 6r1/1p1b4/5k1p/2P1p2K/1P5P/p3R1P1/P4P2/8 b - - 0 45" );
+        TestOne( "startpos moves e2e4 d7d5 e4d5 d8d5 c2c4 d5e4 f1e2 e4g2 e2f3 g2g6 d1b3 "
+                 "g6a6 c4c5 e7e5 f3e2 a6a5 b3d5 b8c6 b2b4 a5b4 e2h5 g7g6 h5f3 b4d4 d5d4 c6d4 f3d1 "
+                 "f8c5 c1b2 g8f6 g1f3 d4f3 d1f3 c5d4 b2d4 e5d4 h1g1 e8g8 g1g5 h7h6 g5c5 f8e8 e1d1 "
+                 "c8g4 f3g4 f6g4 d1c2 g4f2 c5c4 d4d3 c2b3 a8c8 c4f4 f2e4 b3c4 c8d8 f4h4 g6g5 h4h3 "
+                 "e8e6 a2a4 e6c6 c4b3 c6a6 b3a3" );
     }
 
     INTERFACE_PROTOTYPE( UCIGo )
