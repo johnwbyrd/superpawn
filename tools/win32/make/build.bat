@@ -86,7 +86,6 @@ echo This information uniquely identifies the current build of Superpawn. >> %BU
 echo Please reference this information when reporting bugs or other issues. >> %BUILDINFO%
 echo Current build number: %BUILD_NUMBER% >> %BUILDINFO%
 echo Current build ID: %BUILD_ID% >> %BUILDINFO%
-echo Current build tag: %BUILD_TAG% >> %BUILDINFO%
 exit /b
 
 :fail
