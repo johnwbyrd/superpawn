@@ -11,7 +11,6 @@
 /**
 ** \todo Distance to mate reporting is wrong
 ** \todo Take castling into account in computing hashes
-** \todo Fifty-move clock
 ** \todo Better endgame logic for say KRK
 **/
 

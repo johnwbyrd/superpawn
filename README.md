@@ -113,7 +113,7 @@ Features
 - Compiles under Microsoft Visual Studio 2013, gcc 3.8.2, AppleClang 5.1.0,
   and clang 3.3
 - Implements a subset of UCI protocol sufficient to permit play 
-  with Arena 3.0+
+  with Arena 3.0+, Tarrasch Chess GUI, cutechess-cli and others
 - Pluggable architecture permits easy experimentation with 
   new algorithms for search and evaluation  
 - Principal variation search
@@ -133,6 +133,9 @@ Features
 Things it doesn't do
 --------------------
 
+- Distance to mate reporting is wrong for large numbers
+- Take castling into account in computing hashes
+- Better endgame logic for say KRK
 - Understand the fifty move rule
 - Play chess well
 
