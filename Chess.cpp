@@ -94,6 +94,8 @@ const int QUEEN_VALUE = 900;
 const int CHECKMATE_VALUE = 990000; // any abs. value greater than this is mate
 const int KING_VALUE = 1000000;
 
+const int DRAW_SCORE = 0;
+
 class PieceInitializer;
 class Board;
 class Move;
@@ -1864,6 +1866,7 @@ public:
                     m_bVirginA1 =
                         m_bVirginBlackKing =
                             m_bVirginWhiteKing = true;
+        m_nPlySinceCaptureOrPawnMove = 1;
         m_sEnPassant.Set( -1, -1 );
         m_Moves.Clear();
         m_Board.Initialize();
@@ -2003,6 +2006,7 @@ public:
         m_nPly = position.m_nPly + 1;
         m_sEnPassant = Square( -1, -1 );
 
+        m_nPlySinceCaptureOrPawnMove = position.m_nPlySinceCaptureOrPawnMove + 1;
         m_bVirginH1 = position.m_bVirginH1;
         m_bVirginA1 = position.m_bVirginA1;
         m_bVirginH8 = position.m_bVirginH8;
@@ -2023,7 +2027,11 @@ public:
         Square captureSquare = move.Dest();
 
         if ( sourceType == PAWN )
+        {
+            /* The fifty move rule resets whenever a pawn is moved. */
+            m_nPlySinceCaptureOrPawnMove = 1;
             HandleEnPassant( move, position, captureSquare );
+        }
         else
             CaptureMaterial( position, captureSquare );
 
@@ -2082,7 +2090,10 @@ public:
                            pCaptured->PieceValue() * GetColorBias();
 
         if ( pCaptured != &None )
+        {
             m_Material.CaptureMaterial( pCaptured );
+            m_nPlySinceCaptureOrPawnMove = 1;
+        }
 
         if ( captureSquare == A1 )
             m_bVirginA1 = false;
@@ -2111,6 +2122,11 @@ public:
             }
 
         m_Moves.Sort();
+    }
+
+    unsigned int GetPlySinceCaptureOrPawnMove() const
+    {
+        return m_nPlySinceCaptureOrPawnMove;
     }
 
     const Moves &GetMoves()
@@ -2514,6 +2530,8 @@ protected:
     Material m_Material;
     unsigned int    m_nPly;
     int m_nMaterialScore;
+    /** For implementing the fifty move rule. */
+    unsigned int m_nPlySinceCaptureOrPawnMove;
     /** Virgin rooks; can tell whether any of the four rooks has been moved */
     bool m_bVirginH1, m_bVirginA1, m_bVirginH8, m_bVirginA8;
     bool m_bVirginWhiteKing, m_bVirginBlackKing;
@@ -2795,6 +2813,10 @@ public:
         const Moves &mPrincipalVariation
     )
     {
+        /* This can happen in late end game. */
+        if ( nDepthSearched > 100 )
+            return true;
+
         if ( m_nDepth != 0 )
             return ( nDepthSearched >= m_nDepth );
 
@@ -2877,11 +2899,13 @@ protected:
 
     void SearchComplete()
     {
-        stringstream ss;
-
-        ss.str( "" );
-        ss << ( string ) m_Result.GetFirst();
-        Bestmove( ss.str() );
+        if ( m_Result.Count() > 0 )
+        {
+            stringstream ss;
+            ss.str( "" );
+            ss << ( string )m_Result.GetFirst();
+            Bestmove( ss.str() );
+        }
 
         m_bTerminated = true;
     }
@@ -3014,9 +3038,9 @@ protected:
             m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
                                       nCurrentDepth, m_Root, PV );
             m_Result = PV;
-            if ( m_Result.Count() == 0 )
-                Die( "Size of principal variation is zero!" );
-
+            /* The length of the principal variation may be zero if the position
+             * is some sort of terminal condition such as a stalemate or draw.
+             */
             ReportCurrentPrincipalVariation( nCurrentDepth, PV );
 
             if ( m_bTerminated )
@@ -3101,6 +3125,15 @@ protected:
 
     bool IsEndOfGame( int &score, Position &pos, Moves &myMoves )
     {
+        if ( IsDrawByRepetition( pos, score ) )
+            return true;
+
+        if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
+        {
+            score = DRAW_SCORE;
+            return true;
+        }
+
         if ( pos.CanKingBeCapturedNow() )
         {
             score = KING_VALUE;
@@ -3118,12 +3151,9 @@ protected:
             }
         }
 
-        if ( IsDrawByRepetition( pos, score ) )
-            return true;
-
         if ( pos.IsStalemate() )
         {
-            score = 0;
+            score = DRAW_SCORE;
             return true;
         }
 
@@ -3134,8 +3164,7 @@ protected:
     {
         if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
         {
-            // draw by repetition
-            score = 0;
+            score = DRAW_SCORE;
             return true;
         }
         return false;
