@@ -2814,7 +2814,7 @@ public:
     )
     {
         /* This can happen in late end game. */
-        if ( nDepthSearched > 100 )
+        if ( nDepthSearched >= 100 )
             return true;
 
         if ( m_nDepth != 0 )
