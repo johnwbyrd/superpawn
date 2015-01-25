@@ -209,12 +209,12 @@ PieceSquareRawTableType psrtWhiteKingEarly =
 
 PieceSquareRawTableType psrtWhiteKingLate =
 {
-    -50, -40, -30, -20, -20, -30, -40, -50,
+    -50, -40, -30, -30, -30, -30, -40, -50,
     -30, -20, -10,   0,   0, -10, -20, -30,
-    -30, -10,  20,  30,  30,  20, -10, -30,
-    -30, -10,  30,  50,  50,  30, -10, -30,
-    -30, -10,  30,  50,  50,  30, -10, -30,
-    -30, -10,  20,  30,  30,  20, -10, -30,
+    -30, -10,  30,  40,  40,  30, -10, -30,
+    -30, -10,  40,  60,  60,  40, -10, -30,
+    -30, -10,  40,  60,  60,  40, -10, -30,
+    -30, -10,  30,  40,  40,  30, -10, -30,
     -30, -30,   0,   0,   0,   0, -30, -30,
     -50, -30, -30, -30, -30, -30, -30, -50
 };
@@ -1016,6 +1016,11 @@ public:
     bool operator== ( const Square &right ) const
     {
         return ( ( i == right.i ) && ( j == right.j ) );
+    }
+
+    int ManhattanDistanceTo( const Square &other ) const
+    {
+        return abs( i - other.i ) + abs( j - other.j );
     }
 
 protected:
@@ -2624,6 +2629,39 @@ public:
     }
 };
 
+class EvaluatorMopUp : public EvaluatorBase
+{
+    unsigned int whiteKing = 99, blackKing = 99;
+    int dist = 0;
+
+    virtual int Evaluate( Position &pos ) const
+    {
+        const float fTurnOnAt = 0.9f;
+
+        if ( pos.GetPhase() < fTurnOnAt )
+            return 0;
+
+        Square whiteKing, blackKing;
+
+        for ( unsigned int i = 0; i < MAX_FILES; i++ )
+        {
+            for ( unsigned int j = 0; j < MAX_FILES; j++ )
+            {
+                Square cur( i, j );
+                const Piece *pPiece = pos.GetBoard().Get( cur );
+
+                if ( pPiece == &WhiteKing )
+                    whiteKing = cur;
+
+                if ( pPiece == &BlackKing )
+                    blackKing = cur;
+            }
+        }
+
+        return Bias( pos, ( 6 - whiteKing.ManhattanDistanceTo( blackKing ) ) * 100 );
+    }
+};
+
 class EvaluatorWeighted : public EvaluatorBase
 {
 public:
@@ -2688,6 +2726,7 @@ public:
     EvaluatorMaterial m_Material;
     EvaluatorSimpleMobility m_SimpleMobility;
     EvaluatorPieceSquare m_PieceSquareEvaluator;
+    EvaluatorMopUp m_MopUp;
     EvaluatorWeighted m_Weighted;
 };
 
