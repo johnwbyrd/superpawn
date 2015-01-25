@@ -76,7 +76,9 @@ if( BUILD_DOCS )
 	if( MSVC )
 		add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 						   COMMAND ${MMD_BINARY}
-							${CMAKE_SOURCE_DIR}/README.md -o $<TARGET_FILE_DIR:${PROJECT_NAME}>/index.html)
+							${CMAKE_CURRENT_BINARY_DIR}/BuildInfo.txt 
+							${CMAKE_SOURCE_DIR}/README.md 
+							-o $<TARGET_FILE_DIR:${PROJECT_NAME}>/index.html)
 		endif()
 endif()
 

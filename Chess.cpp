@@ -11,7 +11,6 @@
 /**
 ** \todo Distance to mate reporting is wrong
 ** \todo Take castling into account in computing hashes
-** \todo Fifty-move clock
 ** \todo Better endgame logic for say KRK
 **/
 
@@ -87,12 +86,14 @@ enum PieceType
 
 const int NONE_VALUE = 0;
 const int PAWN_VALUE = 100;
-const int KNIGHT_VALUE = 300;
-const int BISHOP_VALUE = 310;
+const int KNIGHT_VALUE = 325;
+const int BISHOP_VALUE = 325;
 const int ROOK_VALUE = 500;
-const int QUEEN_VALUE = 900;
+const int QUEEN_VALUE = 975;
 const int CHECKMATE_VALUE = 990000; // any abs. value greater than this is mate
 const int KING_VALUE = 1000000;
+
+const int DRAW_SCORE = 0;
 
 class PieceInitializer;
 class Board;
@@ -148,8 +149,8 @@ PieceSquareRawTableType psrtWhitePawnEarly =
 {
     0,   0,   0,   0,   0,   0,   0,   0,
     5,   5,  10, -20, -20,  10,   5,   5,
-    5,  -5,  -5,   0,   0,  -5,  -5,   5,
-    0,   0,  10,  20,  20,  10,   0,   0,
+    5,  -5, -10,   0,   0, -10,  -5,   5,
+    0,   0,   0,  20,  20,   0,   0,   0,
     10, 10,  20,  30,  30,  20,  10,  10,
     20, 20,  30,  40,  40,  30,  20,  20,
     30, 30,  40,  50,  50,  40,  30,  30,
@@ -1869,6 +1870,7 @@ public:
                     m_bVirginA1 =
                         m_bVirginBlackKing =
                             m_bVirginWhiteKing = true;
+        m_nPlySinceCaptureOrPawnMove = 1;
         m_sEnPassant.Set( -1, -1 );
         m_Moves.Clear();
         m_Board.Initialize();
@@ -2008,6 +2010,7 @@ public:
         m_nPly = position.m_nPly + 1;
         m_sEnPassant = Square( -1, -1 );
 
+        m_nPlySinceCaptureOrPawnMove = position.m_nPlySinceCaptureOrPawnMove + 1;
         m_bVirginH1 = position.m_bVirginH1;
         m_bVirginA1 = position.m_bVirginA1;
         m_bVirginH8 = position.m_bVirginH8;
@@ -2028,7 +2031,11 @@ public:
         Square captureSquare = move.Dest();
 
         if ( sourceType == PAWN )
+        {
+            /* The fifty move rule resets whenever a pawn is moved. */
+            m_nPlySinceCaptureOrPawnMove = 1;
             HandleEnPassant( move, position, captureSquare );
+        }
         else
             CaptureMaterial( position, captureSquare );
 
@@ -2087,7 +2094,10 @@ public:
                            pCaptured->PieceValue() * GetColorBias();
 
         if ( pCaptured != &None )
+        {
             m_Material.CaptureMaterial( pCaptured );
+            m_nPlySinceCaptureOrPawnMove = 1;
+        }
 
         if ( captureSquare == A1 )
             m_bVirginA1 = false;
@@ -2116,6 +2126,11 @@ public:
             }
 
         m_Moves.Sort();
+    }
+
+    unsigned int GetPlySinceCaptureOrPawnMove() const
+    {
+        return m_nPlySinceCaptureOrPawnMove;
     }
 
     const Moves &GetMoves()
@@ -2519,6 +2534,8 @@ protected:
     Material m_Material;
     unsigned int    m_nPly;
     int m_nMaterialScore;
+    /** For implementing the fifty move rule. */
+    unsigned int m_nPlySinceCaptureOrPawnMove;
     /** Virgin rooks; can tell whether any of the four rooks has been moved */
     bool m_bVirginH1, m_bVirginA1, m_bVirginH8, m_bVirginA8;
     bool m_bVirginWhiteKing, m_bVirginBlackKing;
@@ -2834,6 +2851,10 @@ public:
         const Moves &mPrincipalVariation
     )
     {
+        /* This can happen in late end game. */
+        if ( nDepthSearched >= 100 )
+            return true;
+
         if ( m_nDepth != 0 )
             return ( nDepthSearched >= m_nDepth );
 
@@ -2916,11 +2937,13 @@ protected:
 
     void SearchComplete()
     {
-        stringstream ss;
-
-        ss.str( "" );
-        ss << ( string ) m_Result.GetFirst();
-        Bestmove( ss.str() );
+        if ( m_Result.Count() > 0 )
+        {
+            stringstream ss;
+            ss.str( "" );
+            ss << ( string )m_Result.GetFirst();
+            Bestmove( ss.str() );
+        }
 
         m_bTerminated = true;
     }
@@ -3053,9 +3076,9 @@ protected:
             m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
                                       nCurrentDepth, m_Root, PV );
             m_Result = PV;
-            if ( m_Result.Count() == 0 )
-                Die( "Size of principal variation is zero!" );
-
+            /* The length of the principal variation may be zero if the position
+             * is some sort of terminal condition such as a stalemate or draw.
+             */
             ReportCurrentPrincipalVariation( nCurrentDepth, PV );
 
             if ( m_bTerminated )
@@ -3140,6 +3163,15 @@ protected:
 
     bool IsEndOfGame( int &score, Position &pos, Moves &myMoves )
     {
+        if ( IsDrawByRepetition( pos, score ) )
+            return true;
+
+        if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
+        {
+            score = DRAW_SCORE;
+            return true;
+        }
+
         if ( pos.CanKingBeCapturedNow() )
         {
             score = KING_VALUE;
@@ -3157,12 +3189,9 @@ protected:
             }
         }
 
-        if ( IsDrawByRepetition( pos, score ) )
-            return true;
-
         if ( pos.IsStalemate() )
         {
-            score = 0;
+            score = DRAW_SCORE;
             return true;
         }
 
@@ -3173,8 +3202,7 @@ protected:
     {
         if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
         {
-            // draw by repetition
-            score = 0;
+            score = DRAW_SCORE;
             return true;
         }
         return false;
@@ -4160,6 +4188,7 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
+        TestOne( "startpos moves c2c4 g8f6 g1f3 e7e6 b1c3 f8b4 a2a3 b4c3 d2c3 e8g8 c1g5 d7d5 g5f6 g7f6 c4d5 e6d5 d1b3 b7b6 e1c1 c8e6 b3c2 b8d7 e2e3 d7e5 e3e4 d8d6 f1e2 a8d8 f3e1 e5c6 e4d5 e6d5 e2d3 d6f4 d1d2 f4h6 f2f4 b6b5 d3b5 h6f4 h1f1 f4g5 b5c6 d5c6 c2d1 c6b5 f1f2 c7c5 e1f3 g5e3 d1e1 e3e1 f3e1 d8d2 c1d2 f8d8 d2c2 c5c4 f2d2 d8e8 e1f3 b5c6 f3d4 c6a4 c2b1 a4b3 d4b3 c4b3 b1c1 e8e1 d2d1 e1e2 d1d8 g8g7 d8d2 e2e1 d2d1 e1e2 d1g1 f6f5 c1b1 g7f6 b1c1 f6e5 h2h3 a7a5 c1b1 f5f4 a3a4 e2e4 b1c1 e4a4 g1e1 a4e4 c1d2 e4e1 d2e1 a5a4 e1d2 e5e4 h3h4 h7h5 c3c4 e4d4 c4c5 d4c5 d2c3 c5b5 c3d2 b5b4 d2d3 a4a3 b2a3 b4a3 d3e4 b3b2 e4f4 b2b1q f4f3 b1f1 f3g3 f1f5 g3h2 f5f2 h2h3 f2e3 h3h2 e3f2 h2h3 f2f4 g2g3 f4f2 g3g4 f2f3 h3h2 f3g4 h2h1 a3a4 h1h2 a4a3 h2h1 a3a2 h1h2 a2b2 h2h1 b2a2 h1h2 a2a1 h2h1 a1b2 h1h2 b2b3 h2h1" );
         TestOne( "startpos moves e2e4 d7d5 e4d5 d8d5 c2c4 d5e4 f1e2 e4g2 e2f3 g2g6 d1b3 "
                  "g6a6 c4c5 e7e5 f3e2 a6a5 b3d5 b8c6 b2b4 a5b4 e2h5 g7g6 h5f3 b4d4 d5d4 c6d4 f3d1 "
                  "f8c5 c1b2 g8f6 g1f3 d4f3 d1f3 c5d4 b2d4 e5d4 h1g1 e8g8 g1g5 h7h6 g5c5 f8e8 e1d1 "
