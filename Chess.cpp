@@ -3973,8 +3973,10 @@ public:
     Interface( istream *in = &cin, ostream *out = &cout ) :
         m_In( in ),
         m_Out( out ),
-        m_bShowThinking( false ),
         m_Protocol( PROTOCOL_UCI ),
+        m_Protover( 1 ),
+        m_bShowThinking( false ),
+        m_bPonder( false ),
         m_bLogInputToFile( false ),
         m_pGame( new Game ),
         m_bIsRunning( true )
