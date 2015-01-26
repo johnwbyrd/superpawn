@@ -2733,7 +2733,7 @@ public:
         m_Weighted.Add( m_Material );
         m_Weighted.Add( m_SimpleMobility, 0.1f );
         m_Weighted.Add( m_PieceSquareEvaluator );
-        m_Weighted.Add( m_MopUp );
+        // m_Weighted.Add( m_MopUp );
     }
 
     virtual int Evaluate( Position &pos ) const
