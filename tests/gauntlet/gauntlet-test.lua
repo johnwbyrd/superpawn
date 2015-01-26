@@ -50,7 +50,7 @@ opponents = {
 platform = "win32"
 platform_generic = "win"
 subplatform = "x64"
-hero_engine_name = "Superpawn build number " .. build_number .. " build ID " .. build_id
+hero_engine_name = "Superpawn-" .. build_id
 hero_engine_build_type = "Release"
 hero_engine_command = "superpawn.exe"
 
