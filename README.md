@@ -81,6 +81,7 @@ As of this writing, I test against specific Windows builds of the following engi
 - [Piranha](http://www.villwock.com/piranha/)
 - [Senpai](https://chessprogramming.wikispaces.com/Senpai)
 - [Stockfish](https://stockfishchess.org/)
+- [Tarrasch Toy Engine](http://www.triplehappy.com/)
 - [Testina](http://www.g-sei.org/testina/) 
 - [TSCP](http://www.tckerrigan.com/chess/tscp) 
 

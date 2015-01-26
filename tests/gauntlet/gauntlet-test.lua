@@ -18,7 +18,7 @@ build_tag = t_out.BUILD_TAG or current_date
 print( "Build tag: " .. build_tag )
 
 -- Number of rounds per engine
-games = 20
+games = 1
 
 -- Actually run cutechess or just simulate?
 run_cutechess = true
@@ -28,28 +28,29 @@ run_analyze = true
 game_options = "-tournament gauntlet -each tc=40/60+5"
 game_options = game_options .. " -games " .. games
 game_options = game_options .. " -concurrency 2 -wait 1 " 
-game_options = game_options .. " -event " .. build_tag .. " "
-game_options = game_options .. " -site " .. build_tag .. " "
+game_options = game_options .. " -event " .. build_id .. " "
+game_options = game_options .. " -site " .. build_id .. " "
 game_options = game_options .. " -debug "
 -- Testina seems to crash a lot.
 game_options = game_options .. " -recover "
 
 opponents = { 
 	"ACE/ACE.exe/uci",
---	"DesasterArea/DesasterArea-1.54.exe/uci",
+	"DesasterArea/DesasterArea-1.54.exe/uci",
 	"Dika/Dikabi.exe/xboard",
 	"GiuChess/giuchess.exe/xboard",
---	"Piranha/piranha.exe/uci",
---	"Senpai/senpai1.0_sse42.exe/uci",
---	"Stockfish/stockfish_14053109_32bit.exe/uci",
+	"Piranha/piranha.exe/uci",
+	"Senpai/senpai1.0_sse42.exe/uci",
+	"Stockfish/stockfish_14053109_32bit.exe/uci",
+	"TarraschToyEngine/TarraschToyEngineV0.906.exe/uci",
 	"Testina/Testina.exe/xboard",
---	"TSCP/tscp181.exe/xboard"
+	"TSCP/tscp181.exe/xboard"
 	}
 	
 platform = "win32"
 platform_generic = "win"
 subplatform = "x64"
-hero_engine_name = "Superpawn"
+hero_engine_name = "Superpawn build number " .. build_number .. " build ID " .. build_id
 hero_engine_build_type = "Release"
 hero_engine_command = "superpawn.exe"
 
@@ -74,7 +75,7 @@ tools_platform_dir = tools_dir .. platform .. "/"
 cutechess = tools_platform_dir .. "/cutechess-cli/cutechess-cli.exe"
 
 pgn_database_dir = build_dir .. "tests/"
-pgn_database_root = pgn_database_dir .. build_tag
+pgn_database_root = pgn_database_dir .. build_id
 pgn_database = pgn_database_root .. ".pgn"
 pgn_report_fn = pgn_database_root .. ".txt"
 

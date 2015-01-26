@@ -1,0 +1,26 @@
+Philosophy of Senpai
+
+Everything is an int.  Moves are ints, squares are ints, pieces are ints, etc.  Senpai makes no effort to unpack squares or moves into individual types.  There are a lot of bitfield functions where you pass in an int and get an int back.
+
+The code is liberally sprinkled with calls to assert().  We assume that all these assert() 
+functions would vanish in release mode.
+
+All variable names are the first letter of the thing they represent.  A from piece is an f, a to piece is t, etc.
+
+Phase detection is done as a weighted sum of the count of various pieces on the board.
+
+Senpai uses a Copy structure to detect 50 move rule draws.  It also uses an Undo structure (which contains a Copy) to handle move making and unmaking.
+
+The Board structure contains bitboards for each piece, each side and all pieces.  It also keeps track of the king and the number of each piece per side for game phase determination.
+
+Senpai implements search extensions.  Search extension occurs during checks, recaptures and pawn pushes where the search depth is 4 or less, or when a principal variation is being searched.
+
+Senpai creates and maintains an attack table and is able to report attacks_from and attacks_to
+by looking them up in arrays, a la Crafty.
+
+One interesting bit of business: loops that walk across the board terminate under the condition that the target square is not a valid 8x8 square.  This means that iteration stops neatly under
+all conditions regardless of the direction of walk.
+
+A move list is a C-style array of 256 entries which, interestingly, is sorted by an insertion sort
+when it's time to sort.  I would assume that something like a more complicated tree structure for
+moves is not worth the housekeeping time.
