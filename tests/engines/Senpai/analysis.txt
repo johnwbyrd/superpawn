@@ -24,3 +24,12 @@ all conditions regardless of the direction of walk.
 A move list is a C-style array of 256 entries which, interestingly, is sorted by an insertion sort
 when it's time to sort.  I would assume that something like a more complicated tree structure for
 moves is not worth the housekeeping time.
+
+A move is tactical if it is a capture or a promotion.
+
+A quiet move is a move that:
+- Does not capture;
+- Is not a pawn promotion;
+- Does not attack a piece.
+Castling is a quiet move.
+

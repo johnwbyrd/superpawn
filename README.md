@@ -136,6 +136,7 @@ Things it doesn't do
 
 - Distance to mate reporting is wrong for large numbers
 - Take castling into account in computing hashes
+- Understand pawn structure
 - Better endgame logic for say KRK
 - Play chess well
 

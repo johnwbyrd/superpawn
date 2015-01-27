@@ -11,6 +11,7 @@
 /**
 ** \todo Distance to mate reporting is wrong
 ** \todo Take castling into account in computing hashes
+** \todo Understand pawn structure
 ** \todo Better endgame logic for say KRK
 **/
 
@@ -160,14 +161,14 @@ PieceSquareRawTableType psrtWhitePawnEarly =
 /* Go for the touchdown!*/
 PieceSquareRawTableType psrtWhitePawnLate =
 {
-    0, 0, 0, 0, 0, 0, 0, 0,
-    5, 5, 10, -20, -20, 10, 5, 5,
-    5, -5, -5, 0, 0, -5, -5, 5,
-    0, 0, 10, 20, 20, 10, 0, 0,
-    30, 30, 30, 50, 50, 30, 30, 30,
+    0,    0,   0,   0,   0,   0,   0,   0,
+    5,    5,  10, -20, -20,  10,   5,   5,
+    5,   -5,  -5,   0,   0,  -5,  -5,   5,
+    0,    0,  10,  20,  20,  10,   0,   0,
+    30,  30,  30,  50,  50,  30,  30,  30,
     60,  60,  60,  70,  70,  60,  60,  60,
     90,  90,  90,  90,  90,  90,  90,  90,
-    0,   0,   0,   0,   0,   0,   0,   0
+    0,    0,   0,   0,   0,   0,   0,   0
 };
 
 
