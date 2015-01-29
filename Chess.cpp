@@ -2676,7 +2676,7 @@ class EvaluatorMopUp : public EvaluatorBase
             }
         }
 
-        return Bias( pos, ( 6 - whiteKing.ManhattanDistanceTo( blackKing ) ) * 100 );
+        return ( 16 - abs( whiteKing.ManhattanDistanceTo( blackKing ) ) ) - 8;
     }
 };
 
@@ -2722,7 +2722,11 @@ class EvaluatorSimpleMobility : public EvaluatorBase
 {
     virtual int Evaluate( Position &pos ) const
     {
-        return ( int ) pos.CountMoves() ;
+        size_t nMyMoves, nTheirMoves;
+        nMyMoves = pos.CountMoves();
+        Position nextPos( pos, NullMove );
+        nTheirMoves = nextPos.CountMoves();
+        return ( int )( nMyMoves ) - ( int )( nTheirMoves );
     }
 };
 
@@ -2732,9 +2736,9 @@ public:
     EvaluatorStandard()
     {
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 0.1f );
+        m_Weighted.Add( m_SimpleMobility, 2.0f );
         m_Weighted.Add( m_PieceSquareEvaluator );
-        // m_Weighted.Add( m_MopUp );
+        m_Weighted.Add( m_MopUp );
     }
 
     virtual int Evaluate( Position &pos ) const

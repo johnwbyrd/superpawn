@@ -75,7 +75,7 @@ tools_platform_dir = tools_dir .. platform .. "/"
 cutechess = tools_platform_dir .. "/cutechess-cli/cutechess-cli.exe"
 
 pgn_database_dir = build_dir .. "tests/"
-pgn_database_root = pgn_database_dir .. build_id
+pgn_database_root = pgn_database_dir .. build_id .. "-" .. current_date
 pgn_database = pgn_database_root .. ".pgn"
 pgn_report_fn = pgn_database_root .. ".txt"
 
