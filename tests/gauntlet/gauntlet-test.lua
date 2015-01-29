@@ -18,7 +18,7 @@ build_tag = t_out.BUILD_TAG or current_date
 print( "Build tag: " .. build_tag )
 
 -- Number of rounds per engine
-games = 1
+games = 10
 
 -- Actually run cutechess or just simulate?
 run_cutechess = true
