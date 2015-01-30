@@ -247,8 +247,9 @@ public:
             }
     }
 
-    virtual int Get( unsigned int index ) const
+    virtual int Get( unsigned int index, const float fPhase = 0.0f ) const
     {
+        fPhase;
         return m_SourceTable[ ( size_t ) index ];
     }
 
@@ -2649,9 +2650,6 @@ public:
 
 class EvaluatorMopUp : public EvaluatorBase
 {
-    unsigned int whiteKing = 99, blackKing = 99;
-    int dist = 0;
-
     virtual int Evaluate( Position &pos ) const
     {
         const float fTurnOnAt = 0.9f;
@@ -2736,9 +2734,9 @@ public:
     EvaluatorStandard()
     {
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 2.0f );
+        // m_Weighted.Add( m_SimpleMobility, 2.0f );
         m_Weighted.Add( m_PieceSquareEvaluator );
-        m_Weighted.Add( m_MopUp );
+        // m_Weighted.Add( m_MopUp );
     }
 
     virtual int Evaluate( Position &pos ) const
