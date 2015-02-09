@@ -1,5 +1,8 @@
 <link rel="stylesheet" href="http://jasonm23.github.io/markdown-css-themes/foghorn.css">
 </link>
+
+![Superpawn logo designed by Angela M. Eads](http://chess.johnbyrd.org/logo/logo-medium.jpg "Superpawn logo designed by Angela M. Eads")
+
 Superpawn
 =========
 

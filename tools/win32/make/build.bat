@@ -82,10 +82,12 @@ goto done
 :create_ancillary_files
 git log -n 50 > ChangeLog.txt
 if exist %BUILDINFO% del %BUILDINFO%
-echo This information uniquely identifies the current build of Superpawn. >> %BUILDINFO%
-echo Please reference this information when reporting bugs or other issues. >> %BUILDINFO%
+echo This information uniquely identifies this version of Superpawn. > %BUILDINFO%
+echo.>> %BUILDINFO%
 echo Current build number: %BUILD_NUMBER% >> %BUILDINFO%
+echo.>> %BUILDINFO%
 echo Current build ID: %BUILD_ID% >> %BUILDINFO%
+echo.>> %BUILDINFO%
 exit /b
 
 :fail
