@@ -2953,7 +2953,7 @@ protected:
     /** Conducts a search starting at m_Root. */
     virtual int Search() = 0;
 
-    int m_nNodesSearched;
+    uint64_t m_nNodesSearched;
     mutex m_Lock;
     atomic_bool m_bTerminated;
     Interface *m_pInterface;
@@ -3285,6 +3285,9 @@ protected:
             /* We got a recommendation from the transposition table. */
             if ( myMoves.Bump( bestMove ) == false )
             {
+                /* At this point we didn't find the move to bump in the list of legal moves.
+                 * Typically this is not a good scene, but let's soldier on and do a full search.
+                 */
             }
         }
 
@@ -4357,6 +4360,7 @@ protected:
     INTERFACE_PROTOTYPE_NO_PARAMS( Quit )
     {
         Notify( "Engine exiting" );
+        m_pSearcher->Stop();
         m_bIsRunning = false;
     }
 
