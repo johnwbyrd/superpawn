@@ -28,7 +28,7 @@ const unsigned int HIGHEST_FILE = MAX_FILES - 1;
 const unsigned int MAX_SQUARES = MAX_FILES * MAX_FILES;
 
 /** Amount of memory to dedicate to position hash table, must be a power of 2, currently max 2 GB */
-const unsigned int HASH_TABLE_SIZE = 1 * 1024 * 1024;
+const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
 
 /** Maximum command length for UCI commands. */
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
@@ -4122,7 +4122,7 @@ protected:
         Instruct( "id name Superpawn" );
         Instruct( "id author John Byrd" );
 
-        Instruct( "option name Hash type spin default 1 min 1 max 2048" );
+        Instruct( "option name Hash type spin default 128 min 1 max 2048" );
         Instruct( "option name UCI_EngineAbout type string default " WEB_URL );
 
         string none;
