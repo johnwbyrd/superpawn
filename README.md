@@ -31,8 +31,16 @@ Superpawn's build status as:
 Description
 -----------
 
-Superpawn is capable of making many fascinating chess moves, most
-of which are actually legal.
+When my wife Amanda was very small, her older sister made her play chess.
+Although her older sister was quite serious at the chessboard, Amanda quickly tired
+of the slow game.  Eventually Amanda would grab a pawn and yell 
+"It's SUUUUPERPAWWWWWN!" and whoosh it around, knocking all the other
+pieces off the board.  This is the basic strategic and evaluation methodology that 
+I have attempted to incorporate into this chess engine.
+
+Superpawn is capable of making many fascinating chess moves, many
+of which are occasionally legal.  It beats its author handily at the game,
+which is not terribly surprising since its author is a lifelong patzer.
 
 Superpawn is an excellent example of the "objects gone wild" style of
 programming, in which Everything Is An Object.  Even the pieces themselves
@@ -137,7 +145,6 @@ Features
 Things it doesn't do
 --------------------
 
-- Distance to mate reporting is wrong for large numbers
 - Take castling into account in computing hashes
 - Understand pawn structure
 - Better endgame logic for say KRK
