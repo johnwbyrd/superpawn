@@ -2734,7 +2734,6 @@ public:
         m_Weighted.Add( m_Material );
         m_Weighted.Add( m_SimpleMobility, 0.1f );
         m_Weighted.Add( m_PieceSquareEvaluator, 0.8f );
-        // m_Weighted.Add( m_MopUp );
     }
 
     virtual int Evaluate( Position &pos ) const
@@ -2795,16 +2794,19 @@ public:
         m_nDepth = 0;
         m_bInfinite = false;
         m_SearchStopTime = 0;
+        m_SearchEmergencyStopTime = 0;
     }
 
     virtual void Action()
     {
         m_SearchStopTime = 0;
+        m_SearchEmergencyStopTime = 0;
     }
 
     virtual void Cut()
     {
         m_SearchStopTime = 0;
+        m_SearchEmergencyStopTime = 0;
     }
 
     virtual void CalculateSearchStopTime(
@@ -2817,43 +2819,33 @@ public:
     {
         int ply = rootPosition.GetPly();
         Color sideToMove = rootPosition.GetColorToMove();
-        Clock::ChessTickType timeLeft, timeInc, themTimeLeft, themTimeInc;
+        Clock::ChessTickType timeLeft, themTimeLeft;
 
         if ( sideToMove == WHITE )
         {
             timeLeft = m_WhiteTime;
-            timeInc = m_WhiteInc;
             themTimeLeft = m_BlackTime;
-            themTimeInc = m_BlackInc;
         }
         else
         {
             timeLeft = m_BlackTime;
-            timeInc = m_BlackInc;
             themTimeLeft = m_WhiteTime;
-            themTimeInc = m_WhiteInc;
         }
 
-        /* Why does this time management formula sort of work?  I'm not really sure.
-         * It seems to sort of resemble how Stockfish manages its time.
-         * Rather than try to understand why it works, I'll leave it be for the time
-         * being, until something better comes along.
-         */
         int movesUntilTimeControl;
         if ( m_nMovesToGo != 0 )
             movesUntilTimeControl = m_nMovesToGo;
         else
             movesUntilTimeControl = 25;
 
-
         /* Good chess players tend to fall into a deep think around ply 17 or so.
          * Let's pretend we know what we're doing and do the same.
          */
         float factor;
-        factor =  3.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
+        factor =  2.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
 
-        if ( factor > 3.0f )
-            factor = 3.0f;
+        if ( factor > 2.0f )
+            factor = 2.0f;
         if ( factor < 1.0f )
             factor = 1.0f;
 
@@ -2866,11 +2858,8 @@ public:
 
         m_SearchStopTime = ( Clock::ChessTickType )fSearchStopTime;
 
-        stringstream ss;
-        ss << "Moves until time control: " << movesUntilTimeControl <<
-           " Search stop time: " << m_SearchStopTime <<
-           " Factor: " << factor;
-        Notify( ss.str() );
+        /* Don't think for longer than half of our remaining time, regardless... */
+        m_SearchEmergencyStopTime = timeLeft / 2;
     }
 
     void Notify( const string &s );
@@ -2903,6 +2892,14 @@ public:
         return ( currentTime >= m_SearchStopTime );
     }
 
+    virtual bool ShouldCutEmergency( const Clock::ChessTickType currentTime )
+    {
+        if ( m_SearchEmergencyStopTime == 0 )
+            return false;
+
+        return ( currentTime > m_SearchEmergencyStopTime );
+    }
+
 protected:
     Moves m_SearchMoves;
     bool m_bPonder;
@@ -2914,6 +2911,7 @@ protected:
     unsigned int m_nMoveTime;
     bool m_bInfinite;
     Clock::ChessTickType m_SearchStopTime;
+    Clock::ChessTickType m_SearchEmergencyStopTime;
 
 };
 
@@ -3111,11 +3109,16 @@ protected:
 
             m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
                                       nCurrentDepth, m_Root, PV );
-            m_Result = PV;
-            /* The length of the principal variation may be zero if the position
-             * is some sort of terminal condition such as a stalemate or draw.
-             */
-            ReportCurrentPrincipalVariation( nCurrentDepth, PV );
+
+            /* Did we terminate prematurely due to time difficulties? */
+            if ( m_Director.ShouldCutEmergency( m_Clock.Get() ) == false )
+            {
+                m_Result = PV;
+                /* The length of the principal variation may be zero if the position
+                * is some sort of terminal condition such as a stalemate or draw.
+                */
+                ReportCurrentPrincipalVariation( nCurrentDepth, PV );
+            }
 
             if ( m_bTerminated )
                 break;
@@ -3286,13 +3289,20 @@ protected:
                                 const Move &/*move*/ )
     {}
 
+    /* Make sure our time has not gotten away from us. */
+    virtual void CheckWhetherToEmergencyStop()
+    {
+        if ( m_Director.ShouldCutEmergency( m_Clock.Get() ) )
+            m_bTerminated = true;
+    }
+
     virtual int SearchPrincipalVariation( int alpha, int beta, int depth,
                                           Position &pos, Moves &pv )
     {
         /* Overall structure lifted egregiously from
-         * http://chessprogramming.wikispaces.com/Principal+Variation+Search */
+        * http://chessprogramming.wikispaces.com/Principal+Variation+Search */
         /* Lots of other ideas from http://www.open-chess.org/viewtopic.php?f=5&t=1872
-         */
+        */
 
         int score = 0;
         Move bestMove = NullMove;
@@ -3304,7 +3314,7 @@ protected:
                                          depth ) )
         {
             /* transposition table doesn't count repetitions, so check those first
-             * before returning */
+            * before returning */
             IsDrawByRepetition( pos, score );
             return score;
         }
@@ -3320,8 +3330,8 @@ protected:
             if ( myMoves.Bump( bestMove ) == false )
             {
                 /* At this point we didn't find the move to bump in the list of legal moves.
-                 * Typically this is not a good scene, but let's soldier on and do a full search.
-                 */
+                * Typically this is not a good scene, but let's soldier on and do a full search.
+                */
             }
         }
 
@@ -3376,6 +3386,8 @@ protected:
                 bestPV = currentPV;
                 bestMove = move;
             }
+
+            CheckWhetherToEmergencyStop();
 
             if ( m_bTerminated )
                 break;
@@ -3509,9 +3521,9 @@ protected:
                 actually alpha at the time the entry was stored ) is less than or equal to
                 the current alpha value, return a "fail low" indication to search which says
                 "just return alpha, no need to search".  This test ensures that the stored
-                             "upper bound" is <= the current alpha value, otherwise we don't know whether
-                             to fail low or not.
-                             */
+                "upper bound" is <= the current alpha value, otherwise we don't know whether
+                to fail low or not.
+                */
                 case HET_ALL_NODE:
                     if ( pEntry->m_Score <= alpha )
                     {
@@ -4230,7 +4242,16 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
-        TestOne( "startpos moves c2c4 g8f6 g1f3 e7e6 b1c3 f8b4 a2a3 b4c3 d2c3 e8g8 c1g5 d7d5 g5f6 g7f6 c4d5 e6d5 d1b3 b7b6 e1c1 c8e6 b3c2 b8d7 e2e3 d7e5 e3e4 d8d6 f1e2 a8d8 f3e1 e5c6 e4d5 e6d5 e2d3 d6f4 d1d2 f4h6 f2f4 b6b5 d3b5 h6f4 h1f1 f4g5 b5c6 d5c6 c2d1 c6b5 f1f2 c7c5 e1f3 g5e3 d1e1 e3e1 f3e1 d8d2 c1d2 f8d8 d2c2 c5c4 f2d2 d8e8 e1f3 b5c6 f3d4 c6a4 c2b1 a4b3 d4b3 c4b3 b1c1 e8e1 d2d1 e1e2 d1d8 g8g7 d8d2 e2e1 d2d1 e1e2 d1g1 f6f5 c1b1 g7f6 b1c1 f6e5 h2h3 a7a5 c1b1 f5f4 a3a4 e2e4 b1c1 e4a4 g1e1 a4e4 c1d2 e4e1 d2e1 a5a4 e1d2 e5e4 h3h4 h7h5 c3c4 e4d4 c4c5 d4c5 d2c3 c5b5 c3d2 b5b4 d2d3 a4a3 b2a3 b4a3 d3e4 b3b2 e4f4 b2b1q f4f3 b1f1 f3g3 f1f5 g3h2 f5f2 h2h3 f2e3 h3h2 e3f2 h2h3 f2f4 g2g3 f4f2 g3g4 f2f3 h3h2 f3g4 h2h1 a3a4 h1h2 a4a3 h2h1 a3a2 h1h2 a2b2 h2h1 b2a2 h1h2 a2a1 h2h1 a1b2 h1h2 b2b3 h2h1" );
+        TestOne( "startpos moves c2c4 g8f6 g1f3 e7e6 b1c3 f8b4 a2a3 b4c3 d2c3 e8g8 c1g5 "
+                 "d7d5 g5f6 g7f6 c4d5 e6d5 d1b3 b7b6 e1c1 c8e6 b3c2 b8d7 e2e3 d7e5 e3e4 d8d6 f1e2 "
+                 "a8d8 f3e1 e5c6 e4d5 e6d5 e2d3 d6f4 d1d2 f4h6 f2f4 b6b5 d3b5 h6f4 h1f1 f4g5 b5c6 "
+                 "d5c6 c2d1 c6b5 f1f2 c7c5 e1f3 g5e3 d1e1 e3e1 f3e1 d8d2 c1d2 f8d8 d2c2 c5c4 f2d2 "
+                 "d8e8 e1f3 b5c6 f3d4 c6a4 c2b1 a4b3 d4b3 c4b3 b1c1 e8e1 d2d1 e1e2 d1d8 g8g7 d8d2 "
+                 "e2e1 d2d1 e1e2 d1g1 f6f5 c1b1 g7f6 b1c1 f6e5 h2h3 a7a5 c1b1 f5f4 a3a4 e2e4 b1c1 "
+                 "e4a4 g1e1 a4e4 c1d2 e4e1 d2e1 a5a4 e1d2 e5e4 h3h4 h7h5 c3c4 e4d4 c4c5 d4c5 d2c3 "
+                 "c5b5 c3d2 b5b4 d2d3 a4a3 b2a3 b4a3 d3e4 b3b2 e4f4 b2b1q f4f3 b1f1 f3g3 f1f5 g3h2 "
+                 "f5f2 h2h3 f2e3 h3h2 e3f2 h2h3 f2f4 g2g3 f4f2 g3g4 f2f3 h3h2 f3g4 h2h1 a3a4 h1h2 "
+                 "a4a3 h2h1 a3a2 h1h2 a2b2 h2h1 b2a2 h1h2 a2a1 h2h1 a1b2 h1h2 b2b3 h2h1" );
         TestOne( "startpos moves e2e4 d7d5 e4d5 d8d5 c2c4 d5e4 f1e2 e4g2 e2f3 g2g6 d1b3 "
                  "g6a6 c4c5 e7e5 f3e2 a6a5 b3d5 b8c6 b2b4 a5b4 e2h5 g7g6 h5f3 b4d4 d5d4 c6d4 f3d1 "
                  "f8c5 c1b2 g8f6 g1f3 d4f3 d1f3 c5d4 b2d4 e5d4 h1g1 e8g8 g1g5 h7h6 g5c5 f8e8 e1d1 "
