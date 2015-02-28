@@ -2733,7 +2733,7 @@ public:
     {
         m_Weighted.Add( m_Material );
         m_Weighted.Add( m_SimpleMobility, 0.1f );
-        m_Weighted.Add( m_PieceSquareEvaluator );
+        m_Weighted.Add( m_PieceSquareEvaluator, 0.8f );
         // m_Weighted.Add( m_MopUp );
     }
 
@@ -2761,11 +2761,18 @@ void Position::UpdateScore()
 /** Keeps track of the search and decides whether it should continue. */
 class DirectorBase : Object
 {
+protected:
+    Interface *m_pInterface;
     friend class Interface;
 public:
     DirectorBase()
     {
         Initialize();
+    }
+
+    void SetInterface( Interface &interface )
+    {
+        m_pInterface = &interface;
     }
 
     virtual unsigned int GetDepth() const
@@ -2810,17 +2817,21 @@ public:
     {
         int ply = rootPosition.GetPly();
         Color sideToMove = rootPosition.GetColorToMove();
-        Clock::ChessTickType timeLeft, timeInc;
+        Clock::ChessTickType timeLeft, timeInc, themTimeLeft, themTimeInc;
 
         if ( sideToMove == WHITE )
         {
             timeLeft = m_WhiteTime;
             timeInc = m_WhiteInc;
+            themTimeLeft = m_BlackTime;
+            themTimeInc = m_BlackInc;
         }
         else
         {
             timeLeft = m_BlackTime;
             timeInc = m_BlackInc;
+            themTimeLeft = m_WhiteTime;
+            themTimeInc = m_WhiteInc;
         }
 
         /* Why does this time management formula sort of work?  I'm not really sure.
@@ -2832,18 +2843,37 @@ public:
         if ( m_nMovesToGo != 0 )
             movesUntilTimeControl = m_nMovesToGo;
         else
-            movesUntilTimeControl = ply + 25;
+            movesUntilTimeControl = 25;
 
-        Clock::ChessTickType factor;
-        factor = ( abs( ply - 17 ) + 1 ) / 2;
-        if ( factor > 4 )
-            factor = 4;
-        if ( factor < 1 )
-            factor = 1;
 
-        m_SearchStopTime = ( timeLeft + timeInc ) / movesUntilTimeControl;
-        m_SearchStopTime /= factor;
+        /* Good chess players tend to fall into a deep think around ply 17 or so.
+         * Let's pretend we know what we're doing and do the same.
+         */
+        float factor;
+        factor =  3.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
+
+        if ( factor > 3.0f )
+            factor = 3.0f;
+        if ( factor < 1.0f )
+            factor = 1.0f;
+
+        m_SearchStopTime = timeLeft / movesUntilTimeControl;
+        float fSearchStopTime = ( float )m_SearchStopTime;
+        fSearchStopTime *= factor;
+
+        fSearchStopTime = fSearchStopTime * ( timeLeft * timeLeft ) /
+                          ( themTimeLeft * themTimeLeft );
+
+        m_SearchStopTime = ( Clock::ChessTickType )fSearchStopTime;
+
+        stringstream ss;
+        ss << "Moves until time control: " << movesUntilTimeControl <<
+           " Search stop time: " << m_SearchStopTime <<
+           " Factor: " << factor;
+        Notify( ss.str() );
     }
+
+    void Notify( const string &s );
 
     virtual bool ShouldCut(
         const Clock::ChessTickType currentTime,
@@ -2884,7 +2914,9 @@ protected:
     unsigned int m_nMoveTime;
     bool m_bInfinite;
     Clock::ChessTickType m_SearchStopTime;
+
 };
+
 
 typedef DirectorBase Director;
 
@@ -2897,6 +2929,7 @@ public:
     {
         m_bTerminated = true;
         m_pInterface = &interface;
+        m_Director.SetInterface( interface );
     }
 
     ~SearcherBase()
@@ -2925,6 +2958,7 @@ public:
     virtual void SetDirector( const Director &director )
     {
         m_Director = director;
+        m_Director.SetInterface( *m_pInterface );
     }
 
     virtual int Evaluate( Position &pos )
@@ -4443,6 +4477,11 @@ void Die( const string &s )
 
     if ( bAbortOnDie )
         abort();
+}
+
+void DirectorBase::Notify( const string &s )
+{
+    m_pInterface->Notify( s );
 }
 
 void SearcherBase::Notify( const string &s ) const
