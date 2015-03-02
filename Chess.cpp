@@ -3182,7 +3182,24 @@ protected:
             Die( "No moves could be generated!" );
     }
 
-    void FilterCheckResolvingMoves( Moves &myMoves, Position &pos )
+    int m_nSearchExtension;
+
+    virtual void ExtendSearchDepth( )
+    {
+        m_nSearchExtension = 1;
+    }
+
+    virtual void ReduceSearchDepth( )
+    {
+        m_nSearchExtension = -1;
+    }
+
+    virtual void ResetSearchDepth()
+    {
+        m_nSearchExtension = 0;
+    }
+
+    virtual void FilterCheckResolvingMoves( Moves &myMoves, Position &pos )
     {
         Moves checkResolvingMoves;
         /* Filter out all moves to ones that resolve the check */
@@ -3219,6 +3236,7 @@ protected:
 
         if ( pos.IsCheck() )
         {
+            ExtendSearchDepth();
             FilterCheckResolvingMoves( myMoves, pos );
             if ( myMoves.Count() == 0 )
             {
@@ -3309,6 +3327,7 @@ protected:
         Moves bestPV, currentPV, myMoves;
 
         m_nNodesSearched++;
+        ResetSearchDepth();
 
         if ( CheckPreviousSearchResults( score, pos, bestMove, pv, alpha, beta,
                                          depth ) )
@@ -3349,7 +3368,8 @@ protected:
             currentPV = pv;
             currentPV.Make( move );
             Position nextPos( pos, move );
-            score = SearchNode( beta, alpha, depth, nextPos, currentPV );
+            score = SearchNode( beta, alpha, depth + m_nSearchExtension, nextPos,
+                                currentPV );
 
             // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
             score = AttenuateForMate( score );
