@@ -3234,6 +3234,12 @@ protected:
             return true;
         }
 
+        if ( pos.IsStalemate() )
+        {
+            score = DRAW_SCORE;
+            return true;
+        }
+
         if ( pos.IsCheck() )
         {
             ExtendSearchDepth();
@@ -3244,12 +3250,6 @@ protected:
                 score = -KING_VALUE;
                 return true;
             }
-        }
-
-        if ( pos.IsStalemate() )
-        {
-            score = DRAW_SCORE;
-            return true;
         }
 
         return false;
@@ -3329,15 +3329,19 @@ protected:
         m_nNodesSearched++;
         ResetSearchDepth();
 
+        /* We have to check draw by repetition first, because the transposition table
+         * can't really keep track of them and they could occur at any time.
+         */
+
+        if ( IsDrawByRepetition( pos, score ) )
+            return score;
+
+        /* Now we can see if any previous search has been useful */
         if ( CheckPreviousSearchResults( score, pos, bestMove, pv, alpha, beta,
                                          depth ) )
-        {
-            /* transposition table doesn't count repetitions, so check those first
-            * before returning */
-            IsDrawByRepetition( pos, score );
             return score;
-        }
 
+        /* Is this a leaf node?  If so, evaluate now. */
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
 
@@ -3359,7 +3363,6 @@ protected:
             CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, depth, NullMove );
             return score;
         }
-
         bool bFirstSearch = true;
         bool bAlphaExceeded = false;
 
@@ -4262,6 +4265,8 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Test )
     {
+        TestOne( "startpos moves d2d4 c7c6 e2e4 f7f6 b1c3 e7e5 d4e5 f6e5 d1h5 e8e7 h5e5 e7f7 f1c4 "
+                 "d7d5 e4d5 f8d6 d5c6 f7g6 c4d3 g6f7 d3c4 f7g6 c4d3 g6f7" );
         TestOne( "startpos moves c2c4 g8f6 g1f3 e7e6 b1c3 f8b4 a2a3 b4c3 d2c3 e8g8 c1g5 "
                  "d7d5 g5f6 g7f6 c4d5 e6d5 d1b3 b7b6 e1c1 c8e6 b3c2 b8d7 e2e3 d7e5 e3e4 d8d6 f1e2 "
                  "a8d8 f3e1 e5c6 e4d5 e6d5 e2d3 d6f4 d1d2 f4h6 f2f4 b6b5 d3b5 h6f4 h1f1 f4g5 b5c6 "
