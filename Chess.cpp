@@ -2659,7 +2659,7 @@ class EvaluatorMopUp : public EvaluatorBase
         if ( pos.GetPhase() < fTurnOnAt )
             return 0;
 
-        Square whiteKing, blackKing;
+        Square localWhiteKing, localBlackKing;
 
         for ( unsigned int i = 0; i < MAX_FILES; i++ )
         {
@@ -2669,14 +2669,15 @@ class EvaluatorMopUp : public EvaluatorBase
                 const Piece *pPiece = pos.GetBoard().Get( cur );
 
                 if ( pPiece == &WhiteKing )
-                    whiteKing = cur;
+                    localWhiteKing = cur;
 
                 if ( pPiece == &BlackKing )
-                    blackKing = cur;
+                    localBlackKing = cur;
             }
         }
 
-        return Bias( pos, ( 6 - whiteKing.ManhattanDistanceTo( blackKing ) ) * 100 );
+        return Bias( pos, ( 6 - localWhiteKing.ManhattanDistanceTo(
+                                localBlackKing ) ) * 100 );
     }
 };
 
