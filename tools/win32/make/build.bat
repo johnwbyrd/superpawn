@@ -48,7 +48,7 @@ mkdir build\win\x86
 pushd build\win\x86
 call :create_ancillary_files
 rem
-cmake -G "Visual Studio 12" ..\..\..
+cmake -G "Visual Studio 14 2015" ..\..\..
 rem
 msbuild superpawn.sln /p:Configuration=Debug
 if errorlevel 1 goto :fail
@@ -66,7 +66,7 @@ mkdir build\win\x64
 pushd build\win\x64
 call :create_ancillary_files
 rem
-cmake -G "Visual Studio 12 Win64" ..\..\..
+cmake -G "Visual Studio 14 2015 Win64" ..\..\..
 msbuild superpawn.sln /p:Configuration=Debug
 if errorlevel 1 goto :fail
 msbuild superpawn.sln /p:Configuration=Release
