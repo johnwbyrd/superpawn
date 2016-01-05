@@ -13,6 +13,7 @@ find_package( Threads )
 set( CMAKE_LEGACY_CYGWIN_WIN32 0 )
 if (MSVC)
 	set(BUILD_PLATFORM "win32")
+	set(WIN32_LLVM true)
 endif()
 
 set (BUILD_SHARED_LIBS FALSE) # should force the libraries to be static
@@ -29,6 +30,14 @@ if (WIN32)
         set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
         set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
     endif()
+	
+	if (WIN32_LLVM)
+		set (WIN32_LLVM_FLAGS "-Qunused-arguments -Wno-overloaded-virtual -Wno-missing-braces -Wno-unused-private-field -Wno-unused-const-variable" )
+		set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${WIN32_LLVM_FLAGS}")
+        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} ${WIN32_LLVM_FLAGS}")
+        set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${WIN32_LLVM_FLAGS}")
+        set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} ${WIN32_LLVM_FLAGS}")
+	endif()
 endif()
 
 if( BUILD_DOCS )

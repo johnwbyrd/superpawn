@@ -50,9 +50,9 @@ call :create_ancillary_files
 rem
 cmake -G "Visual Studio 14 2015" ..\..\..
 rem
-msbuild superpawn.sln /p:Configuration=Debug
+msbuild superpawn.sln /p:Configuration=Debug /p:PlatformToolset=LLVM-vs2014
 if errorlevel 1 goto :fail
-msbuild superpawn.sln /p:Configuration=Release
+msbuild superpawn.sln /p:Configuration=Release /p:PlatformToolset=LLVM-vs2014
 if errorlevel 1 goto :fail
 call :create_ancillary_files
 copy release\Superpawn.exe release\Superpawn-%BUILD_NUMBER%-x86.exe
@@ -67,9 +67,9 @@ pushd build\win\x64
 call :create_ancillary_files
 rem
 cmake -G "Visual Studio 14 2015 Win64" ..\..\..
-msbuild superpawn.sln /p:Configuration=Debug
+msbuild superpawn.sln /p:Configuration=Debug /p:PlatformToolset=LLVM-vs2014
 if errorlevel 1 goto :fail
-msbuild superpawn.sln /p:Configuration=Release
+msbuild superpawn.sln /p:Configuration=Release /p:PlatformToolset=LLVM-vs2014
 if errorlevel 1 goto :fail
 copy release\Superpawn.exe release\Superpawn-%BUILD_NUMBER%-x64.exe
 copy %BUILDINFO% release /y
