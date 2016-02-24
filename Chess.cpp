@@ -1629,6 +1629,12 @@ public:
             delete m_pEntries;
     }
 
+    virtual void Purge()
+    {
+        delete m_pEntries;
+        SetSize( m_SizeBytes );
+    }
+
     virtual void Insert( const PositionHashEntry &entry )
     {
         size_t loc = entry.m_Hash % m_SizeEntries;
@@ -4371,6 +4377,11 @@ protected:
             }
         };
 
+        /* There seems to be a rare problem where the hash table gets
+         * screwed up and provides bad data.  Purge it between moves until
+         * I can figure out what I did wrong.
+         */
+        s_pPositionHashTable->Purge();
         m_pSearcher->SetDirector( director );
         m_pSearcher->Start( * ( m_pGame->GetPosition() ) );
     }
@@ -4379,6 +4390,8 @@ protected:
     {
         stringstream ss( sParams );
         string sType;
+
+
 
         while ( ss >> sType )
         {
