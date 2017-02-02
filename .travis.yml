@@ -125,13 +125,14 @@ install:
       export LDFLAGS="-L ${LLVM_ROOT}/install/lib -lc++ -lc++abi"
       export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${LLVM_ROOT}/install/lib"
     fi
+
+notifications:
+  email: false
   
 before_script:
   - cd "${TRAVIS_BUILD_DIR}"
-  - which "$CXX"
-  - "$CXX" -v
   - cmake . -Bbuild -DCMAKE_CXX_COMPILER="$CXX" -DCMAKE_C_COMPILER="$CC" -DCMAKE_BUILD_TYPE=$BUILD_TYPE
-  - cmake --build build
+  - cmake --build build -- -j$JOBS
 
 script:
   - cd build
