@@ -17,20 +17,6 @@ endif()
 
 set (BUILD_SHARED_LIBS FALSE) # should force the libraries to be static
 
-if (WIN32)
-    if (BUILD_SHARED_LIBS)
-        set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MDd")
-        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MDd")
-        set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MD")
-        set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MD")
-    else()
-        set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MTd")
-        set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MTd")
-        set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
-        set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
-    endif()
-endif()
-
 if( BUILD_DOCS )
 	# Need to change if we ever build docs on some other platform
 	if( MSVC )
@@ -38,22 +24,37 @@ if( BUILD_DOCS )
 	endif()
 endif()
 
-if(MSVC)
+if (${CMAKE_CXX_COMPILER_ID} STREQUAL Clang)
+  # using Clang
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
+elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL GNU)
+  # using GCC
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
+elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL Intel)
+  # using Intel C++
+elseif (${CMAKE_CXX_COMPILER_ID} STREQUAL MSVC)
+  # using Visual Studio C++
   # Force to always compile with W4; all warnings are errors
   if(CMAKE_CXX_FLAGS MATCHES "/W[0-4]")
     string(REGEX REPLACE "/W[0-4]" "/W4 /WX" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
   else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /WX")
   endif()
-endif()
-
-# As of 2014/7/1, the Darwin compiler built into Apple is not very C++11 compliant
-IF(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -stdlib=libc++")
-endif()
-
-if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x -Wall -Werror")
+  if (BUILD_SHARED_LIBS)
+    set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MDd")
+    set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MDd")
+    set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE")
+    set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MD")
+  else()
+    set (CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MTd")
+    set (CMAKE_CXX_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -MTd")
+    set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
+    set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -MT")
+  endif()
+  if( BUILD_DOCS )
+	# Need to change if we ever build docs on some other platform
+    set( MMD_BINARY "${CMAKE_SOURCE_DIR}/tools/${BUILD_PLATFORM}/multimarkdown/multimarkdown.exe")
+  endif()
 endif()
 
 add_executable( ${PROJECT_NAME} Chess.cpp )
@@ -71,16 +72,6 @@ add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
 					   COMMAND ${CMAKE_COMMAND} -E copy
 						${CMAKE_SOURCE_DIR}/README.md $<TARGET_FILE_DIR:${PROJECT_NAME}> )
-
-if( BUILD_DOCS )
-	if( MSVC )
-		add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
-						   COMMAND ${MMD_BINARY}
-							${CMAKE_CURRENT_BINARY_DIR}/BuildInfo.txt 
-							${CMAKE_SOURCE_DIR}/README.md 
-							-o $<TARGET_FILE_DIR:${PROJECT_NAME}>/index.html)
-		endif()
-endif()
 
 if (COMMAND cotire)
 	cotire( ${PROJECT_NAME} )
