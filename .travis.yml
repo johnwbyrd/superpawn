@@ -1,4 +1,5 @@
 # based on https://github.com/Microsoft/GSL/blob/master/.travis.yml
+language: cpp
 
 cache:
   directories:
