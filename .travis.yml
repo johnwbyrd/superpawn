@@ -125,9 +125,6 @@ install:
       export LDFLAGS="-L ${LLVM_ROOT}/install/lib -lc++ -lc++abi"
       export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${LLVM_ROOT}/install/lib"
     fi
-
-notifications:
-  email: false
   
 before_script:
   - cd "${TRAVIS_BUILD_DIR}"
