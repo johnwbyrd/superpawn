@@ -7,6 +7,7 @@ set( BUILD_DOCS ON BOOL
 	"Builds documentation in common output formats for Web and release.")
 cmake_minimum_required (VERSION 2.6.4)
 set (CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cotire/CMake" )	
+set (CMAKE_OSX_ARCHITECTURES “i386;x86_64”)
 include(cotire OPTIONAL)
 project ( ${PROJECT_NAME} )
 find_package( Threads )
