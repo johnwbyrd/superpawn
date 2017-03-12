@@ -12,13 +12,11 @@ cache:
 
 matrix:
   include:
-    - env: BUILD_TYPE=Debug MACOSX_DEPLOYMENT_TARGET=10.8
+    - env: BUILD_TYPE=Debug MACOSX_DEPLOYMENT_TARGET=10.7
       os: osx
-      osx_image: xcode8.2
       compiler: clang
-    - env: BUILD_TYPE=Release MACOSX_DEPLOYMENT_TARGET=10.8
+    - env: BUILD_TYPE=Release MACOSX_DEPLOYMENT_TARGET=10.7
       os: osx
-      osx_image: xcode8.2
       compiler: clang
     - env: CLANG_VERSION=3.6 BUILD_TYPE=Debug
       os: linux
