@@ -1784,6 +1784,20 @@ protected:
         Die( "Could not find piece to capture!" );
     }
 
+    void AddPiece( const Piece *pPiece )
+    {
+        for ( int i = 0; i < AllPiecesSize; i++ )
+        {
+            if ( AllPieces[i] == pPiece )
+            {
+                m_nCount[i]++;
+                m_fPhase = 0.0f;
+                return;
+            }
+        }
+        Die( "Could not find piece to add!" );
+    }
+
     float GetMaterial()
     {
         float fMaterial = 0.0f;
@@ -2071,11 +2085,27 @@ public:
 
     void PromotePiece( const Position &position, const Move &move )
     {
-        /* Promote piece */
+        const Piece *pCaptured = m_Board.Get( move.Dest() );
+        const Piece *pPromotingPawn = m_Board.Get( move.Source() );
+
         m_nMaterialScore = position.GetScore() +
                            ( move.GetPromoteTo()->PieceValue() +
-                             m_Board.Get( move.Dest() )->PieceValue() ) *
+                             pCaptured->PieceValue() ) *
                            GetColorBias();
+
+        /* Promotion is both a pawn move and (sometimes) a capture, so the
+         * fifty-move clock resets regardless. MovePiece normally handles
+         * the pawn-move reset, but PromotePiece bypasses it entirely.
+         */
+        m_nPlySinceCaptureOrPawnMove = 1;
+
+        /* Update the material counts: pawn is gone, promoted piece appears,
+         * and anything we captured on the back rank is also gone.
+         */
+        if ( pCaptured != &None )
+            m_Material.CaptureMaterial( pCaptured );
+        m_Material.CaptureMaterial( pPromotingPawn );
+        m_Material.AddPiece( move.GetPromoteTo() );
 
         m_Board.Set( move.Dest().I(), move.Dest().J(),
                      move.GetPromoteTo() );
@@ -2815,6 +2845,11 @@ public:
         return m_nNodes;
     }
 
+    const Moves &GetSearchMoves() const
+    {
+        return m_SearchMoves;
+    }
+
     virtual void Initialize()
     {
         m_SearchMoves.Clear();
@@ -2906,6 +2941,21 @@ public:
         /* This can happen in late end game. */
         if ( nDepthSearched >= 100 )
             return true;
+
+        /* 'go mate N' asks us to stop as soon as we've proved a mate
+         * within N moves. We encode mate as |score| > CHECKMATE_VALUE,
+         * with KING_VALUE - 2k meaning "mate in k from this ply."
+         */
+        if ( m_nMateInMoves != 0 )
+        {
+            int absScore = abs( nScore );
+            if ( absScore > CHECKMATE_VALUE )
+            {
+                int mate = ( 1 + KING_VALUE - absScore ) / 2;
+                if ( mate > 0 && mate <= ( int ) m_nMateInMoves )
+                    return true;
+            }
+        }
 
         if ( m_nDepth != 0 )
             return ( nDepthSearched >= m_nDepth );
@@ -3387,6 +3437,26 @@ protected:
 
         GetMoves( myMoves, pos, depth );
 
+        /* 'go searchmoves ...' restricts the root to a user-supplied subset. */
+        if ( pos.GetPly() == m_Root.GetPly() )
+        {
+            const Moves &allowed = m_Director.GetSearchMoves();
+            if ( !allowed.IsEmpty() )
+            {
+                Moves filtered;
+                for ( const auto &m : myMoves )
+                    for ( const auto &sm : allowed )
+                        if ( m.Source() == sm.Source() &&
+                                m.Dest() == sm.Dest() &&
+                                m.GetPromoteTo() == sm.GetPromoteTo() )
+                        {
+                            filtered.Add( m );
+                            break;
+                        }
+                myMoves = filtered;
+            }
+        }
+
         if ( bestMove != NullMove )
         {
             /* We got a recommendation from the transposition table. */
@@ -3529,15 +3599,44 @@ public:
         super( interface )
     { }
 protected:
+    /* Mate scores drift by one per ply on the way up the search stack
+     * (AttenuateForMate). Store them normalized to the current node so a
+     * TT lookup from a different ply distance returns a consistent mate
+     * distance. 'plyFromRoot' is used as the offset.
+     */
+    int PlyFromRoot( const Position &pos ) const
+    {
+        return ( int ) pos.GetPly() - ( int ) m_Root.GetPly();
+    }
+
+    int MateScoreToTT( int score, int plyFromRoot ) const
+    {
+        if ( score > CHECKMATE_VALUE )
+            return score + plyFromRoot;
+        if ( score < -CHECKMATE_VALUE )
+            return score - plyFromRoot;
+        return score;
+    }
+
+    int MateScoreFromTT( int score, int plyFromRoot ) const
+    {
+        if ( score > CHECKMATE_VALUE )
+            return score - plyFromRoot;
+        if ( score < -CHECKMATE_VALUE )
+            return score + plyFromRoot;
+        return score;
+    }
+
     virtual void CacheNodeType( const HashEntryType &het, Position &pos,
                                 const int score, const int depth,
                                 const Move &move )
     {
         PositionHashEntry phe;
         phe.m_Depth = depth;
+        phe.m_Ply = pos.GetPly();
         phe.m_BestMove = move;
         phe.m_TypeBits = het;
-        phe.m_Score = score;
+        phe.m_Score = MateScoreToTT( score, PlyFromRoot( pos ) );
         PositionHasher ph( pos );
         phe.m_Hash = ph.GetHash();
         s_pPositionHashTable->Insert( phe );
@@ -3551,6 +3650,7 @@ protected:
     {
         const PositionHashEntry *pEntry = pos.LookUp();
         bestMove = NullMove;
+        int plyFromRoot = PlyFromRoot( pos );
 
         /* Logic copied heavily from Bob Hyatt at http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
         /* See if an entry in the hash table exists at this depth for this
@@ -3576,7 +3676,7 @@ protected:
                 */
                 case HET_PRINCIPAL_VARIATION:
                     bestMove = pEntry->m_BestMove;
-                    nSearchResult = pEntry->m_Score;
+                    nSearchResult = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
                     return true;
 
                 /*
@@ -3588,13 +3688,16 @@ protected:
                 to fail low or not.
                 */
                 case HET_ALL_NODE:
-                    if ( pEntry->m_Score <= alpha )
+                {
+                    int adj = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    if ( adj <= alpha )
                     {
                         bestMove = pEntry->m_BestMove;
-                        nSearchResult = pEntry->m_Score;
+                        nSearchResult = adj;
                         return true;
                     }
                     break;
+                }
 
                 /*
                 c. LOWER.  If the value from the table, which is a "lower
@@ -3602,13 +3705,16 @@ protected:
                 beta at the time the entry was stored ) is >= beta, return a "fail high"
                 indication to search which says "just return beta, no need to do a search." */
                 case HET_CUT_NODE:
-                    if ( pEntry->m_Score >= beta )
+                {
+                    int adj = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    if ( adj >= beta )
                     {
                         bestMove = pEntry->m_BestMove;
                         nSearchResult = beta;
                         return true;
                     }
                     break;
+                }
 
                 default:
                     Die( "Unknown PositionHashEntry type; hash table corruption?" );
@@ -4362,7 +4468,14 @@ protected:
         if ( !sName.empty() )
         {
             if ( sName == "Hash" )
+            {
+                /* Clamp to the range we advertise so an overflowing
+                 * SetSize() can't be reached from UCI input.
+                 */
+                if ( nValue < 1 ) nValue = 1;
+                if ( nValue > 2048 ) nValue = 2048;
                 s_pPositionHashTable->SetSize( nValue * 1024 * 1024 );
+            }
         }
         else
             Notify( "SetOption: Could not find name of the option to set" );
@@ -4473,6 +4586,28 @@ protected:
             else if ( sParam == "infinite" )
             {
                 director.m_bInfinite = true;
+                continue;
+            }
+            else if ( sParam == "searchmoves" )
+            {
+                /* Consume the rest of the line as moves. UCI spec puts
+                 * searchmoves last on the line, so this is safe.
+                 */
+                Color colorToMove = m_pGame->GetPosition()->GetColorToMove();
+                string sMove;
+                while ( ss >> sMove )
+                {
+                    if ( sMove.length() < 4 ) break;
+                    Move m( sMove, colorToMove );
+                    director.m_SearchMoves.Add( m );
+                }
+                continue;
+            }
+            else if ( sParam == "ponder" )
+            {
+                /* Pondering not implemented; ignore the flag quietly
+                 * so GUIs that always send it don't trip the warning.
+                 */
                 continue;
             }
             else
