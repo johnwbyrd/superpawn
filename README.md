@@ -58,6 +58,24 @@ To attempt a Windows build, from the root directory of the installation type:
 
     tools\win32\make\build.bat
 
+Playing against Superpawn with xboard
+-------------------------------------
+
+Superpawn speaks UCI, and xboard speaks the older xboard/winboard protocol,
+so you need [polyglot](https://wbec-ridderkerk.nl/html/details1/PolyGlot.html) as an adapter. On Debian/Ubuntu:
+
+    sudo apt install polyglot xboard
+
+Then from the repo root:
+
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
+    xboard -fcp "polyglot play.ini"
+
+[play.ini](play.ini) tells polyglot where the engine binary lives and how to launch it.
+To play against the latest master without building, download the Linux
+binary from the [latest release](https://github.com/johnwbyrd/superpawn/releases/tag/latest),
+unpack it into `build/`, and run the same xboard command.
+
 Test suite
 ----------
 
