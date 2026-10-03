@@ -828,6 +828,12 @@ protected:
 typedef uint64_t HashValue;
 HashValue s_PiecePositionHash[ MAX_SQUARES ][ NUM_PIECES ];
 HashValue s_PieceColorHash[ 2 ];
+/* One hash per castling right (WK, WQ, BK, BQ). A right is active iff
+ * both the rook and its king are still virgin. */
+HashValue s_CastleRightsHash[ 4 ];
+/* One hash per en-passant file. Only XORed in when the target square
+ * is set (i.e. the previous move was a pawn double-push). */
+HashValue s_EnPassantFileHash[ MAX_FILES ];
 
 class BoardHashing : public BoardBase
 {
@@ -902,6 +908,11 @@ public:
         for ( unsigned int i = 0; i < 2; i++ )
             s_PieceColorHash[ i ] = mt();
 
+        for ( unsigned int i = 0; i < 4; i++ )
+            s_CastleRightsHash[ i ] = mt();
+
+        for ( unsigned int i = 0; i < MAX_FILES; i++ )
+            s_EnPassantFileHash[ i ] = mt();
     }
 };
 
@@ -1632,6 +1643,8 @@ public:
     virtual void Purge()
     {
         delete[] m_pEntries;
+        m_nEntriesInUse = 0;
+        m_CacheLookups = m_CacheMisses = m_CacheHits = 0;
         SetSize( m_SizeBytes );
     }
 
@@ -2448,22 +2461,19 @@ public:
         else
             s += " b ";
 
-        if ( !( m_bVirginH1 || m_bVirginA1 || m_bVirginH8 || m_bVirginA8 ) )
-            s += "-";
+        bool canWK = m_bVirginH1 && m_bVirginWhiteKing;
+        bool canWQ = m_bVirginA1 && m_bVirginWhiteKing;
+        bool canBK = m_bVirginH8 && m_bVirginBlackKing;
+        bool canBQ = m_bVirginA8 && m_bVirginBlackKing;
 
+        if ( !( canWK || canWQ || canBK || canBQ ) )
+            s += "-";
         else
         {
-            if ( m_bVirginH1 )
-                s += "K";
-
-            if ( m_bVirginA1 )
-                s += "Q";
-
-            if ( m_bVirginH8 )
-                s += "k";
-
-            if ( m_bVirginA8 )
-                s += "q";
+            if ( canWK ) s += "K";
+            if ( canWQ ) s += "Q";
+            if ( canBK ) s += "k";
+            if ( canBQ ) s += "q";
         }
 
         stringstream ss;
@@ -2522,15 +2532,12 @@ public:
         m_sEnPassant = val;
     }
 
-    HashValue GetHash()
+    HashValue GetHash() const
     {
-        if ( m_PreviousPositions.size() == 0 )
-        {
-            // do it the hard way
-            PushHashInHistory();
-        }
-
-        return *( m_PreviousPositions.end() - 1 );
+        if ( !m_PreviousPositions.empty() )
+            return m_PreviousPositions.back();
+        PositionHasher ph( *this );
+        return ph.GetHash();
     }
 
     float GetPhase()
@@ -2583,9 +2590,22 @@ void Material::UpdateFrom( const Position &pos )
 
 HashValue PositionHasher::GetHash() const
 {
-    return ( m_pPosition->m_Board.GetHash() ^
-             s_PieceColorHash[( int ) m_pPosition->m_ColorToMove ]
-           );
+    HashValue h = m_pPosition->m_Board.GetHash() ^
+                  s_PieceColorHash[( int ) m_pPosition->m_ColorToMove ];
+
+    if ( m_pPosition->m_bVirginH1 && m_pPosition->m_bVirginWhiteKing )
+        h ^= s_CastleRightsHash[ 0 ];
+    if ( m_pPosition->m_bVirginA1 && m_pPosition->m_bVirginWhiteKing )
+        h ^= s_CastleRightsHash[ 1 ];
+    if ( m_pPosition->m_bVirginH8 && m_pPosition->m_bVirginBlackKing )
+        h ^= s_CastleRightsHash[ 2 ];
+    if ( m_pPosition->m_bVirginA8 && m_pPosition->m_bVirginBlackKing )
+        h ^= s_CastleRightsHash[ 3 ];
+
+    if ( m_pPosition->m_sEnPassant.IsOnBoard() )
+        h ^= s_EnPassantFileHash[ m_pPosition->m_sEnPassant.I() ];
+
+    return h;
 }
 
 class EvaluatorBase : public Object
@@ -3149,7 +3169,6 @@ protected:
     {
         stringstream ss;
         ss << "info depth " << nCurrentDepth;
-        ss << " pv " << ( string )PV;
         ss << " score ";
 
         int absScore;
@@ -3165,6 +3184,11 @@ protected:
         }
         else
             ss << "cp " << m_Score;
+
+        /* pv is a variable-length field whose contents extend to end-of-line,
+         * so it must come last so GUIs don't try to parse later fields as moves.
+         */
+        ss << " pv " << ( string )PV;
 
         Instruct( ss.str() );
     }
@@ -3433,9 +3457,9 @@ protected:
         }
 
         if ( bAlphaExceeded )
-            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, depth, bestMove );
+            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, alpha, depth, bestMove );
         else
-            CacheNodeType( HET_ALL_NODE, pos, score, depth, bestMove );
+            CacheNodeType( HET_ALL_NODE, pos, alpha, depth, bestMove );
 
         pv = bestPV;
         return alpha;
@@ -4137,13 +4161,18 @@ public:
     {
         {
             stringstream ss;
-            ss << "Superpawn " << BUILD_BRANCH << " number " << BUILD_NUMBER <<
-               ", build ID " << BUILD_ID;
+            ss << "Superpawn";
+            if ( string( BUILD_BRANCH ).size() )
+                ss << " " << BUILD_BRANCH;
+            if ( string( BUILD_NUMBER ).size() )
+                ss << " build " << BUILD_NUMBER;
+            if ( string( BUILD_ID ).size() )
+                ss << " (" << BUILD_ID << ")";
             Notify( ss.str() );
         }
         {
             stringstream ss;
-            ss << "Superpawn built on " << __DATE__ << " " << __TIME__;
+            ss << "Compiled on " << __DATE__ << " " << __TIME__;
             Notify( ss.str() );
         }
         {
@@ -4456,11 +4485,6 @@ protected:
             }
         };
 
-        /* There seems to be a rare problem where the hash table gets
-         * screwed up and provides bad data.  Purge it between moves until
-         * I can figure out what I did wrong.
-         */
-        s_pPositionHashTable->Purge();
         m_pSearcher->SetDirector( director );
         m_pSearcher->Start( * ( m_pGame->GetPosition() ) );
     }
