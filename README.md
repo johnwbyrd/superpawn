@@ -11,22 +11,23 @@ which should not be taken very seriously.  Superpawn uses the [Universal Chess I
 protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of 
 your choice.
 
-The latest build of [Superpawn](http://chess.johnbyrd.org) can always be downloaded
-from [http://chess.johnbyrd.org](http://chess.johnbyrd.org) .
+The latest build of Superpawn can always be downloaded from the
+[GitHub Releases page](https://github.com/johnwbyrd/superpawn/releases).
 
 Downloads
 ---------
 
-[Windows x86 executable](http://chess.johnbyrd.org/build/win/x86/superpawn-windows-x32.zip).  If
-you don't know which file to download, this one is probably it.
+Prebuilt binaries are published on the [GitHub Releases page](https://github.com/johnwbyrd/superpawn/releases).
+The newest master commit is always available as the `latest` rolling release:
 
-[Windows x64 executable](http://chess.johnbyrd.org/build/win/x64/superpawn-windows-x64.zip).  Slightly 
-faster for x64 machines.
+- [Windows x64](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-windows-x64.zip) — probably the right pick on modern Windows.
+- [Windows x86](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-windows-x86.zip) — for older 32-bit Windows.
+- [macOS universal](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-macos-universal.tar.gz) — single binary for both Intel and Apple Silicon.
+- [Linux x64](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-linux-x64.tar.gz).
 
-[Source code](http://www.github.com/johnwbyrd/superpawn).  For building on arbitrary Macintosh and 
-Linux boxes.  The [Travis](https://travis-ci.org/johnwbyrd/superpawn) build system currently reports
-Superpawn's build status as:
-[![Build Status](https://travis-ci.org/johnwbyrd/superpawn.svg?branch=master)](https://travis-ci.org/johnwbyrd/superpawn)
+[Source code is on GitHub](https://github.com/johnwbyrd/superpawn). Current build status:
+
+[![Build](https://github.com/johnwbyrd/superpawn/actions/workflows/build.yml/badge.svg)](https://github.com/johnwbyrd/superpawn/actions/workflows/build.yml)
 
 Description
 -----------
