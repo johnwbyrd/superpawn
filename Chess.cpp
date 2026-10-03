@@ -4021,6 +4021,29 @@ Moves Queen::GenerateMoves( const Square &source, const Position &pos ) const
     return moves;
 }
 
+uint64_t Perft( Position &pos, int depth )
+{
+    if ( depth == 0 )
+        return 1;
+
+    uint64_t nodes = 0;
+    const Moves &moves = pos.GetMoves();
+
+    for ( const auto &move : moves )
+    {
+        Position nextPos( pos, move );
+        /* GetMoves returns pseudo-legal moves; drop those that leave
+         * our own king capturable on the opponent's reply.
+         */
+        if ( nextPos.CanKingBeCapturedNow() )
+            continue;
+
+        nodes += Perft( nextPos, depth - 1 );
+    }
+
+    return nodes;
+}
+
 class Game : Object
 {
 public:
@@ -4194,6 +4217,25 @@ protected:
         RegisterCommand( "quit",    &Interface::Quit );
         RegisterCommand( "testone", &Interface::TestOne );
         RegisterCommand( "test",  &Interface::Test );
+        RegisterCommand( "perft", &Interface::PerftCmd );
+    }
+
+    INTERFACE_PROTOTYPE( PerftCmd )
+    {
+        stringstream ss( sParams );
+        int depth = 1;
+        ss >> depth;
+
+        Position *pPos = m_pGame->GetPosition();
+        Clock c;
+        c.Start();
+        uint64_t nodes = ::Perft( *pPos, depth );
+        Clock::ChessTickType elapsed = c.Get();
+
+        stringstream result;
+        result << "perft " << depth << ": " << nodes
+               << " nodes in " << elapsed << " ms";
+        Instruct( result.str() );
     }
 
     INTERFACE_PROTOTYPE( UCI )

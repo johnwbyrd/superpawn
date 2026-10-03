@@ -69,6 +69,10 @@ jobs:
         run: |
           printf 'uci\nquit\n' | "${{ steps.locate.outputs.path }}" | grep -q uciok
 
+      - name: Perft tests
+        shell: bash
+        run: tests/perft/perft.sh "${{ steps.locate.outputs.path }}"
+
       - name: Stage artifact
         shell: bash
         run: |
