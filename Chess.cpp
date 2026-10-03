@@ -2369,18 +2369,22 @@ public:
 
             case 'K':
                 m_bVirginH1 = true;
+                m_bVirginWhiteKing = true;
                 break;
 
             case 'Q':
                 m_bVirginA1 = true;
+                m_bVirginWhiteKing = true;
                 break;
 
             case 'k':
                 m_bVirginH8 = true;
+                m_bVirginBlackKing = true;
                 break;
 
             case 'q':
                 m_bVirginA8 = true;
+                m_bVirginBlackKing = true;
                 break;
             }
         }
@@ -4218,6 +4222,7 @@ protected:
         RegisterCommand( "testone", &Interface::TestOne );
         RegisterCommand( "test",  &Interface::Test );
         RegisterCommand( "perft", &Interface::PerftCmd );
+        RegisterCommand( "divide", &Interface::PerftDivideCmd );
     }
 
     INTERFACE_PROTOTYPE( PerftCmd )
@@ -4235,6 +4240,33 @@ protected:
         stringstream result;
         result << "perft " << depth << ": " << nodes
                << " nodes in " << elapsed << " ms";
+        Instruct( result.str() );
+    }
+
+    INTERFACE_PROTOTYPE( PerftDivideCmd )
+    {
+        stringstream ss( sParams );
+        int depth = 1;
+        ss >> depth;
+        if ( depth < 1 ) depth = 1;
+
+        Position *pPos = m_pGame->GetPosition();
+        const Moves &moves = pPos->GetMoves();
+        uint64_t total = 0;
+
+        for ( const auto &move : moves )
+        {
+            Position nextPos( *pPos, move );
+            if ( nextPos.CanKingBeCapturedNow() )
+                continue;
+            uint64_t n = ::Perft( nextPos, depth - 1 );
+            total += n;
+            stringstream line;
+            line << "  " << ( string )move << ": " << n;
+            Instruct( line.str() );
+        }
+        stringstream result;
+        result << "divide " << depth << ": " << total;
         Instruct( result.str() );
     }
 

@@ -4,10 +4,9 @@
 #
 # Usage: perft.sh [path/to/superpawn]
 #
-# Each case is "LABEL|FEN|DEPTH|EXPECTED|STATUS", where STATUS is PASS
-# (must match) or XFAIL (currently expected to disagree -- a known
-# move-generation bug; we assert the number still matches the recorded
-# wrong value so regressions elsewhere stand out).
+# Each case is "LABEL|FEN|DEPTH|EXPECTED". Expected values are cross-
+# checked against stockfish; the FENs are the six standard positions
+# from chessprogramming.org/Perft_Results.
 
 set -u
 
@@ -18,35 +17,38 @@ if [ ! -x "$BINARY" ]; then
     exit 2
 fi
 
-# label | fen | depth | expected | status
 CASES=(
-    # startpos -- https://www.chessprogramming.org/Perft_Results
-    "startpos|startpos|1|20|PASS"
-    "startpos|startpos|2|400|PASS"
-    "startpos|startpos|3|8902|PASS"
-    "startpos|startpos|4|197281|PASS"
+    # startpos
+    "startpos|startpos|1|20"
+    "startpos|startpos|2|400"
+    "startpos|startpos|3|8902"
+    "startpos|startpos|4|197281"
 
-    # Position 3 (endgame with en-passant) -- all pass
-    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|1|14|PASS"
-    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|2|191|PASS"
-    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|3|2812|PASS"
-    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|4|43238|PASS"
+    # Kiwipete -- tests all castling + promotions + checks
+    "kiwipete|r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1|1|48"
+    "kiwipete|r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1|2|2039"
+    "kiwipete|r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1|3|97862"
 
-    # Position 6 -- passes shallow depths
-    "position6|r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10|1|46|PASS"
-    "position6|r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10|2|2079|PASS"
+    # Position 3 -- endgame with en-passant edge cases
+    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|1|14"
+    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|2|191"
+    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|3|2812"
+    "position3|8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1|4|43238"
 
-    # Kiwipete -- fails; correct values are 48, 2039
-    "kiwipete|r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1|1|46|XFAIL"
-    "kiwipete|r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1|2|1866|XFAIL"
+    # Position 4 -- king in check, blocks, promotions, under-promotions
+    "position4|r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2pP/R2Q1RK1 w kq - 0 1|1|6"
+    "position4|r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2pP/R2Q1RK1 w kq - 0 1|2|280"
+    "position4|r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2pP/R2Q1RK1 w kq - 0 1|3|9346"
 
-    # Position 4 -- depth 1 ok, depth 2 wrong (correct is 264)
-    "position4|r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2pP/R2Q1RK1 w kq - 0 1|1|6|PASS"
-    "position4|r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2pP/R2Q1RK1 w kq - 0 1|2|274|XFAIL"
+    # Position 5 -- castling + promotion-captures
+    "position5|rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8|1|44"
+    "position5|rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8|2|1486"
+    "position5|rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8|3|62379"
 
-    # Position 5 -- correct values are 44, 1486
-    "position5|rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8|1|43|XFAIL"
-    "position5|rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8|2|1452|XFAIL"
+    # Position 6 -- quiet middlegame
+    "position6|r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10|1|46"
+    "position6|r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10|2|2079"
+    "position6|r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10|3|89890"
 )
 
 run_perft() {
@@ -64,11 +66,9 @@ run_perft() {
 
 fails=0
 passes=0
-xfails=0
-unexpected_pass=0
 
 for case in "${CASES[@]}"; do
-    IFS='|' read -r label fen depth expected status <<< "$case"
+    IFS='|' read -r label fen depth expected <<< "$case"
     actual=$(run_perft "$fen" "$depth")
 
     if [ -z "$actual" ]; then
@@ -77,35 +77,17 @@ for case in "${CASES[@]}"; do
         continue
     fi
 
-    if [ "$status" = "PASS" ]; then
-        if [ "$actual" = "$expected" ]; then
-            printf '  PASS   %-10s d=%s  %s\n' "$label" "$depth" "$actual"
-            passes=$((passes + 1))
-        else
-            printf '  FAIL   %-10s d=%s  expected %s, got %s\n' \
-                "$label" "$depth" "$expected" "$actual"
-            fails=$((fails + 1))
-        fi
-    else  # XFAIL
-        if [ "$actual" = "$expected" ]; then
-            printf '  XFAIL  %-10s d=%s  %s (known wrong)\n' \
-                "$label" "$depth" "$actual"
-            xfails=$((xfails + 1))
-        else
-            printf '  XPASS? %-10s d=%s  expected %s (recorded wrong), got %s\n' \
-                "$label" "$depth" "$expected" "$actual"
-            unexpected_pass=$((unexpected_pass + 1))
-        fi
+    if [ "$actual" = "$expected" ]; then
+        printf '  PASS   %-10s d=%s  %s\n' "$label" "$depth" "$actual"
+        passes=$((passes + 1))
+    else
+        printf '  FAIL   %-10s d=%s  expected %s, got %s\n' \
+            "$label" "$depth" "$expected" "$actual"
+        fails=$((fails + 1))
     fi
 done
 
 echo
-echo "Summary: $passes passed, $fails failed, $xfails expected-fail, $unexpected_pass unexpected"
-
-if [ "$fails" -gt 0 ] || [ "$unexpected_pass" -gt 0 ]; then
-    [ "$unexpected_pass" -gt 0 ] && echo \
-        "note: XPASS means the engine's output changed from a recorded wrong value;" \
-        "update the expected number or move the case to PASS if the bug was fixed."
-    exit 1
-fi
+echo "Summary: $passes passed, $fails failed"
+[ "$fails" -gt 0 ] && exit 1
 exit 0
