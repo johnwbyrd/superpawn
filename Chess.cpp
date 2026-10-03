@@ -186,7 +186,7 @@ PieceSquareRawTableType psrtBishop =
 
 PieceSquareRawTableType psrtRook =
 {
-    0,   0,  0, 20, 20, 20,  0,  0
+    0,   0,  0, 20, 20, 20,  0,  0,
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
@@ -1011,7 +1011,7 @@ public:
 
     Square Add( const Square &s ) const
     {
-        Square s1( i + s.I(), j + s.I() );
+        Square s1( i + s.I(), j + s.J() );
         return s1;
     }
 
@@ -1626,12 +1626,12 @@ public:
     virtual ~PositionHashTable()
     {
         if ( m_SizeBytes )
-            delete m_pEntries;
+            delete[] m_pEntries;
     }
 
     virtual void Purge()
     {
-        delete m_pEntries;
+        delete[] m_pEntries;
         SetSize( m_SizeBytes );
     }
 
@@ -2899,8 +2899,12 @@ public:
         return ( currentTime >= m_SearchStopTime );
     }
 
-    virtual bool ShouldCutEmergency( const Clock::ChessTickType currentTime )
+    virtual bool ShouldCutEmergency( const Clock::ChessTickType currentTime,
+                                     const uint64_t nNodesSearched = 0 )
     {
+        if ( m_nNodes != 0 && nNodesSearched >= m_nNodes )
+            return true;
+
         if ( m_SearchEmergencyStopTime == 0 )
             return false;
 
@@ -3117,8 +3121,9 @@ protected:
             m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
                                       nCurrentDepth, m_Root, PV );
 
-            /* Did we terminate prematurely due to time difficulties? */
-            if ( m_Director.ShouldCutEmergency( m_Clock.Get() ) == false )
+            /* Did we terminate prematurely due to time or node difficulties? */
+            if ( m_Director.ShouldCutEmergency( m_Clock.Get(),
+                                                m_nNodesSearched ) == false )
             {
                 m_Result = PV;
                 /* The length of the principal variation may be zero if the position
@@ -3317,7 +3322,7 @@ protected:
     /* Make sure our time has not gotten away from us. */
     virtual void CheckWhetherToEmergencyStop()
     {
-        if ( m_Director.ShouldCutEmergency( m_Clock.Get() ) )
+        if ( m_Director.ShouldCutEmergency( m_Clock.Get(), m_nNodesSearched ) )
             m_bTerminated = true;
     }
 
