@@ -203,16 +203,23 @@ PieceSquareRawTableType psrtRook =
     -5,  0,  0,  0,  0,  0,  0, -5
 };
 
+/* Reward castled squares, mildly penalise sitting on the central files.
+ * The earlier +70 castled bonus roughly doubled real engines' valuations
+ * of castling and caused Superpawn's eval to drift ~90 cp more optimistic
+ * than Stockfish's on opening positions. Values here are deliberately
+ * smaller than the material of a pawn so the eval doesn't swing a full
+ * tempo over positional king shuffling.
+ */
 PieceSquareRawTableType psrtWhiteKingEarly =
 {
-    0, 0, 70,0, 0, 0,70, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
+    0, 10, 20, -5,-10, -5, 20, 10,
+    0,  0,  0, -5,-10, -5,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0
 };
 
 PieceSquareRawTableType psrtWhiteKingLate =
@@ -3252,7 +3259,7 @@ private:
                 int r = kr + fwd * dr;
                 if ( r < 0 || r >= ( int )MAX_FILES ) continue;
                 if ( board.Get( f, r ) == myPawn )
-                    score += ( dr == 1 ) ? 12 : 6;
+                    score += ( dr == 1 ) ? 6 : 3;
             }
         }
 
@@ -3286,10 +3293,12 @@ private:
         }
 
         /* King still on d/e file on its own back rank in the opening/early
-         * middlegame: hasn't castled, probably about to get hit.
+         * middlegame: hasn't castled, probably about to get hit. The PST
+         * already punishes this square directly, so keep the extra
+         * penalty modest to avoid double-counting castling.
          */
         if ( ( kf == 3 || kf == 4 ) && kr == ownBackRank )
-            score -= 15;
+            score -= 5;
 
         return score;
     }
@@ -3304,7 +3313,13 @@ public:
          * move's moves made the score depend on whose turn it was.
          */
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_PieceSquareEvaluator, 0.8f );
+        /* The PSTs here were designed with aggressive corner penalties
+         * (knights/bishops -30 at edges) that over-reward basic
+         * development; at weight 0.8 the engine was ~70 cp optimistic
+         * vs Stockfish on quiet openings. Halving brings the eval into
+         * a sane range without redesigning each table.
+         */
+        m_Weighted.Add( m_PieceSquareEvaluator, 0.4f );
         m_Weighted.Add( m_Positional, 1.0f );
         m_Weighted.Add( m_MopUp, 1.0f );
     }
@@ -4034,15 +4049,6 @@ protected:
         return false;
     }
 
-    int AttenuateForMate( int score )
-    {
-        if ( abs( score ) > CHECKMATE_VALUE )
-        {
-            int attenuate = ( score > 0 ) ? -1 : 1;
-            score += attenuate;
-        }
-        return score;
-    }
 
     virtual bool IsFrontier( int &score, Position &pos, int &/*alpha*/,
                              int /*beta*/, int depth )
@@ -4101,6 +4107,13 @@ protected:
         const int ply = PlyFromRoot( pos );
         const bool bIsRoot = ( ply == 0 );
         const bool bIsPVNode = ( beta - alpha > 1 );
+
+        /* Hard recursion cap. Quiescence + check extensions can otherwise
+         * push the search arbitrarily deep in positions with long forcing
+         * sequences, so belt-and-braces this at MAX_PLY from the root.
+         */
+        if ( ply >= MAX_PLY - 1 )
+            return Evaluate( pos );
 
         /* We have to check draw by repetition first, because the transposition table
          * can't really keep track of them and they could occur at any time.
@@ -4244,8 +4257,11 @@ protected:
                 }
             }
 
-            // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
-            score = AttenuateForMate( score );
+            /* Mate scores already encode ply-from-root at the mating leaf
+             * (-KING_VALUE + ply), so returning children's scores unchanged
+             * gives shorter mates a strictly larger magnitude than longer
+             * mates without any per-level attenuation.
+             */
 
             if ( nLegalMoves == 1 )
             {
@@ -4289,8 +4305,11 @@ protected:
             if ( depth <= 0 && !bInCheck )
                 return alpha;
 
-            /* No legal move at all: checkmate if in check, else stalemate. */
-            score = bInCheck ? -KING_VALUE : DRAW_SCORE;
+            /* No legal move at all: checkmate if in check, else stalemate.
+             * Encode checkmate as -(KING_VALUE - ply) so mates found deeper
+             * from the root have smaller magnitude and shallower mates win.
+             */
+            score = bInCheck ? -( KING_VALUE - ply ) : DRAW_SCORE;
             if ( score != DRAW_SCORE )
                 CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
                                MAX_SEARCH_DEPTH, NullMove );
@@ -4392,12 +4411,24 @@ public:
         super( interface )
     { }
 protected:
-    /* Mate scores shrink by one per ply on the way up the search stack
-     * (AttenuateForMate), so the score a node returns is already
-     * "mate in N plies from this node", independent of how the node
-     * was reached.  That is exactly the form the transposition table
-     * needs, so mate scores are stored and retrieved unchanged.
+    /* Mate scores at search nodes encode ply-from-root (-KING_VALUE+ply),
+     * so the same position reached from a different root would have a
+     * different stored score. Normalize to position-local on store
+     * (subtract ply so the stored value is distance-to-mate), and reapply
+     * ply on retrieve.
      */
+    int ToTT( int score, int ply ) const
+    {
+        if ( score > CHECKMATE_VALUE )  return score + ply;
+        if ( score < -CHECKMATE_VALUE ) return score - ply;
+        return score;
+    }
+    int FromTT( int score, int ply ) const
+    {
+        if ( score > CHECKMATE_VALUE )  return score - ply;
+        if ( score < -CHECKMATE_VALUE ) return score + ply;
+        return score;
+    }
 
     virtual void CacheNodeType( const HashEntryType &het, Position &pos,
                                 const int score, const int depth,
@@ -4408,7 +4439,7 @@ protected:
         phe.m_Ply = pos.GetPly();
         phe.m_BestMove = move;
         phe.m_TypeBits = het;
-        phe.m_Score = score;
+        phe.m_Score = ToTT( score, PlyFromRoot( pos ) );
         phe.m_Hash = pos.GetHash();
         s_pPositionHashTable->Insert( phe );
     }
@@ -4426,6 +4457,7 @@ protected:
         /* See if an entry in the hash table exists at this depth for this
         * position...
         */
+        const int ply = PlyFromRoot( pos );
         if ( pEntry )
         {
             /* 1. Is the draft >= remaining depth of search (was this hash entry stored
@@ -4446,7 +4478,7 @@ protected:
                 */
                 case HET_PRINCIPAL_VARIATION:
                     bestMove = pEntry->m_BestMove;
-                    nSearchResult = pEntry->m_Score;
+                    nSearchResult = FromTT( pEntry->m_Score, ply );
                     return true;
 
                 /*
@@ -4459,7 +4491,7 @@ protected:
                 */
                 case HET_ALL_NODE:
                 {
-                    int adj = pEntry->m_Score;
+                    int adj = FromTT( pEntry->m_Score, ply );
                     if ( adj <= alpha )
                     {
                         bestMove = pEntry->m_BestMove;
@@ -4476,7 +4508,7 @@ protected:
                 indication to search which says "just return beta, no need to do a search." */
                 case HET_CUT_NODE:
                 {
-                    int adj = pEntry->m_Score;
+                    int adj = FromTT( pEntry->m_Score, ply );
                     if ( adj >= beta )
                     {
                         bestMove = pEntry->m_BestMove;
