@@ -241,7 +241,12 @@ public:
         m_SourceTable = table;
     }
 
-    virtual void InvertColor()
+    /* These methods are not virtual: no code dispatches through a base
+     * pointer, and the derived class's two-argument Get is an overload,
+     * not an override. Marking either side virtual made the compiler warn
+     * that the base Get was being hidden by the derived two-arg one.
+     */
+    void InvertColor()
     {
         PieceSquareRawTableType temp;
         temp = m_SourceTable;
@@ -253,7 +258,7 @@ public:
             }
     }
 
-    virtual int Get( unsigned int index ) const
+    int Get( unsigned int index ) const
     {
         return m_SourceTable[ ( size_t ) index ];
     }
@@ -290,13 +295,17 @@ public:
         Append( table, fInterpolationFactor );
     }
 
-    virtual void InvertColor()
+    void InvertColor()
     {
         for ( auto &table : m_InterpolatedTables )
             table.InvertColor();
     }
 
-    virtual int Get( unsigned int index, const float fPhase = 0.0f ) const
+    /* Named distinctly from the base's one-argument Get() so this isn't a
+     * hidden overload. Callers that want the phase-interpolated value use
+     * GetAtPhase; the vector of base tables still uses Get(index).
+     */
+    int GetAtPhase( unsigned int index, const float fPhase = 0.0f ) const
     {
 
         size_t nSize = m_InterpolatedTables.size();
@@ -893,7 +902,7 @@ public:
     virtual int GetPieceSquareValue( int index, const float fPhase ) const
     {
         return Get( index )->
-               GetPieceSquareTable().Get( index, fPhase );
+               GetPieceSquareTable().GetAtPhase( index, fPhase );
     }
 
     virtual int GetPieceSquareValue( const Square &s, const float fPhase ) const;
@@ -1858,11 +1867,19 @@ protected:
     /** Does this color own anything besides pawns and the king? */
     bool HasNonPawnMaterial( Color color ) const
     {
-        /* White pieces sit at even AllPieces indices, black at odd. */
-        int first = ( color == WHITE ) ? 2 : 3;
-        for ( int i = first; i <= 9; i += 2 )
-            if ( m_nCount[i] )
-                return true;
+        /* Iterate rather than slicing AllPieces by index: anything that
+         * reorders PieceInitializer's assignment of indices (e.g. adding
+         * a new piece type) would otherwise silently break null-move
+         * pruning, which uses this method as its zugzwang guard.
+         */
+        for ( int i = 0; i < AllPiecesSize; i++ )
+        {
+            if ( m_nCount[i] == 0 ) continue;
+            const Piece *p = AllPieces[i];
+            if ( p->GetColor() != color ) continue;
+            PieceType t = p->Type();
+            if ( t != PAWN && t != KING ) return true;
+        }
         return false;
     }
 
