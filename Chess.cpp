@@ -42,6 +42,11 @@ const int MAX_PLY = 128;
 /** Half-width, in centipawns, of the root aspiration window. */
 const int ASPIRATION_WINDOW = 40;
 
+/** Depth and hash size used by the "bench" command.  Fixed, so that the
+ ** node count it prints depends on nothing but the engine's decisions. */
+const unsigned int BENCH_DEPTH = 8;
+const unsigned int BENCH_HASH_BYTES = 16 * 1024 * 1024;
+
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
  **/
@@ -3593,7 +3598,8 @@ class SearcherBase : Object
 {
 public:
     SearcherBase( Interface &interface ) :
-        m_nNodesSearched( 0 )
+        m_nNodesSearched( 0 ),
+        m_bQuiet( false )
     {
         m_bTerminated = true;
         m_pInterface = &interface;
@@ -3642,6 +3648,17 @@ public:
         return m_Evaluator.Evaluate( pos );
     }
 
+    uint64_t GetNodesSearched() const
+    {
+        return m_nNodesSearched;
+    }
+
+    /** Quiet searches print no info lines and no bestmove (used by bench). */
+    void SetQuiet( bool bQuiet )
+    {
+        m_bQuiet = bQuiet;
+    }
+
 protected:
     void Notify( const string &s ) const;
     void Instruct( const string &s ) const;
@@ -3679,6 +3696,7 @@ protected:
     virtual int Search() = 0;
 
     uint64_t m_nNodesSearched;
+    bool m_bQuiet;
     mutex m_Lock;
     atomic_bool m_bTerminated;
     Interface *m_pInterface;
@@ -3822,9 +3840,13 @@ protected:
                 nScore = InternalSearch( alpha, beta, nCurrentDepth, m_Root, PV );
                 if ( m_bTerminated )
                     break;
-                if ( nScore <= alpha )
+                /* Widen only a side that is not already wide open, so a
+                 * score at or beyond the open window (an illegal root
+                 * position whose king can be captured) cannot spin here.
+                 */
+                if ( nScore <= alpha && alpha > -BIG_NUMBER )
                     alpha = -BIG_NUMBER;
-                else if ( nScore >= beta )
+                else if ( nScore >= beta && beta < BIG_NUMBER )
                     beta = BIG_NUMBER;
                 else
                     break;
@@ -4921,6 +4943,15 @@ uint64_t Perft( Position &pos, int depth )
 class Game : Object
 {
 public:
+    Game()
+    {
+        /* Setup() also records the starting material total the phase
+         * calculation divides by, so it must run before any search or
+         * eval, whether or not a "uci" or "ucinewgame" ever arrives.
+         */
+        New();
+    }
+
     void New()
     {
         m_Position.Setup();
@@ -5111,6 +5142,107 @@ protected:
         RegisterCommand( "perft", &Interface::PerftCmd );
         RegisterCommand( "divide", &Interface::PerftDivideCmd );
         RegisterCommand( "eval", &Interface::EvalCmd );
+        RegisterCommand( "bench", &Interface::BenchCmd );
+    }
+
+    /** "bench [depth]": search a fixed set of positions to a fixed depth
+     ** with a fixed hash size and print the total node count.  The count
+     ** is a fingerprint of the search: a change that leaves it unchanged
+     ** made no functional difference.  See TESTING.md.
+     **/
+    INTERFACE_PROTOTYPE( BenchCmd )
+    {
+        /* The first thirty are Stockfish's classic benchmark set; the
+         * last three exercise our endgame terms.
+         */
+        static const char *benchPositions[] =
+        {
+            "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+            "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 10",
+            "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 11",
+            "4rrk1/pp1n3p/3q2pQ/2p1pb2/2PP4/2P3N1/P2B2PP/4RRK1 b - - 7 19",
+            "rq3rk1/ppp2ppp/1bnpb3/3N2B1/3NP3/7P/PPPQ1PP1/2KR3R w - - 7 14",
+            "r1bq1r1k/1pp1n1pp/1p1p4/4p2Q/4Pp2/1BNP4/PPP2PPP/3R1RK1 w - - 2 14",
+            "r3r1k1/2p2ppp/p1p1bn2/8/1q2P3/2NPQN2/PPP3PP/R4RK1 b - - 2 15",
+            "r1bbk1nr/pp3p1p/2n5/1N4p1/2Np1B2/8/PPP2PPP/2KR1B1R w kq - 0 13",
+            "r1bq1rk1/ppp1nppp/4n3/3p3Q/3P4/1BP1B3/PP1N2PP/R4RK1 w - - 1 16",
+            "4r1k1/r1q2ppp/ppp2n2/4P3/5Rb1/1N1BQ3/PPP3PP/R5K1 w - - 1 17",
+            "2rqkb1r/ppp2p2/2npb1p1/1N1Nn2p/2P1PP2/8/PP2B1PP/R1BQK2R b KQ - 0 11",
+            "r1bq1r1k/b1p1npp1/p2p3p/1p6/3PP3/1B2NN2/PP3PPP/R2Q1RK1 w - - 1 16",
+            "3r1rk1/p5pp/bpp1pp2/8/q1PP1P2/b3P3/P2NQRPP/1R2B1K1 b - - 6 22",
+            "r1q2rk1/2p1bppp/2Pp4/p6b/Q1PNp3/4B3/PP1R1PPP/2K4R w - - 2 18",
+            "4k2r/1pb2ppp/1p2p3/1R1p4/3P4/2r1PN2/P4PPP/1R4K1 b - - 3 22",
+            "3q2k1/pb3p1p/4pbp1/2r5/PpN2N2/1P2P2P/5PP1/Q2R2K1 b - - 4 26",
+            "6k1/6p1/6Pp/ppp5/3pn2P/1P3K2/1PP2P2/3N4 b - - 0 1",
+            "3b4/5kp1/1p1p1p1p/pP1PpP1P/P1P1P3/3KN3/8/8 w - - 0 1",
+            "2K5/p7/7P/5pR1/8/5k2/r7/8 w - - 0 1",
+            "8/6pk/1p6/8/PP3p1p/5P2/4KP1q/3Q4 w - - 0 1",
+            "7k/3p2pp/4q3/8/4Q3/5Kp1/P6b/8 w - - 0 1",
+            "8/2p5/8/2kPKp1p/2p4P/2P5/3P4/8 w - - 0 1",
+            "8/1p3pp1/7p/5P1P/2k3P1/8/2K2P2/8 w - - 0 1",
+            "8/pp2r1k1/2p1p3/3pP2p/1P1P1P1P/P5KR/8/8 w - - 0 1",
+            "8/3p4/p1bk3p/Pp6/1Kp1PpPp/2P2P1P/2P5/5B2 b - - 0 1",
+            "5k2/7R/4P2p/5K2/p1r2P1p/8/8/8 b - - 0 1",
+            "6k1/6p1/P6p/r1N5/5p2/7P/1b3PP1/4R1K1 w - - 0 1",
+            "1r3k2/4q3/2Pp3b/3Bp3/2Q2p2/1p1P2P1/1P2KP2/3N4 w - - 0 1",
+            "6k1/4pp1p/3p2p1/P1pPb3/R7/1r2P1PP/3B1P2/6K1 w - - 0 1",
+            "8/3p3B/5p2/5P2/p7/PP5b/k7/6K1 w - - 0 1",
+            "k7/8/8/8/8/8/8/K6R w - - 0 1",
+            "8/8/8/3k4/8/8/4Q3/K7 w - - 0 1",
+            "8/8/4k3/8/2p5/8/B2P2K1/8 w - - 0 1",
+        };
+        const size_t nPositions = sizeof( benchPositions ) / sizeof( benchPositions[0] );
+
+        stringstream ss( sParams );
+        unsigned int depth = BENCH_DEPTH;
+        ss >> depth;
+        if ( depth < 1 )
+            depth = 1;
+
+        /* A search still running would be reading the table we are about
+         * to replace.
+         */
+        m_pSearcher->Stop();
+
+        /* Fix the hash size for the run: the count depends on which
+         * entries collide, so it must not depend on the configured size.
+         */
+        size_t savedHashBytes = s_pPositionHashTable->GetSize();
+        s_pPositionHashTable->SetSize( BENCH_HASH_BYTES );
+        m_pSearcher->SetQuiet( true );
+
+        uint64_t totalNodes = 0;
+        Clock clock;
+        clock.Start();
+
+        for ( size_t i = 0; i < nPositions; i++ )
+        {
+            s_pPositionHashTable->Purge();
+
+            /* Explicit string: a bare const char* would prefer the
+             * Position( bool colorToMove ) constructor.
+             */
+            Position pos( string( benchPositions[i] ) );
+            Director director;
+            director.m_nDepth = depth;
+            m_pSearcher->SetDirector( director );
+            m_pSearcher->Start( pos );
+            m_pSearcher->Wait();
+            totalNodes += m_pSearcher->GetNodesSearched();
+        }
+
+        Clock::ChessTickType elapsed = clock.Get();
+
+        m_pSearcher->SetQuiet( false );
+        s_pPositionHashTable->SetSize( savedHashBytes );
+
+        uint64_t nps = ( elapsed > 0 ) ? totalNodes * 1000 / elapsed : 0;
+
+        stringstream result;
+        result << "bench: " << totalNodes << " nodes " << elapsed
+               << " ms " << nps << " nps (depth " << depth
+               << ", " << nPositions << " positions)";
+        Instruct( result.str() );
     }
 
     INTERFACE_PROTOTYPE_NO_PARAMS( EvalCmd )
@@ -5239,6 +5371,10 @@ protected:
                  */
                 if ( nValue < 1 ) nValue = 1;
                 if ( nValue > 2048 ) nValue = 2048;
+                /* GUIs shouldn't resize mid-search, but if one does, a
+                 * stopped search beats a search reading freed memory.
+                 */
+                m_pSearcher->Stop();
                 s_pPositionHashTable->SetSize( nValue * 1024 * 1024 );
             }
         }
@@ -5471,6 +5607,8 @@ protected:
 
     INTERFACE_PROTOTYPE_NO_PARAMS( New )
     {
+        /* A search still running would be reading the table we purge. */
+        m_pSearcher->Stop();
         m_pGame->New();
         s_pPositionHashTable->Purge();
     }
@@ -5587,12 +5725,14 @@ void SearcherBase::Notify( const string &s ) const
 
 void SearcherBase::Instruct( const string &s ) const
 {
-    m_pInterface->Instruct( s );
+    if ( !m_bQuiet )
+        m_pInterface->Instruct( s );
 }
 
 void SearcherBase::Bestmove( const string &s ) const
 {
-    m_pInterface->Bestmove( s );
+    if ( !m_bQuiet )
+        m_pInterface->Bestmove( s );
 }
 
 int main( int , char ** )
