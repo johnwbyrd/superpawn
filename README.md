@@ -141,16 +141,6 @@ user interface on the Pi.
 You will need to have gcc 3.8.2 or higher installed on the Pi.  As of this
 writing, instructions for updating the Pi from older compilers are [here](http://somewideopenspace.wordpress.com/2014/02/28/gcc-4-8-on-raspberry-pi-wheezy/).
 
-Genesis
--------
-
-When my wife Amanda was very small, her older sister made her play chess.
-Although her older sister was quite serious at the chessboard, Amanda quickly tired
-of the slow game.  Eventually Amanda would grab a pawn and yell 
-"It's SUUUUPERPAWWWWWN!" and whoosh it around, knocking all the other
-pieces off the board.  This is the basic strategic and evaluation methodology that 
-I have attempted to incorporate into this chess engine.
-
 Features
 --------
 
