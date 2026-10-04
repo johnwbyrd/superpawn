@@ -138,10 +138,10 @@ PieceSquareRawTableType psrtKnight =
 {
     -40, -30, -30, -30, -30, -30, -30, -40,
     -40, -20,   0,   0,   0,   0, -20, -40,
-    -30,   0,   5,  10,  10,   5,   0, -50,
+    -30,   0,   5,  10,  10,   5,   0, -30,
     -30,  10,  15,  30,  30,  15,  10, -30,
     -30,  10,  15,  30,  30,  15,  10, -30,
-    -30,   0,  10,  15,  15,  10,   0, -50,
+    -30,   0,  10,  15,  15,  10,   0, -30,
     -40, -20,   0,   0,   0,   0, -20, -40,
     -40, -30, -30, -30, -30, -30, -30, -40
 };
@@ -152,7 +152,7 @@ PieceSquareRawTableType psrtWhitePawnEarly =
     5,   5,  10, -20, -20,  10,   5,   5,
     5,  -5, -10,   0,   0, -10,  -5,   5,
     0,   0,   0,  20,  20,   0,   0,   0,
-    20, 20,  30,  40,  40,  30,  30,  20,
+    20, 20,  30,  40,  40,  30,  20,  20,
     40, 50,  60,  80,  80,  60,  50,  40,
     60, 70,  80, 100, 100,  80,  70,  60,
     0,   0,   0,   0,   0,   0,   0,   0
@@ -194,7 +194,7 @@ PieceSquareRawTableType psrtRook =
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
     20, 20, 20, 20, 20, 20, 20, 20,
-    -5,  0,  0,  0,  0,  0,  0,  0
+    -5,  0,  0,  0,  0,  0,  0, -5
 };
 
 PieceSquareRawTableType psrtWhiteKingEarly =
@@ -1736,14 +1736,14 @@ const float fPhaseMaterial[AllPiecesSize] =
 {
     0.0f, /*pawns*/
     0.0f,
-    1.5f, /*knights*/
-    1.5f,
-    1.5f, /*bishops*/
-    1.5f,
-    0.5f, /* rooks */
-    0.5f,
-    2.0f, /*queens*/
+    1.0f, /*knights*/
+    1.0f,
+    1.0f, /*bishops*/
+    1.0f,
+    2.0f, /* rooks */
     2.0f,
+    4.0f, /*queens*/
+    4.0f,
     0.0f, /*kings*/
     0.0f
 };
@@ -1756,7 +1756,7 @@ class Material : Object
 protected:
     void Initialize()
     {
-        m_fPhase = 0.0f;
+        m_fPhase = -1.0f;
         for ( int i = 0; i < AllPiecesSize; i++ )
             m_nCount[i] = 0;
     }
@@ -1774,7 +1774,7 @@ protected:
             if ( AllPieces[i] == pPiece )
             {
                 m_nCount[i]--;
-                m_fPhase = 0.0f;
+                m_fPhase = -1.0f;
                 return;
             }
         }
@@ -1788,7 +1788,7 @@ protected:
             if ( AllPieces[i] == pPiece )
             {
                 m_nCount[i]++;
-                m_fPhase = 0.0f;
+                m_fPhase = -1.0f;
                 return;
             }
         }
@@ -1805,7 +1805,7 @@ protected:
 
     float GetPhase()
     {
-        if ( m_fPhase == 0.0f )
+        if ( m_fPhase < 0.0f )
         {
             m_fPhase = 1.0f - ( GetMaterial() / s_fMaximumMaterial );
 
@@ -1817,6 +1817,25 @@ protected:
         }
 
         return m_fPhase;
+    }
+
+    /** True when neither side can possibly deliver mate: bare kings, a
+     ** lone minor piece, or only knights (at most two) on the board.
+     **/
+    bool IsInsufficient() const
+    {
+        /* Indices follow the AllPieces order: WP BP WN BN WB BB WR BR WQ BQ */
+        if ( m_nCount[0] || m_nCount[1] || m_nCount[6] || m_nCount[7] ||
+                m_nCount[8] || m_nCount[9] )
+            return false;
+
+        unsigned int knights = m_nCount[2] + m_nCount[3];
+        unsigned int bishops = m_nCount[4] + m_nCount[5];
+
+        if ( knights + bishops <= 1 )
+            return true;
+
+        return ( bishops == 0 && knights <= 2 );
     }
 
 protected:
@@ -2572,6 +2591,11 @@ public:
         return m_Material.GetPhase();
     }
 
+    bool IsInsufficientMaterial() const
+    {
+        return m_Material.IsInsufficient();
+    }
+
 
 protected:
     Board   m_Board;
@@ -2650,9 +2674,10 @@ protected:
 class EvaluatorSlowMaterial : public EvaluatorBase
 {
 public:
-    virtual int Evaluate( Position &pos ) const
+    /** Material balance from white's point of view, by scanning the board. */
+    static int WhiteRelative( const Position &pos )
     {
-        Board board = pos.GetBoard();
+        const Board &board = pos.GetBoard();
         const Piece *piece;
 
         int nScore = 0;
@@ -2667,7 +2692,12 @@ public:
             }
         }
 
-        return Bias( pos, nScore );
+        return nScore;
+    }
+
+    virtual int Evaluate( Position &pos ) const
+    {
+        return Bias( pos, WhiteRelative( pos ) );
     }
 };
 
@@ -2704,37 +2734,65 @@ public:
     }
 };
 
+/** Endgame mop-up: once the board is nearly empty and one side is
+ ** clearly ahead, reward driving the losing king toward the edge and
+ ** bringing the winning king up to it.  Signed by who is ahead, so the
+ ** losing side is pushed away rather than drawn in.
+ **/
 class EvaluatorMopUp : public EvaluatorBase
 {
-    unsigned int whiteKing = 99, blackKing = 99;
-    int dist = 0;
-
     virtual int Evaluate( Position &pos ) const
     {
-        const float fTurnOnAt = 0.9f;
+        const float fTurnOnAt = 0.8f;
+        const int nMinimumAdvantage = 200;
 
         if ( pos.GetPhase() < fTurnOnAt )
             return 0;
 
-        Square localWhiteKing, localBlackKing;
+        /* Material balance from white's point of view. */
+        int advantage = pos.GetScore();
+        if ( abs( advantage ) < nMinimumAdvantage )
+            return 0;
+
+        Square whiteKing, blackKing;
+        bool bFoundWhite = false, bFoundBlack = false;
 
         for ( unsigned int i = 0; i < MAX_FILES; i++ )
-        {
             for ( unsigned int j = 0; j < MAX_FILES; j++ )
             {
                 Square cur( i, j );
                 const Piece *pPiece = pos.GetBoard().Get( cur );
 
                 if ( pPiece == &WhiteKing )
-                    localWhiteKing = cur;
+                {
+                    whiteKing = cur;
+                    bFoundWhite = true;
+                }
 
                 if ( pPiece == &BlackKing )
-                    localBlackKing = cur;
+                {
+                    blackKing = cur;
+                    bFoundBlack = true;
+                }
             }
-        }
 
-        return Bias( pos, ( 6 - localWhiteKing.ManhattanDistanceTo(
-                                localBlackKing ) ) * 100 );
+        if ( !bFoundWhite || !bFoundBlack )
+            return 0;
+
+        const Square &loser = ( advantage > 0 ) ? blackKing : whiteKing;
+
+        /* Manhattan distance from the centre, doubled to stay in integers:
+         * 2 for a central square up to 14 in a corner.
+         */
+        int centre = abs( 2 * loser.I() - 7 ) + abs( 2 * loser.J() - 7 );
+        int kingDistance = whiteKing.ManhattanDistanceTo( blackKing );
+
+        int nScore = centre * 5 + ( 14 - kingDistance ) * 4;
+
+        if ( advantage < 0 )
+            nScore = -nScore;
+
+        return Bias( pos, nScore );
     }
 };
 
@@ -3052,8 +3110,10 @@ class EvaluatorStandard : public EvaluatorWeighted
 public:
     EvaluatorStandard()
     {
+        /* Mobility is deliberately absent: counting only the side to
+         * move's moves made the score depend on whose turn it was.
+         */
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 0.1f );
         m_Weighted.Add( m_PieceSquareEvaluator, 0.8f );
         m_Weighted.Add( m_Positional, 1.0f );
         m_Weighted.Add( m_MopUp, 1.0f );
@@ -3061,11 +3121,13 @@ public:
 
     virtual int Evaluate( Position &pos ) const
     {
+        if ( pos.IsInsufficientMaterial() )
+            return DRAW_SCORE;
+
         return m_Weighted.Evaluate( pos );
     }
 
     EvaluatorMaterial m_Material;
-    EvaluatorSimpleMobility m_SimpleMobility;
     EvaluatorPieceSquare m_PieceSquareEvaluator;
     EvaluatorMopUp m_MopUp;
     EvaluatorPositional m_Positional;
@@ -3076,8 +3138,12 @@ typedef EvaluatorStandard Evaluator;
 
 void Position::UpdateScore()
 {
-    EvaluatorSlowMaterial slow;
-    SetScore( slow.Evaluate( *this ) );
+    /* m_nMaterialScore is kept from white's point of view and updated
+     * incrementally from here on, so it must not be biased toward the
+     * side to move: that flipped the sign of every FEN position with
+     * black to move, for the rest of the game.
+     */
+    SetScore( EvaluatorSlowMaterial::WhiteRelative( *this ) );
     m_Material.UpdateFrom( *this );
 }
 
@@ -3641,6 +3707,12 @@ protected:
             return true;
 
         if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
+        {
+            score = DRAW_SCORE;
+            return true;
+        }
+
+        if ( pos.IsInsufficientMaterial() )
         {
             score = DRAW_SCORE;
             return true;
