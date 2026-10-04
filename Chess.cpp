@@ -1915,12 +1915,6 @@ public:
         Initialize();
     }
 
-    Position( bool colorToMove )
-    {
-        Initialize();
-        SetColorToMove( colorToMove );
-    }
-
     Position( const string &sFEN )
     {
         Initialize();
@@ -3364,7 +3358,8 @@ protected:
     Interface *m_pInterface;
     friend class Interface;
 public:
-    DirectorBase()
+    DirectorBase() :
+        m_pInterface( nullptr )
     {
         Initialize();
     }
@@ -4032,29 +4027,15 @@ protected:
         m_nSearchExtension = 0;
     }
 
-    /** Draws that can be decided without looking at any move.  Mate and
-     ** stalemate are discovered by the move loop, which finds no legal
-     ** move to play.
+    /** Draws decided by rule without looking at any move: the fifty-move
+     ** rule and insufficient material.  (Repetition is tested separately,
+     ** and mate and stalemate are discovered by the move loop finding no
+     ** legal move to play.)
      **/
-    bool IsEndOfGame( int &score, Position &pos )
+    bool IsDrawByRule( const Position &pos ) const
     {
-        /* Repetition has already been tested by SearchPrincipalVariation. */
-        if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
-        {
-            score = DRAW_SCORE;
-            return true;
-        }
-
-        if ( pos.IsInsufficientMaterial() )
-        {
-            score = DRAW_SCORE;
-            return true;
-        }
-
-        if ( pos.IsCheck() )
-            ExtendSearchDepth();
-
-        return false;
+        return ( pos.GetPlySinceCaptureOrPawnMove() >= 100 ) ||
+               pos.IsInsufficientMaterial();
     }
 
     /** A position that has occurred before on the path or in the game is
@@ -4145,6 +4126,16 @@ protected:
         if ( !bIsRoot && IsDrawByRepetition( pos, score ) )
             return score;
 
+        /* Likewise the fifty-move rule and insufficient material.  These
+         * must come before the transposition table probe: a cached score
+         * and best move for a position that is already drawn by rule
+         * would be returned instead, extending the PV past the end of
+         * the game.  They also come before the frontier test so that
+         * quiescence nodes see them.
+         */
+        if ( !bIsRoot && IsDrawByRule( pos ) )
+            return DRAW_SCORE;
+
         /* Now we can see if any previous search has been useful */
         if ( CheckPreviousSearchResults( score, pos, bestMove, pv, alpha, beta,
                                          depth ) )
@@ -4154,23 +4145,13 @@ protected:
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
 
-        if ( IsEndOfGame( score, pos ) )
-        {
-            /* Mates are worth remembering at any draft.  Draws by the
-             * fifty-move rule depend on the path taken, so they are not
-             * cached; neither are repetitions, which never reach here.
-             */
-            if ( abs( score ) > CHECKMATE_VALUE )
-                CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
-                               MAX_SEARCH_DEPTH, NullMove );
-            return score;
-        }
-
-        /* IsEndOfGame may have asked for a check extension.  The flag is a
-         * member that every recursive call resets, so it must be read once
-         * here rather than inside the loop, where it would hold whatever
-         * the last node of the previous subtree left behind.
+        /* A check extends the search by a ply.  The flag is a member that
+         * every recursive call resets, so it must be read once here rather
+         * than inside the loop, where it would hold whatever the last node
+         * of the previous subtree left behind.
          */
+        if ( pos.IsCheck() )
+            ExtendSearchDepth();
         const int nExtension = m_nSearchExtension;
         const bool bInCheck = ( nExtension != 0 );
 
@@ -5153,7 +5134,8 @@ protected:
     INTERFACE_PROTOTYPE( BenchCmd )
     {
         /* The first thirty are Stockfish's classic benchmark set; the
-         * last three exercise our endgame terms.
+         * next three exercise our endgame terms, and the last has its
+         * fifty-move clock at 94 so rule draws occur inside the search.
          */
         static const char *benchPositions[] =
         {
@@ -5190,6 +5172,7 @@ protected:
             "k7/8/8/8/8/8/8/K6R w - - 0 1",
             "8/8/8/3k4/8/8/4Q3/K7 w - - 0 1",
             "8/8/4k3/8/2p5/8/B2P2K1/8 w - - 0 1",
+            "8/5k2/8/8/3R4/8/8/6K1 w - - 94 120",
         };
         const size_t nPositions = sizeof( benchPositions ) / sizeof( benchPositions[0] );
 
@@ -5219,9 +5202,6 @@ protected:
         {
             s_pPositionHashTable->Purge();
 
-            /* Explicit string: a bare const char* would prefer the
-             * Position( bool colorToMove ) constructor.
-             */
             Position pos( string( benchPositions[i] ) );
             Director director;
             director.m_nDepth = depth;
