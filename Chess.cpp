@@ -5286,7 +5286,10 @@ protected:
         {
             s_pPositionHashTable->Purge();
 
-            Position pos(string(benchPositions[i]));
+            /* Brace-init to dodge the most-vexing-parse: the ()-form
+             * is parsed as a function declaration by clang and MSVC.
+             */
+            Position pos{string(benchPositions[i])};
             Director director;
             director.m_nDepth = depth;
             m_pSearcher->SetDirector(director);
