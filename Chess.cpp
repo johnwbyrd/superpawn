@@ -36,6 +36,12 @@ const unsigned int DEFAULT_SEARCH_DEPTH = 6; //-V112
 /** Iterative deepening never goes past this depth. */
 const unsigned int MAX_SEARCH_DEPTH = 100;
 
+/** Deepest ply for which killer moves are kept. */
+const int MAX_PLY = 128;
+
+/** Half-width, in centipawns, of the root aspiration window. */
+const int ASPIRATION_WINDOW = 40;
+
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
  **/
@@ -1849,6 +1855,17 @@ protected:
         return ( bishops == 0 && knights <= 2 );
     }
 
+    /** Does this color own anything besides pawns and the king? */
+    bool HasNonPawnMaterial( Color color ) const
+    {
+        /* White pieces sit at even AllPieces indices, black at odd. */
+        int first = ( color == WHITE ) ? 2 : 3;
+        for ( int i = first; i <= 9; i += 2 )
+            if ( m_nCount[i] )
+                return true;
+        return false;
+    }
+
 protected:
     unsigned int m_nCount[ AllPiecesSize ];
     float m_fPhase;
@@ -1891,6 +1908,7 @@ public:
 
         if ( &move == &NullMove )
         {
+            m_bNullMove = true;
             SetColorToMove( !GetColorToMove() );
             ComputeHash();
             return;
@@ -1942,6 +1960,7 @@ public:
         m_PreviousPositions.clear();
         m_pParent = nullptr;
         m_Hash = 0;
+        m_bNullMove = false;
     }
 
     int GetColorBias() const
@@ -2106,6 +2125,7 @@ public:
         m_PreviousPositions.clear();
         m_pParent = &position;
         m_Hash = 0;
+        m_bNullMove = false;
 
         m_nPly = position.m_nPly + 1;
         m_sEnPassant = Square( -1, -1 );
@@ -2732,6 +2752,17 @@ public:
         return m_Material.IsInsufficient();
     }
 
+    /** Was this position produced by passing rather than moving? */
+    bool WasNullMove() const
+    {
+        return m_bNullMove;
+    }
+
+    bool HasNonPawnMaterial( Color color ) const
+    {
+        return m_Material.HasNonPawnMaterial( color );
+    }
+
 
 protected:
     Board   m_Board;
@@ -2752,6 +2783,7 @@ protected:
     bool m_bIsCheck;
     /** Zobrist hash of this position, fixed once it is constructed. */
     HashValue m_Hash;
+    bool m_bNullMove;
     /** The position this one was reached from, or null if detached. */
     const Position *m_pParent;
     /** Hashes of earlier positions; only used on a detached position. */
@@ -3741,8 +3773,30 @@ protected:
                                         ) )
                 break;
 
-            int nScore = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-                                         nCurrentDepth, m_Root, PV );
+            /* Aspiration window: search a narrow window around the last
+             * score, widening on the side that fails.
+             */
+            int alpha = -BIG_NUMBER, beta = BIG_NUMBER;
+            if ( nCurrentDepth >= 3 && abs( m_Score ) < CHECKMATE_VALUE )
+            {
+                alpha = m_Score - ASPIRATION_WINDOW;
+                beta = m_Score + ASPIRATION_WINDOW;
+            }
+
+            int nScore;
+            for ( ;; )
+            {
+                PV.Clear();
+                nScore = InternalSearch( alpha, beta, nCurrentDepth, m_Root, PV );
+                if ( m_bTerminated )
+                    break;
+                if ( nScore <= alpha )
+                    alpha = -BIG_NUMBER;
+                else if ( nScore >= beta )
+                    beta = BIG_NUMBER;
+                else
+                    break;
+            }
 
             /* An iteration cut short by the clock, the node limit or a
              * "stop" command has scored a tree that was only partly
@@ -3809,10 +3863,94 @@ public:
     { }
 
 protected:
-    virtual int InternalSearch( int, int, int depth,
+    virtual int InternalSearch( int alpha, int beta, int depth,
                                 Position &pos, Moves &pv )
     {
-        return SearchPrincipalVariation( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
+        return SearchPrincipalVariation( alpha, beta, depth, pos, pv );
+    }
+
+public:
+    virtual void Start( const Position &pos )
+    {
+        ClearHeuristics();
+        super::Start( pos );
+    }
+
+protected:
+    int PlyFromRoot( const Position &pos ) const
+    {
+        return ( int ) pos.GetPly() - ( int ) m_Root.GetPly();
+    }
+
+    /* ---- move ordering: killer moves and history heuristic ---- */
+
+    Move m_Killers[ MAX_PLY ][ 2 ];
+    int m_History[ 2 ][ MAX_SQUARES ][ MAX_SQUARES ];
+
+    void ClearHeuristics()
+    {
+        for ( int p = 0; p < MAX_PLY; p++ )
+            m_Killers[p][0] = m_Killers[p][1] = NullMove;
+        for ( int c = 0; c < 2; c++ )
+            for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
+                for ( unsigned int j = 0; j < MAX_SQUARES; j++ )
+                    m_History[c][i][j] = 0;
+    }
+
+    bool IsKiller( const Move &move, int ply ) const
+    {
+        return ( ply < MAX_PLY ) &&
+               ( m_Killers[ply][0] == move || m_Killers[ply][1] == move );
+    }
+
+    /** A quiet move just caused a beta cutoff: remember it. */
+    void RecordCutoff( const Move &move, int ply, int depth, Color color )
+    {
+        if ( ply < MAX_PLY && !( m_Killers[ply][0] == move ) )
+        {
+            m_Killers[ply][1] = m_Killers[ply][0];
+            m_Killers[ply][0] = move;
+        }
+
+        int &h = m_History[color][move.Source().ToIndex()][move.Dest().ToIndex()];
+        h += depth * depth;
+        if ( h > ( 1 << 20 ) )
+            h = ( 1 << 20 );
+    }
+
+    /** Sort the list so that the most promising moves come first: the
+     ** transposition-table move, then captures by MVV/LVA, then killer
+     ** moves, then quiet moves by history.  The Score field is reused
+     ** as the sort key; this works on a copy, not the Position's cache.
+     **/
+    void OrderMoves( Moves &moves, const Position &pos, const Move &ttMove,
+                     int ply, int depth ) const
+    {
+        /* Quiescence lists are already sorted by captured value. */
+        if ( depth <= 0 )
+            return;
+
+        Color color = pos.GetColorToMove();
+
+        for ( auto &m : moves )
+        {
+            int key;
+            if ( m == ttMove )
+                key = 1 << 30;
+            else if ( m.Score() > 0 )
+            {
+                /* Captures and promotions: Score holds the material won. */
+                key = ( 1 << 24 ) + m.Score() * 16 - m.GetPiece()->PieceValue() / 10;
+            }
+            else if ( IsKiller( m, ply ) )
+                key = ( 1 << 23 ) + ( ( m_Killers[ply][0] == m ) ? 1 : 0 );
+            else
+                key = m_History[color][m.Source().ToIndex()][m.Dest().ToIndex()];
+
+            m.Score( key );
+        }
+
+        moves.Sort();
     }
 
     virtual void GetMoves( Moves &myMoves, Position &pos, const int /*depth*/ )
@@ -3943,14 +4081,16 @@ protected:
         m_nNodesSearched++;
         ResetSearchDepth();
 
+        const int ply = PlyFromRoot( pos );
+        const bool bIsRoot = ( ply == 0 );
+        const bool bIsPVNode = ( beta - alpha > 1 );
+
         /* We have to check draw by repetition first, because the transposition table
          * can't really keep track of them and they could occur at any time.
-         */
-
-        /* The root itself is never a draw by repetition: the game is
+         * The root itself is never a draw by repetition: the game is
          * still going, and a GUI adjudicates real threefolds.
          */
-        if ( pos.GetPly() != m_Root.GetPly() && IsDrawByRepetition( pos, score ) )
+        if ( !bIsRoot && IsDrawByRepetition( pos, score ) )
             return score;
 
         /* Now we can see if any previous search has been useful */
@@ -3961,39 +4101,6 @@ protected:
         /* Is this a leaf node?  If so, evaluate now. */
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
-
-        GetMoves( myMoves, pos, depth );
-
-        /* 'go searchmoves ...' restricts the root to a user-supplied subset. */
-        if ( pos.GetPly() == m_Root.GetPly() )
-        {
-            const Moves &allowed = m_Director.GetSearchMoves();
-            if ( !allowed.IsEmpty() )
-            {
-                Moves filtered;
-                for ( const auto &m : myMoves )
-                    for ( const auto &sm : allowed )
-                        if ( m.Source() == sm.Source() &&
-                                m.Dest() == sm.Dest() &&
-                                m.GetPromoteTo() == sm.GetPromoteTo() )
-                        {
-                            filtered.Add( m );
-                            break;
-                        }
-                myMoves = filtered;
-            }
-        }
-
-        if ( bestMove != NullMove )
-        {
-            /* We got a recommendation from the transposition table. */
-            if ( myMoves.Bump( bestMove ) == false )
-            {
-                /* At this point we didn't find the move to bump in the list of legal moves.
-                * Typically this is not a good scene, but let's soldier on and do a full search.
-                */
-            }
-        }
 
         if ( IsEndOfGame( score, pos ) )
         {
@@ -4013,10 +4120,55 @@ protected:
          * the last node of the previous subtree left behind.
          */
         const int nExtension = m_nSearchExtension;
+        const bool bInCheck = ( nExtension != 0 );
 
-        bool bFirstSearch = true;
+        /* Null-move pruning: if passing still leaves us at or above beta
+         * after a reduced search, a real move surely will too.  Not when
+         * in check, not twice in a row, and not with only pawns left,
+         * where zugzwang makes passing genuinely attractive.
+         */
+        if ( !bIsPVNode && !bInCheck && depth >= 2 && !pos.WasNullMove() &&
+                pos.HasNonPawnMaterial( pos.GetColorToMove() ) )
+        {
+            Position nullPos( pos, NullMove );
+            Moves nullPV;
+            const int R = ( depth > 6 ) ? 3 : 2;
+            int nullScore = -SearchPrincipalVariation( -beta, -beta + 1,
+                            depth - 1 - R, nullPos, nullPV );
+            if ( m_bTerminated )
+                return alpha;
+            if ( nullScore >= beta && abs( nullScore ) < CHECKMATE_VALUE )
+                return beta;
+        }
+
+        GetMoves( myMoves, pos, depth );
+
+        /* 'go searchmoves ...' restricts the root to a user-supplied subset. */
+        if ( bIsRoot )
+        {
+            const Moves &allowed = m_Director.GetSearchMoves();
+            if ( !allowed.IsEmpty() )
+            {
+                Moves filtered;
+                for ( const auto &m : myMoves )
+                    for ( const auto &sm : allowed )
+                        if ( m.Source() == sm.Source() &&
+                                m.Dest() == sm.Dest() &&
+                                m.GetPromoteTo() == sm.GetPromoteTo() )
+                        {
+                            filtered.Add( m );
+                            break;
+                        }
+                myMoves = filtered;
+            }
+        }
+
+        OrderMoves( myMoves, pos, bestMove, ply, depth );
+        bestMove = NullMove;
+
         bool bAlphaExceeded = false;
         unsigned int nLegalMoves = 0;
+        const Board &board = pos.GetBoard();
 
         for ( auto &move : myMoves )
         {
@@ -4029,41 +4181,76 @@ protected:
                 continue;
 
             nLegalMoves++;
+
+            const bool bQuiet = ( board.Get( move.Dest() ) == &None &&
+                                  move.GetPromoteTo() == &None );
+            /* SearchNode subtracts one ply itself. */
+            const int nextDepth = depth + nExtension;
+
             currentPV = pv;
             currentPV.Make( move );
-            score = SearchNode( beta, alpha, depth + nExtension, nextPos,
-                                currentPV );
+
+            if ( nLegalMoves == 1 )
+            {
+                /* The first move gets the full window. */
+                score = SearchNode( beta, alpha, nextDepth, nextPos, currentPV );
+            }
+            else
+            {
+                /* Later moves are expected to fail low, so prove that with
+                 * a zero-width window, and search late quiet moves a ply
+                 * shallower still.  Anything that surprises us by beating
+                 * alpha is re-searched properly.
+                 */
+                int reduction = 0;
+                if ( bQuiet && depth >= 3 && nLegalMoves > 4 && !bInCheck &&
+                        !IsKiller( move, ply ) )
+                    reduction = 1;
+
+                score = SearchNode( alpha + 1, alpha, nextDepth - reduction,
+                                    nextPos, currentPV );
+
+                if ( reduction > 0 && score > alpha && !m_bTerminated )
+                {
+                    currentPV = pv;
+                    currentPV.Make( move );
+                    score = SearchNode( alpha + 1, alpha, nextDepth, nextPos,
+                                        currentPV );
+                }
+
+                if ( score > alpha && score < beta && !m_bTerminated )
+                {
+                    currentPV = pv;
+                    currentPV.Make( move );
+                    score = SearchNode( beta, alpha, nextDepth, nextPos,
+                                        currentPV );
+                }
+            }
 
             // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
             score = AttenuateForMate( score );
 
-            if ( bFirstSearch )
+            if ( nLegalMoves == 1 )
             {
                 bestPV = currentPV;
                 bestMove = move;
-                bFirstSearch = false;
             }
 
             if ( score >= beta )
             {
-                /* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry
-                * is called "LOWER" because the score you have is a lower bound, where the
-                * real score is greater than or equal to beta...
-                * Cut nodes(Knuth's Type 2), otherwise known as fail-high nodes, are nodes in which a
-                * beta-cutoff was performed. So with bounds [a,b], s>=b. A minimum of one move at a
-                * Cut-node needs to be searched. The score returned is a lower bound (might be
-                * greater) on the exact score of the node.
-                */
-                pv = bestPV;
+                /* Hard beta cutoff: a CUT node.  The score is a lower bound
+                 * on the exact score of the node.
+                 */
+                if ( bQuiet )
+                    RecordCutoff( move, ply, depth, pos.GetColorToMove() );
+                pv = currentPV;
                 CacheNodeType( HET_CUT_NODE, pos, score, depth, move );
                 return beta;   // fail-high beta-cutoff
             }
 
             if ( score > alpha )
             {
-                /* The score is between alpha and beta.  We have a new best move.  This could
-                * be an exact entry in the hash table, if it survives the rest of the search at this level.
-                */
+                /* The score is between alpha and beta.  We have a new best move. */
                 bAlphaExceeded = true;
                 alpha = score; // alpha acts like max in MiniMax
                 bestPV = currentPV;
@@ -4082,11 +4269,11 @@ protected:
              * legal just means we stand pat on the score IsFrontier
              * already folded into alpha.
              */
-            if ( depth <= 0 && !pos.IsCheck() )
+            if ( depth <= 0 && !bInCheck )
                 return alpha;
 
             /* No legal move at all: checkmate if in check, else stalemate. */
-            score = pos.IsCheck() ? -KING_VALUE : DRAW_SCORE;
+            score = bInCheck ? -KING_VALUE : DRAW_SCORE;
             if ( score != DRAW_SCORE )
                 CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
                                MAX_SEARCH_DEPTH, NullMove );
