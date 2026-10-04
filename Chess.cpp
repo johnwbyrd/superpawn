@@ -3760,6 +3760,17 @@ public:
     {
         if ( depth <= 0 )
         {
+            /* Standing pat while in check is unsafe: the eval doesn't know
+             * the king can be captured next move. Fall through to a full
+             * search so IsEndOfGame can filter to legal escapes (and apply
+             * the normal check extension).
+             */
+            if ( pos.IsCheck() )
+            {
+                Report( pos );
+                return false;
+            }
+
             score = Evaluate( pos );
             if ( score >= beta )
             {
@@ -3785,7 +3796,11 @@ public:
 
     virtual void GetMoves( Moves &myMoves, Position &pos, const int depth )
     {
-        if ( depth > 0 )
+        /* Below the horizon we normally restrict to captures. When in
+         * check we must consider all legal moves so a non-capture escape
+         * (king move, interposition) can be found.
+         */
+        if ( depth > 0 || pos.IsCheck() )
         {
             myMoves = pos.GetMoves();
             if ( myMoves.IsEmpty() )
