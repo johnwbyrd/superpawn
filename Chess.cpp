@@ -30,8 +30,11 @@ const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
 /** Maximum command length for UCI commands. */
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
-/** Default search depth */
+/** Search depth used for a bare "go" with no clock, depth or node limit */
 const unsigned int DEFAULT_SEARCH_DEPTH = 6; //-V112
+
+/** Iterative deepening never goes past this depth. */
+const unsigned int MAX_SEARCH_DEPTH = 100;
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -365,7 +368,7 @@ class Clock : Object
 {
 public:
 
-    typedef chrono::system_clock NativeClockType;
+    typedef chrono::steady_clock NativeClockType;
     typedef NativeClockType::duration NativeClockDurationType;
     typedef NativeClockType::time_point NativeTimePointType;
 
@@ -3121,20 +3124,40 @@ public:
         m_bInfinite = false;
         m_SearchStopTime = 0;
         m_SearchEmergencyStopTime = 0;
+        m_bStopTimeCalculated = false;
     }
 
     virtual void Action()
     {
         m_SearchStopTime = 0;
         m_SearchEmergencyStopTime = 0;
+        m_bStopTimeCalculated = false;
     }
 
     virtual void Cut()
     {
         m_SearchStopTime = 0;
         m_SearchEmergencyStopTime = 0;
+        m_bStopTimeCalculated = false;
     }
 
+    /** Shave a little off a deadline so the bestmove reaches the GUI
+     ** before the clock actually runs out.
+     **/
+    static Clock::ChessTickType SubtractLatency( Clock::ChessTickType t )
+    {
+        const Clock::ChessTickType margin = 20;
+        if ( t > 2 * margin )
+            return t - margin;
+        return ( t / 2 > 1 ) ? t / 2 : 1;
+    }
+
+    /** Decides, once per search, how long to think.  Sets a soft budget
+     ** (m_SearchStopTime): once it is half spent no new iteration is
+     ** started, because each iteration costs several times its
+     ** predecessor.  Also sets a hard budget (m_SearchEmergencyStopTime)
+     ** at which the search aborts wherever it happens to be.
+     **/
     virtual void CalculateSearchStopTime(
         const Clock::ChessTickType /* currentTime */,
         const int /* nScore */,
@@ -3143,63 +3166,82 @@ public:
         const Moves & /* mPrincipalVariation */
     )
     {
-        int ply = rootPosition.GetPly();
+        m_bStopTimeCalculated = true;
+        m_SearchStopTime = 0;
+        m_SearchEmergencyStopTime = 0;
+
+        if ( m_nMoveTime != 0 )
+        {
+            m_SearchStopTime = m_nMoveTime;
+            m_SearchEmergencyStopTime = SubtractLatency( m_nMoveTime );
+            return;
+        }
+
         Color sideToMove = rootPosition.GetColorToMove();
-        Clock::ChessTickType timeLeft, themTimeLeft;
+        Clock::ChessTickType timeLeft = ( sideToMove == WHITE ) ?
+                                        m_WhiteTime : m_BlackTime;
+        Clock::ChessTickType inc = ( sideToMove == WHITE ) ?
+                                   m_WhiteInc : m_BlackInc;
 
-        if ( sideToMove == WHITE )
-        {
-            timeLeft = m_WhiteTime;
-            themTimeLeft = m_BlackTime;
-        }
-        else
-        {
-            timeLeft = m_BlackTime;
-            themTimeLeft = m_WhiteTime;
-        }
+        /* No clock at all: leave both limits at zero and ShouldCut falls
+         * back to a fixed depth.
+         */
+        if ( timeLeft <= 0 )
+            return;
 
-        int movesUntilTimeControl;
-        if ( m_nMovesToGo != 0 )
-            movesUntilTimeControl = m_nMovesToGo;
-        else
-            movesUntilTimeControl = 25;
+        Clock::ChessTickType movesToGo = ( m_nMovesToGo != 0 ) ?
+                                         m_nMovesToGo : 30;
+
+        Clock::ChessTickType soft = timeLeft / movesToGo + ( inc * 3 ) / 4;
 
         /* Good chess players tend to fall into a deep think around ply 17 or so.
          * Let's pretend we know what we're doing and do the same.
          */
-        float factor;
-        factor =  2.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
+        int ply = rootPosition.GetPly();
+        float factor = 2.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
 
         if ( factor > 2.0f )
             factor = 2.0f;
         if ( factor < 1.0f )
             factor = 1.0f;
 
-        m_SearchStopTime = timeLeft / movesUntilTimeControl;
-        float fSearchStopTime = ( float )m_SearchStopTime;
-        fSearchStopTime *= factor;
+        soft = ( Clock::ChessTickType )( soft * factor );
 
-        fSearchStopTime = fSearchStopTime * ( timeLeft * timeLeft ) /
-                          ( themTimeLeft * themTimeLeft );
+        /* Never plan to spend more than a quarter of the clock on one move. */
+        if ( soft > timeLeft / 4 )
+            soft = timeLeft / 4;
+        if ( soft < 1 )
+            soft = 1;
 
-        m_SearchStopTime = ( Clock::ChessTickType )fSearchStopTime;
+        /* Allow an iteration that is already under way to overrun the soft
+         * budget, but never by so much that we flag.
+         */
+        Clock::ChessTickType hard = soft * 3;
+        if ( hard > timeLeft / 3 )
+            hard = timeLeft / 3;
+        hard = SubtractLatency( hard );
+        if ( soft > hard )
+            soft = hard;
 
-        /* Don't think for longer than half of our remaining time, regardless... */
-        m_SearchEmergencyStopTime = timeLeft / 2;
+        m_SearchStopTime = soft;
+        m_SearchEmergencyStopTime = hard;
     }
 
     void Notify( const string &s );
 
+    /** Called just before the iterative deepener starts an iteration at
+     ** nDepthToSearch.  Returns true if the search should finish instead.
+     **/
     virtual bool ShouldCut(
         const Clock::ChessTickType currentTime,
         const int nScore,
-        const unsigned int nDepthSearched,
+        const unsigned int nDepthToSearch,
         const Position &rootPosition,
         const Moves &mPrincipalVariation
     )
     {
         /* This can happen in late end game. */
-        if ( nDepthSearched >= 100 )
+        if ( nDepthToSearch > MAX_SEARCH_DEPTH )
             return true;
 
         /* 'go mate N' asks us to stop as soon as we've proved a mate
@@ -3218,19 +3260,30 @@ public:
         }
 
         if ( m_nDepth != 0 )
-            return ( nDepthSearched >= m_nDepth );
-
-        if ( m_nMoveTime != 0 )
-            return ( currentTime >= m_nMoveTime );
+            return ( nDepthToSearch > m_nDepth );
 
         if ( m_bInfinite )
             return false;
 
-        if ( m_SearchStopTime == 0 )
-            CalculateSearchStopTime( currentTime, nScore, nDepthSearched,
+        if ( !m_bStopTimeCalculated )
+            CalculateSearchStopTime( currentTime, nScore, nDepthToSearch,
                                      rootPosition, mPrincipalVariation );
 
-        return ( currentTime >= m_SearchStopTime );
+        if ( m_SearchStopTime == 0 )
+        {
+            /* No clock and no movetime.  A node limit is enforced by
+             * ShouldCutEmergency; otherwise search to a fixed depth.
+             */
+            if ( m_nNodes != 0 )
+                return false;
+            return ( nDepthToSearch > DEFAULT_SEARCH_DEPTH );
+        }
+
+        /* Don't start an iteration that will probably not finish: each one
+         * costs several times its predecessor, so once half the budget is
+         * gone the next iteration would overrun it.
+         */
+        return ( currentTime * 2 >= m_SearchStopTime );
     }
 
     virtual bool ShouldCutEmergency( const Clock::ChessTickType currentTime,
@@ -3257,6 +3310,7 @@ protected:
     bool m_bInfinite;
     Clock::ChessTickType m_SearchStopTime;
     Clock::ChessTickType m_SearchEmergencyStopTime;
+    bool m_bStopTimeCalculated;
 
 };
 
@@ -3289,6 +3343,7 @@ public:
     {
         m_Root = pos;
         m_nNodesSearched = 0;
+        m_Score = 0;
         m_Clock.Reset();
         m_Clock.Start();
     }
@@ -3316,13 +3371,28 @@ protected:
 
     void SearchComplete()
     {
-        if ( m_Result.Count() > 0 )
+        if ( m_Result.Count() == 0 )
         {
-            stringstream ss;
-            ss.str( "" );
-            ss << ( string )m_Result.GetFirst();
-            Bestmove( ss.str() );
+            /* Not even the first iteration finished (an immediate "stop",
+             * say).  UCI still requires a bestmove, so fall back to the
+             * first legal move.
+             */
+            Moves rootMoves = m_Root.GetMoves();
+            for ( const auto &move : rootMoves )
+            {
+                Position next( m_Root, move );
+                if ( !next.CanKingBeCapturedNow() )
+                {
+                    m_Result.Add( move );
+                    break;
+                }
+            }
         }
+
+        if ( m_Result.Count() > 0 )
+            Bestmove( ( string )m_Result.GetFirst() );
+        else
+            Bestmove( "0000" );
 
         m_bTerminated = true;
     }
@@ -3447,27 +3517,25 @@ protected:
                                           m_Root,
                                           PV
                                         ) )
-            {
-                m_bTerminated = true;
                 break;
-            }
 
-            m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-                                      nCurrentDepth, m_Root, PV );
+            int nScore = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
+                                         nCurrentDepth, m_Root, PV );
 
-            /* Did we terminate prematurely due to time or node difficulties? */
-            if ( m_Director.ShouldCutEmergency( m_Clock.Get(),
-                                                m_nNodesSearched ) == false )
-            {
-                m_Result = PV;
-                /* The length of the principal variation may be zero if the position
-                * is some sort of terminal condition such as a stalemate or draw.
-                */
-                ReportCurrentPrincipalVariation( nCurrentDepth, PV );
-            }
-
+            /* An iteration cut short by the clock, the node limit or a
+             * "stop" command has scored a tree that was only partly
+             * searched, so neither its score nor its PV can be trusted.
+             * Keep the previous completed iteration's result instead.
+             */
             if ( m_bTerminated )
                 break;
+
+            m_Score = nScore;
+            m_Result = PV;
+            /* The length of the principal variation may be zero if the position
+             * is some sort of terminal condition such as a stalemate or draw.
+             */
+            ReportCurrentPrincipalVariation( nCurrentDepth, PV );
         }
 
         SearchComplete();
