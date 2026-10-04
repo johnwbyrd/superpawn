@@ -2787,6 +2787,212 @@ class EvaluatorSimpleMobility : public EvaluatorBase
     }
 };
 
+/** Pawn structure, rook on open file, bishop pair, and king pawn-shield,
+ ** all computed from a single board scan.
+ **/
+class EvaluatorPositional : public EvaluatorBase
+{
+public:
+    virtual int Evaluate( Position &pos ) const
+    {
+        const Board &board = pos.GetBoard();
+
+        /* Per-file pawn stats, kept from white's perspective (positive is
+         * good for white). "MaxRank" is the highest j a pawn of that color
+         * sits on; "MinRank" is the lowest. -1 / 8 are sentinels meaning
+         * "no pawn of this color on this file."
+         */
+        int wPawnsOnFile[ MAX_FILES ] = { 0 };
+        int bPawnsOnFile[ MAX_FILES ] = { 0 };
+        int wMaxRank[ MAX_FILES ];
+        int wMinRank[ MAX_FILES ];
+        int bMaxRank[ MAX_FILES ];
+        int bMinRank[ MAX_FILES ];
+        for ( unsigned int i = 0; i < MAX_FILES; i++ )
+        {
+            wMaxRank[ i ] = -1;
+            wMinRank[ i ] = 8;
+            bMaxRank[ i ] = -1;
+            bMinRank[ i ] = 8;
+        }
+
+        int wBishops = 0, bBishops = 0;
+        int wRookFiles[ 10 ], bRookFiles[ 10 ];
+        int wRookCount = 0, bRookCount = 0;
+        Square wKing, bKing;
+        bool wKingFound = false, bKingFound = false;
+
+        for ( unsigned int i = 0; i < MAX_FILES; i++ )
+            for ( unsigned int j = 0; j < MAX_FILES; j++ )
+            {
+                const Piece *p = board.Get( i, j );
+                if ( p == &None ) continue;
+
+                if ( p == &WhitePawn )
+                {
+                    wPawnsOnFile[ i ]++;
+                    if ( ( int )j > wMaxRank[ i ] ) wMaxRank[ i ] = ( int )j;
+                    if ( ( int )j < wMinRank[ i ] ) wMinRank[ i ] = ( int )j;
+                }
+                else if ( p == &BlackPawn )
+                {
+                    bPawnsOnFile[ i ]++;
+                    if ( ( int )j > bMaxRank[ i ] ) bMaxRank[ i ] = ( int )j;
+                    if ( ( int )j < bMinRank[ i ] ) bMinRank[ i ] = ( int )j;
+                }
+                else if ( p == &WhiteBishop ) wBishops++;
+                else if ( p == &BlackBishop ) bBishops++;
+                else if ( p == &WhiteRook )
+                {
+                    if ( wRookCount < 10 ) wRookFiles[ wRookCount++ ] = ( int )i;
+                }
+                else if ( p == &BlackRook )
+                {
+                    if ( bRookCount < 10 ) bRookFiles[ bRookCount++ ] = ( int )i;
+                }
+                else if ( p == &WhiteKing )
+                {
+                    wKing = Square( i, j );
+                    wKingFound = true;
+                }
+                else if ( p == &BlackKing )
+                {
+                    bKing = Square( i, j );
+                    bKingFound = true;
+                }
+            }
+
+        const int DOUBLED_PENALTY = 15;
+        const int ISOLATED_PENALTY = 15;
+        const int ROOK_OPEN = 20;
+        const int ROOK_SEMI_OPEN = 10;
+        const int BISHOP_PAIR = 30;
+        /* Passed-pawn bonus indexed by the pawn's rank (j coordinate).
+         * White pawn on rank 6 (j=6) is one square from promotion and so
+         * worth the most; black's table is just the mirror.
+         */
+        static const int PASSED_WHITE[ MAX_FILES ] =
+            { 0, 5, 15, 25, 40, 60, 100, 0 };
+        static const int PASSED_BLACK[ MAX_FILES ] =
+            { 0, 100, 60, 40, 25, 15, 5, 0 };
+
+        int score = 0;
+
+        for ( unsigned int f = 0; f < MAX_FILES; f++ )
+        {
+            /* Doubled pawns */
+            if ( wPawnsOnFile[ f ] > 1 )
+                score -= DOUBLED_PENALTY * ( wPawnsOnFile[ f ] - 1 );
+            if ( bPawnsOnFile[ f ] > 1 )
+                score += DOUBLED_PENALTY * ( bPawnsOnFile[ f ] - 1 );
+
+            /* Isolated pawns: no friendly pawn on either adjacent file */
+            if ( wPawnsOnFile[ f ] > 0 )
+            {
+                bool hasAdj = ( f > 0 && wPawnsOnFile[ f - 1 ] > 0 ) ||
+                              ( f < MAX_FILES - 1 && wPawnsOnFile[ f + 1 ] > 0 );
+                if ( !hasAdj )
+                    score -= ISOLATED_PENALTY * wPawnsOnFile[ f ];
+            }
+            if ( bPawnsOnFile[ f ] > 0 )
+            {
+                bool hasAdj = ( f > 0 && bPawnsOnFile[ f - 1 ] > 0 ) ||
+                              ( f < MAX_FILES - 1 && bPawnsOnFile[ f + 1 ] > 0 );
+                if ( !hasAdj )
+                    score += ISOLATED_PENALTY * bPawnsOnFile[ f ];
+            }
+
+            /* Passed pawns: look only at the most-advanced pawn on this
+             * file. For white that's the pawn with the highest rank; it's
+             * passed iff no enemy pawn on this or an adjacent file has
+             * a higher rank. Mirror for black.
+             */
+            if ( wMaxRank[ f ] >= 0 )
+            {
+                int wr = wMaxRank[ f ];
+                bool opposed = false;
+                for ( int df = -1; df <= 1 && !opposed; df++ )
+                {
+                    int ff = ( int )f + df;
+                    if ( ff < 0 || ff >= ( int )MAX_FILES ) continue;
+                    if ( bMaxRank[ ff ] > wr ) opposed = true;
+                }
+                if ( !opposed ) score += PASSED_WHITE[ wr ];
+            }
+            if ( bMinRank[ f ] < ( int )MAX_FILES )
+            {
+                int br = bMinRank[ f ];
+                bool opposed = false;
+                for ( int df = -1; df <= 1 && !opposed; df++ )
+                {
+                    int ff = ( int )f + df;
+                    if ( ff < 0 || ff >= ( int )MAX_FILES ) continue;
+                    if ( wMinRank[ ff ] < br && wMinRank[ ff ] >= 0 )
+                        opposed = true;
+                }
+                if ( !opposed ) score -= PASSED_BLACK[ br ];
+            }
+        }
+
+        /* Rook on open or semi-open file */
+        for ( int r = 0; r < wRookCount; r++ )
+        {
+            int f = wRookFiles[ r ];
+            if ( wPawnsOnFile[ f ] == 0 )
+                score += ( bPawnsOnFile[ f ] == 0 ) ? ROOK_OPEN : ROOK_SEMI_OPEN;
+        }
+        for ( int r = 0; r < bRookCount; r++ )
+        {
+            int f = bRookFiles[ r ];
+            if ( bPawnsOnFile[ f ] == 0 )
+                score -= ( wPawnsOnFile[ f ] == 0 ) ? ROOK_OPEN : ROOK_SEMI_OPEN;
+        }
+
+        /* Bishop pair */
+        if ( wBishops >= 2 ) score += BISHOP_PAIR;
+        if ( bBishops >= 2 ) score -= BISHOP_PAIR;
+
+        /* King pawn-shield, only material in the opening/early middlegame.
+         * Scale down linearly to zero by late middlegame.
+         */
+        float phase = pos.GetPhase();
+        if ( phase < 0.7f )
+        {
+            float middlegameFactor = 1.0f - phase / 0.7f;
+            int wShield = wKingFound ? KingShield( board, wKing, WHITE ) : 0;
+            int bShield = bKingFound ? KingShield( board, bKing, BLACK ) : 0;
+            score += ( int )( ( wShield - bShield ) * middlegameFactor );
+        }
+
+        return Bias( pos, score );
+    }
+
+private:
+    static int KingShield( const Board &board, const Square &king, Color c )
+    {
+        int kf = king.I();
+        int kr = king.J();
+        int fwd = ( c == WHITE ) ? 1 : -1;
+        const Piece *myPawn = ( c == WHITE )
+                              ? ( const Piece * )&WhitePawn
+                              : ( const Piece * )&BlackPawn;
+        int score = 0;
+        for ( int df = -1; df <= 1; df++ )
+        {
+            int f = kf + df;
+            if ( f < 0 || f >= ( int )MAX_FILES ) continue;
+            for ( int dr = 1; dr <= 2; dr++ )
+            {
+                int r = kr + fwd * dr;
+                if ( r < 0 || r >= ( int )MAX_FILES ) continue;
+                if ( board.Get( f, r ) == myPawn )
+                    score += ( dr == 1 ) ? 12 : 6;
+            }
+        }
+        return score;
+    }
+};
+
 class EvaluatorStandard : public EvaluatorWeighted
 {
 public:
@@ -2795,6 +3001,8 @@ public:
         m_Weighted.Add( m_Material );
         m_Weighted.Add( m_SimpleMobility, 0.1f );
         m_Weighted.Add( m_PieceSquareEvaluator, 0.8f );
+        m_Weighted.Add( m_Positional, 1.0f );
+        m_Weighted.Add( m_MopUp, 1.0f );
     }
 
     virtual int Evaluate( Position &pos ) const
@@ -2806,6 +3014,7 @@ public:
     EvaluatorSimpleMobility m_SimpleMobility;
     EvaluatorPieceSquare m_PieceSquareEvaluator;
     EvaluatorMopUp m_MopUp;
+    EvaluatorPositional m_Positional;
     EvaluatorWeighted m_Weighted;
 };
 
