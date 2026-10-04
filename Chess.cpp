@@ -30,8 +30,17 @@ const unsigned int HASH_TABLE_SIZE = 128 * 1024 * 1024;
 /** Maximum command length for UCI commands. */
 const unsigned int MAX_COMMAND_LENGTH = 64 * 256;
 
-/** Default search depth */
+/** Search depth used for a bare "go" with no clock, depth or node limit */
 const unsigned int DEFAULT_SEARCH_DEPTH = 6; //-V112
+
+/** Iterative deepening never goes past this depth. */
+const unsigned int MAX_SEARCH_DEPTH = 100;
+
+/** Deepest ply for which killer moves are kept. */
+const int MAX_PLY = 128;
+
+/** Half-width, in centipawns, of the root aspiration window. */
+const int ASPIRATION_WINDOW = 40;
 
 /** An estimate of a reasonable maximum of moves in any given position.  Not
  ** a hard bound.
@@ -135,10 +144,10 @@ PieceSquareRawTableType psrtKnight =
 {
     -40, -30, -30, -30, -30, -30, -30, -40,
     -40, -20,   0,   0,   0,   0, -20, -40,
-    -30,   0,   5,  10,  10,   5,   0, -50,
+    -30,   0,   5,  10,  10,   5,   0, -30,
     -30,  10,  15,  30,  30,  15,  10, -30,
     -30,  10,  15,  30,  30,  15,  10, -30,
-    -30,   0,  10,  15,  15,  10,   0, -50,
+    -30,   0,  10,  15,  15,  10,   0, -30,
     -40, -20,   0,   0,   0,   0, -20, -40,
     -40, -30, -30, -30, -30, -30, -30, -40
 };
@@ -149,7 +158,7 @@ PieceSquareRawTableType psrtWhitePawnEarly =
     5,   5,  10, -20, -20,  10,   5,   5,
     5,  -5, -10,   0,   0, -10,  -5,   5,
     0,   0,   0,  20,  20,   0,   0,   0,
-    20, 20,  30,  40,  40,  30,  30,  20,
+    20, 20,  30,  40,  40,  30,  20,  20,
     40, 50,  60,  80,  80,  60,  50,  40,
     60, 70,  80, 100, 100,  80,  70,  60,
     0,   0,   0,   0,   0,   0,   0,   0
@@ -191,7 +200,7 @@ PieceSquareRawTableType psrtRook =
     -5,  0,  0,  0,  0,  0,  0, -5,
     -5,  0,  0,  0,  0,  0,  0, -5,
     20, 20, 20, 20, 20, 20, 20, 20,
-    -5,  0,  0,  0,  0,  0,  0,  0
+    -5,  0,  0,  0,  0,  0,  0, -5
 };
 
 PieceSquareRawTableType psrtWhiteKingEarly =
@@ -365,7 +374,7 @@ class Clock : Object
 {
 public:
 
-    typedef chrono::system_clock NativeClockType;
+    typedef chrono::steady_clock NativeClockType;
     typedef NativeClockType::duration NativeClockDurationType;
     typedef NativeClockType::time_point NativeTimePointType;
 
@@ -1093,10 +1102,19 @@ public:
 
         m_PromoteTo = &None;
 
-        if ( moveLength != 4 && moveLength != 5 ) //-V112
-            Die( "Got an incoming Move string that had a weird length " );
-
         m_Piece = &None;
+        m_Score = 0;
+
+        /* A malformed string (or the GUI null move "0000") becomes a move
+         * from off the board, which will never match a generated move.
+         */
+        if ( moveLength != 4 && moveLength != 5 ) //-V112
+        {
+            m_Source = Square( -99, -99 );
+            m_Dest = Square( -99, -99 );
+            return;
+        }
+
         m_Source.I( sMove[0] - 'a' );
         m_Source.J( sMove[1] - '1' );
         m_Dest.I( sMove[2] - 'a' );
@@ -1630,15 +1648,12 @@ public:
 
     virtual ~PositionHashTable()
     {
-        if ( m_SizeBytes )
-            delete[] m_pEntries;
+        delete[] m_pEntries;
     }
 
+    /** Forget everything: a new game is starting. */
     virtual void Purge()
     {
-        delete[] m_pEntries;
-        m_nEntriesInUse = 0;
-        m_CacheLookups = m_CacheMisses = m_CacheHits = 0;
         SetSize( m_SizeBytes );
     }
 
@@ -1695,6 +1710,11 @@ public:
         size |= size >> 16;
         size++;
 
+        delete[] m_pEntries;
+        m_pEntries = nullptr;
+        m_nEntriesInUse = 0;
+        m_CacheLookups = m_CacheMisses = m_CacheHits = 0;
+
         m_SizeBytes = size;
         m_SizeBytesMask = size - 1;
         m_SizeEntries = m_SizeBytes / sizeof( PositionHashEntry );
@@ -1733,14 +1753,14 @@ const float fPhaseMaterial[AllPiecesSize] =
 {
     0.0f, /*pawns*/
     0.0f,
-    1.5f, /*knights*/
-    1.5f,
-    1.5f, /*bishops*/
-    1.5f,
-    0.5f, /* rooks */
-    0.5f,
-    2.0f, /*queens*/
+    1.0f, /*knights*/
+    1.0f,
+    1.0f, /*bishops*/
+    1.0f,
+    2.0f, /* rooks */
     2.0f,
+    4.0f, /*queens*/
+    4.0f,
     0.0f, /*kings*/
     0.0f
 };
@@ -1753,7 +1773,7 @@ class Material : Object
 protected:
     void Initialize()
     {
-        m_fPhase = 0.0f;
+        m_fPhase = -1.0f;
         for ( int i = 0; i < AllPiecesSize; i++ )
             m_nCount[i] = 0;
     }
@@ -1771,7 +1791,7 @@ protected:
             if ( AllPieces[i] == pPiece )
             {
                 m_nCount[i]--;
-                m_fPhase = 0.0f;
+                m_fPhase = -1.0f;
                 return;
             }
         }
@@ -1785,7 +1805,7 @@ protected:
             if ( AllPieces[i] == pPiece )
             {
                 m_nCount[i]++;
-                m_fPhase = 0.0f;
+                m_fPhase = -1.0f;
                 return;
             }
         }
@@ -1802,7 +1822,7 @@ protected:
 
     float GetPhase()
     {
-        if ( m_fPhase == 0.0f )
+        if ( m_fPhase < 0.0f )
         {
             m_fPhase = 1.0f - ( GetMaterial() / s_fMaximumMaterial );
 
@@ -1814,6 +1834,36 @@ protected:
         }
 
         return m_fPhase;
+    }
+
+    /** True when neither side can possibly deliver mate: bare kings, a
+     ** lone minor piece, or only knights (at most two) on the board.
+     **/
+    bool IsInsufficient() const
+    {
+        /* Indices follow the AllPieces order: WP BP WN BN WB BB WR BR WQ BQ */
+        if ( m_nCount[0] || m_nCount[1] || m_nCount[6] || m_nCount[7] ||
+                m_nCount[8] || m_nCount[9] )
+            return false;
+
+        unsigned int knights = m_nCount[2] + m_nCount[3];
+        unsigned int bishops = m_nCount[4] + m_nCount[5];
+
+        if ( knights + bishops <= 1 )
+            return true;
+
+        return ( bishops == 0 && knights <= 2 );
+    }
+
+    /** Does this color own anything besides pawns and the king? */
+    bool HasNonPawnMaterial( Color color ) const
+    {
+        /* White pieces sit at even AllPieces indices, black at odd. */
+        int first = ( color == WHITE ) ? 2 : 3;
+        for ( int i = first; i <= 9; i += 2 )
+            if ( m_nCount[i] )
+                return true;
+        return false;
     }
 
 protected:
@@ -1856,17 +1906,19 @@ public:
     {
         CopyFrom( position );
 
+        if ( &move == &NullMove )
+        {
+            m_bNullMove = true;
+            SetColorToMove( !GetColorToMove() );
+            ComputeHash();
+            return;
+        }
+
         Square source = move.Source();
         DevirginizeRooks( source );
 
         const Piece *pPiece = GetBoard().Get( source );
         DevirginizeKing( pPiece );
-
-        if ( &move == &NullMove )
-        {
-            SetColorToMove( !GetColorToMove() );
-            return;
-        }
 
         if ( pPiece == &None )
         {
@@ -1884,7 +1936,7 @@ public:
         m_Board.Set( move.Source().I(), move.Source().J(), &None );
         SetColorToMove( !GetColorToMove() );
 
-        PushHashInHistory();
+        ComputeHash();
     }
 
     void Initialize()
@@ -1898,7 +1950,7 @@ public:
                     m_bVirginA1 =
                         m_bVirginBlackKing =
                             m_bVirginWhiteKing = true;
-        m_nPlySinceCaptureOrPawnMove = 1;
+        m_nPlySinceCaptureOrPawnMove = 0;
         m_sEnPassant.Set( -1, -1 );
         m_Moves.Clear();
         m_Board.Initialize();
@@ -1906,6 +1958,9 @@ public:
         m_bIsCheckDetermined = false;
         m_bIsCheck = false;
         m_PreviousPositions.clear();
+        m_pParent = nullptr;
+        m_Hash = 0;
+        m_bNullMove = false;
     }
 
     int GetColorBias() const
@@ -1923,9 +1978,7 @@ public:
      **/
     const PositionHashEntry *LookUp() const
     {
-        PositionHashTable *pHT = GetHashTable();
-        PositionHasher ph( *this );
-        return pHT->LookUp( ph.GetHash() );
+        return GetHashTable()->LookUp( GetHash() );
     }
 
     /** Inserts this position into the hash table.  Takes care of updating
@@ -2005,26 +2058,61 @@ public:
     }
 
 
-    void PushHashInHistory()
+    void ComputeHash()
     {
         PositionHasher ph( *this );
-        m_PreviousPositions.push_back( ph.GetHash() );
+        m_Hash = ph.GetHash();
     }
 
-    void PopHashFromHistory()
-    {
-        m_PreviousPositions.pop_back();
-    }
-
-    unsigned int CountHashesInHistory( const HashValue &theHash ) const
+    /** How many times has this position occurred before, counting the
+     ** search path (the chain of parents) and then the game history
+     ** stored on the detached position at the top of that chain?
+     **/
+    unsigned int CountRepetitions() const
     {
         unsigned int count = 0;
-        for ( auto previous : m_PreviousPositions )
+        const Position *p = m_pParent;
+
+        while ( p != nullptr )
         {
-            if ( previous == theHash )
+            if ( p->m_Hash == m_Hash )
                 count++;
+
+            if ( p->m_pParent == nullptr )
+            {
+                for ( auto previous : p->m_PreviousPositions )
+                    if ( previous == m_Hash )
+                        count++;
+            }
+
+            p = p->m_pParent;
         }
+
         return count;
+    }
+
+    /** Positions created by making a move only point at their parent
+     ** rather than copying the whole game history.  Before a position
+     ** outlives its parent (it is stored in the Game, or becomes a
+     ** search root) that chain must be flattened into a list it owns.
+     **/
+    void DetachHistory()
+    {
+        if ( m_pParent == nullptr )
+            return;
+
+        PreviousPositionType history;
+        for ( const Position *p = m_pParent; p != nullptr; p = p->m_pParent )
+        {
+            history.push_back( p->m_Hash );
+            if ( p->m_pParent == nullptr )
+                history.insert( history.end(),
+                                p->m_PreviousPositions.begin(),
+                                p->m_PreviousPositions.end() );
+        }
+
+        m_PreviousPositions = history;
+        m_pParent = nullptr;
     }
 
     void CopyFrom( const Position &position )
@@ -2033,7 +2121,11 @@ public:
         m_ColorToMove = position.m_ColorToMove;
         m_Material = position.m_Material;
         m_nMaterialScore = position.m_nMaterialScore;
-        m_PreviousPositions = position.m_PreviousPositions;
+        /* The history is reached through the parent, not copied. */
+        m_PreviousPositions.clear();
+        m_pParent = &position;
+        m_Hash = 0;
+        m_bNullMove = false;
 
         m_nPly = position.m_nPly + 1;
         m_sEnPassant = Square( -1, -1 );
@@ -2061,7 +2153,7 @@ public:
         if ( sourceType == PAWN )
         {
             /* The fifty move rule resets whenever a pawn is moved. */
-            m_nPlySinceCaptureOrPawnMove = 1;
+            m_nPlySinceCaptureOrPawnMove = 0;
             HandleEnPassant( move, position, captureSquare );
         }
         else
@@ -2091,7 +2183,7 @@ public:
          * fifty-move clock resets regardless. MovePiece normally handles
          * the pawn-move reset, but PromotePiece bypasses it entirely.
          */
-        m_nPlySinceCaptureOrPawnMove = 1;
+        m_nPlySinceCaptureOrPawnMove = 0;
 
         /* Update the material counts: pawn is gone, promoted piece appears,
          * and anything we captured on the back rank is also gone.
@@ -2140,7 +2232,7 @@ public:
         if ( pCaptured != &None )
         {
             m_Material.CaptureMaterial( pCaptured );
-            m_nPlySinceCaptureOrPawnMove = 1;
+            m_nPlySinceCaptureOrPawnMove = 0;
         }
 
         if ( captureSquare == A1 )
@@ -2211,18 +2303,115 @@ public:
 
     }
 
-    bool CanKingBeCapturedNow()
+    /** Where is this color's king?  Off the board if there isn't one. */
+    Square FindKing( Color color ) const
     {
-        Moves moves = GetMoves();
+        const Piece *pKing = ( color == WHITE ) ?
+                             ( const Piece * )&WhiteKing :
+                             ( const Piece * )&BlackKing;
 
-        if ( !moves.IsEmpty() )
+        for ( unsigned int index = 0; index < MAX_SQUARES; index++ )
+            if ( m_Board.Get( index ) == pKing )
+                return Square( index & 7, index >> 3 );
+
+        return Square( -1, -1 );
+    }
+
+    /** Does any piece of 'byColor' attack 'target'?  Looks outward from
+     ** the target, so it costs a few dozen board probes rather than a
+     ** full move generation.
+     **/
+    bool IsSquareAttacked( const Square &target, Color byColor ) const
+    {
+        if ( !target.IsOnBoard() )
+            return false;
+
+        const int ti = target.I();
+        const int tj = target.J();
+
+        const Piece *pPawn, *pKnight, *pBishop, *pRook, *pQueen, *pKing;
+        if ( byColor == WHITE )
         {
-            Move bestMove = moves.GetFirst();
-            if ( bestMove.Score() >= KING_VALUE )
+            pPawn = &WhitePawn;
+            pKnight = &WhiteKnight;
+            pBishop = &WhiteBishop;
+            pRook = &WhiteRook;
+            pQueen = &WhiteQueen;
+            pKing = &WhiteKing;
+        }
+        else
+        {
+            pPawn = &BlackPawn;
+            pKnight = &BlackKnight;
+            pBishop = &BlackBishop;
+            pRook = &BlackRook;
+            pQueen = &BlackQueen;
+            pKing = &BlackKing;
+        }
+
+        /* Pawns attack diagonally forward, so look diagonally backward. */
+        const int pj = ( byColor == WHITE ) ? tj - 1 : tj + 1;
+        if ( pj >= 0 && pj < ( int )MAX_FILES )
+        {
+            if ( ti > 0 && m_Board.Get( ti - 1, pj ) == pPawn )
+                return true;
+            if ( ti < ( int )HIGHEST_FILE && m_Board.Get( ti + 1, pj ) == pPawn )
                 return true;
         }
 
+        static const int knightSteps[8][2] =
+        {
+            { 1, 2 }, { -1, 2 }, { 1, -2 }, { -1, -2 },
+            { 2, 1 }, { -2, 1 }, { 2, -1 }, { -2, -1 }
+        };
+        static const int kingSteps[8][2] =
+        {
+            { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+            { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 }
+        };
+
+        for ( int n = 0; n < 8; n++ )
+        {
+            Square sq( ti + knightSteps[n][0], tj + knightSteps[n][1] );
+            if ( sq.IsOnBoard() && m_Board.Get( sq ) == pKnight )
+                return true;
+
+            Square ks( ti + kingSteps[n][0], tj + kingSteps[n][1] );
+            if ( ks.IsOnBoard() && m_Board.Get( ks ) == pKing )
+                return true;
+        }
+
+        /* Sliders: walk each ray until something is hit. */
+        for ( int n = 0; n < 8; n++ )
+        {
+            const int di = kingSteps[n][0];
+            const int dj = kingSteps[n][1];
+            const bool bDiagonal = ( di != 0 && dj != 0 );
+            const Piece *pSlider = bDiagonal ? pBishop : pRook;
+
+            Square sq( ti + di, tj + dj );
+            while ( sq.IsOnBoard() )
+            {
+                const Piece *p = m_Board.Get( sq );
+                if ( p != &None )
+                {
+                    if ( p == pSlider || p == pQueen )
+                        return true;
+                    break;
+                }
+                sq.Change( di, dj );
+            }
+        }
+
         return false;
+    }
+
+    /** True if the side to move could capture the enemy king, i.e. the
+     ** previous move was illegal.
+     **/
+    bool CanKingBeCapturedNow() const
+    {
+        return IsSquareAttacked( FindKing( !m_ColorToMove ), m_ColorToMove );
     }
 
     bool IsCheck()
@@ -2230,32 +2419,9 @@ public:
         if ( m_bIsCheckDetermined )
             return m_bIsCheck;
 
-        /* To determine check, apply a null move to the current position and see if the result
-         * permits the king to be captured.
-         */
-        Position tempPos( *this, NullMove );
-        m_bIsCheck = tempPos.CanKingBeCapturedNow();
+        m_bIsCheck = IsSquareAttacked( FindKing( m_ColorToMove ), !m_ColorToMove );
         m_bIsCheckDetermined = true;
         return m_bIsCheck;
-    }
-
-    bool IsStalemate()
-    {
-        if ( IsCheck() )
-            return false;
-
-        Moves moves = GetMoves();
-        for ( auto move : moves )
-        {
-            Position nextPos( *this, move );
-            if ( nextPos.CanKingBeCapturedNow() == false )
-            {
-                // terminate asap
-                return false;
-            }
-        }
-
-        return true;
     }
 
     const Board &GetBoard() const
@@ -2275,6 +2441,7 @@ public:
         m_ColorToMove = WHITE;
         m_Material.UpdateFrom( *this );
         m_Material.CalculateMaximumMaterial();
+        ComputeHash();
     }
 
     void Dump() const
@@ -2301,9 +2468,22 @@ public:
         ss.str( sFEN );
 
         string sBoard, sToMove, sVirgins, sEnPassant;
+        unsigned int nHalfmoveClock;
         int nMoves;
 
-        ss >> sBoard >> sToMove >> sVirgins >> sEnPassant >> m_nPly >> nMoves;
+        ss >> sBoard >> sToMove;
+
+        /* The last four fields are optional (EPD-style FENs omit them). */
+        if ( !( ss >> sVirgins ) )
+            sVirgins = "-";
+        if ( !( ss >> sEnPassant ) )
+            sEnPassant = "-";
+        if ( !( ss >> nHalfmoveClock ) )
+            nHalfmoveClock = 0;
+        if ( !( ss >> nMoves ) || nMoves < 1 )
+            nMoves = 1;
+
+        m_nPlySinceCaptureOrPawnMove = nHalfmoveClock;
 
         int j = MAX_FILES - 1;
         int i = 0;
@@ -2386,7 +2566,7 @@ public:
             }
         }
 
-        SetColorToMove( sToMove == "w" ? WHITE : BLACK );
+        SetColorToMove( sToMove == "b" ? BLACK : WHITE );
 
         stringstream ssVirgins( sVirgins );
 
@@ -2435,6 +2615,7 @@ public:
         m_nPly = ( nMoves - 1 ) * 2 + ( m_ColorToMove ? 0 : 1 );
 
         UpdateScore();
+        ComputeHash();
 
         return 0;
     }
@@ -2505,7 +2686,7 @@ public:
         ss << " ";
         ss << ( string ) m_sEnPassant;
         ss << " ";
-        ss << m_nPly;
+        ss << m_nPlySinceCaptureOrPawnMove;
         ss << " ";
         ss << m_nPly / 2 + 1;
 
@@ -2558,15 +2739,28 @@ public:
 
     HashValue GetHash() const
     {
-        if ( !m_PreviousPositions.empty() )
-            return m_PreviousPositions.back();
-        PositionHasher ph( *this );
-        return ph.GetHash();
+        return m_Hash;
     }
 
     float GetPhase()
     {
         return m_Material.GetPhase();
+    }
+
+    bool IsInsufficientMaterial() const
+    {
+        return m_Material.IsInsufficient();
+    }
+
+    /** Was this position produced by passing rather than moving? */
+    bool WasNullMove() const
+    {
+        return m_bNullMove;
+    }
+
+    bool HasNonPawnMaterial( Color color ) const
+    {
+        return m_Material.HasNonPawnMaterial( color );
     }
 
 
@@ -2587,6 +2781,12 @@ protected:
     Moves m_Captures;
     bool m_bIsCheckDetermined;
     bool m_bIsCheck;
+    /** Zobrist hash of this position, fixed once it is constructed. */
+    HashValue m_Hash;
+    bool m_bNullMove;
+    /** The position this one was reached from, or null if detached. */
+    const Position *m_pParent;
+    /** Hashes of earlier positions; only used on a detached position. */
     typedef std::vector< HashValue > PreviousPositionType;
     PreviousPositionType m_PreviousPositions;
 };
@@ -2647,9 +2847,10 @@ protected:
 class EvaluatorSlowMaterial : public EvaluatorBase
 {
 public:
-    virtual int Evaluate( Position &pos ) const
+    /** Material balance from white's point of view, by scanning the board. */
+    static int WhiteRelative( const Position &pos )
     {
-        Board board = pos.GetBoard();
+        const Board &board = pos.GetBoard();
         const Piece *piece;
 
         int nScore = 0;
@@ -2664,7 +2865,12 @@ public:
             }
         }
 
-        return Bias( pos, nScore );
+        return nScore;
+    }
+
+    virtual int Evaluate( Position &pos ) const
+    {
+        return Bias( pos, WhiteRelative( pos ) );
     }
 };
 
@@ -2701,37 +2907,65 @@ public:
     }
 };
 
+/** Endgame mop-up: once the board is nearly empty and one side is
+ ** clearly ahead, reward driving the losing king toward the edge and
+ ** bringing the winning king up to it.  Signed by who is ahead, so the
+ ** losing side is pushed away rather than drawn in.
+ **/
 class EvaluatorMopUp : public EvaluatorBase
 {
-    unsigned int whiteKing = 99, blackKing = 99;
-    int dist = 0;
-
     virtual int Evaluate( Position &pos ) const
     {
-        const float fTurnOnAt = 0.9f;
+        const float fTurnOnAt = 0.8f;
+        const int nMinimumAdvantage = 200;
 
         if ( pos.GetPhase() < fTurnOnAt )
             return 0;
 
-        Square localWhiteKing, localBlackKing;
+        /* Material balance from white's point of view. */
+        int advantage = pos.GetScore();
+        if ( abs( advantage ) < nMinimumAdvantage )
+            return 0;
+
+        Square whiteKing, blackKing;
+        bool bFoundWhite = false, bFoundBlack = false;
 
         for ( unsigned int i = 0; i < MAX_FILES; i++ )
-        {
             for ( unsigned int j = 0; j < MAX_FILES; j++ )
             {
                 Square cur( i, j );
                 const Piece *pPiece = pos.GetBoard().Get( cur );
 
                 if ( pPiece == &WhiteKing )
-                    localWhiteKing = cur;
+                {
+                    whiteKing = cur;
+                    bFoundWhite = true;
+                }
 
                 if ( pPiece == &BlackKing )
-                    localBlackKing = cur;
+                {
+                    blackKing = cur;
+                    bFoundBlack = true;
+                }
             }
-        }
 
-        return Bias( pos, ( 6 - localWhiteKing.ManhattanDistanceTo(
-                                localBlackKing ) ) * 100 );
+        if ( !bFoundWhite || !bFoundBlack )
+            return 0;
+
+        const Square &loser = ( advantage > 0 ) ? blackKing : whiteKing;
+
+        /* Manhattan distance from the centre, doubled to stay in integers:
+         * 2 for a central square up to 14 in a corner.
+         */
+        int centre = abs( 2 * loser.I() - 7 ) + abs( 2 * loser.J() - 7 );
+        int kingDistance = whiteKing.ManhattanDistanceTo( blackKing );
+
+        int nScore = centre * 5 + ( 14 - kingDistance ) * 4;
+
+        if ( advantage < 0 )
+            nScore = -nScore;
+
+        return Bias( pos, nScore );
     }
 };
 
@@ -3049,8 +3283,10 @@ class EvaluatorStandard : public EvaluatorWeighted
 public:
     EvaluatorStandard()
     {
+        /* Mobility is deliberately absent: counting only the side to
+         * move's moves made the score depend on whose turn it was.
+         */
         m_Weighted.Add( m_Material );
-        m_Weighted.Add( m_SimpleMobility, 0.1f );
         m_Weighted.Add( m_PieceSquareEvaluator, 0.8f );
         m_Weighted.Add( m_Positional, 1.0f );
         m_Weighted.Add( m_MopUp, 1.0f );
@@ -3058,11 +3294,13 @@ public:
 
     virtual int Evaluate( Position &pos ) const
     {
+        if ( pos.IsInsufficientMaterial() )
+            return DRAW_SCORE;
+
         return m_Weighted.Evaluate( pos );
     }
 
     EvaluatorMaterial m_Material;
-    EvaluatorSimpleMobility m_SimpleMobility;
     EvaluatorPieceSquare m_PieceSquareEvaluator;
     EvaluatorMopUp m_MopUp;
     EvaluatorPositional m_Positional;
@@ -3073,8 +3311,12 @@ typedef EvaluatorStandard Evaluator;
 
 void Position::UpdateScore()
 {
-    EvaluatorSlowMaterial slow;
-    SetScore( slow.Evaluate( *this ) );
+    /* m_nMaterialScore is kept from white's point of view and updated
+     * incrementally from here on, so it must not be biased toward the
+     * side to move: that flipped the sign of every FEN position with
+     * black to move, for the rest of the game.
+     */
+    SetScore( EvaluatorSlowMaterial::WhiteRelative( *this ) );
     m_Material.UpdateFrom( *this );
 }
 
@@ -3121,20 +3363,40 @@ public:
         m_bInfinite = false;
         m_SearchStopTime = 0;
         m_SearchEmergencyStopTime = 0;
+        m_bStopTimeCalculated = false;
     }
 
     virtual void Action()
     {
         m_SearchStopTime = 0;
         m_SearchEmergencyStopTime = 0;
+        m_bStopTimeCalculated = false;
     }
 
     virtual void Cut()
     {
         m_SearchStopTime = 0;
         m_SearchEmergencyStopTime = 0;
+        m_bStopTimeCalculated = false;
     }
 
+    /** Shave a little off a deadline so the bestmove reaches the GUI
+     ** before the clock actually runs out.
+     **/
+    static Clock::ChessTickType SubtractLatency( Clock::ChessTickType t )
+    {
+        const Clock::ChessTickType margin = 20;
+        if ( t > 2 * margin )
+            return t - margin;
+        return ( t / 2 > 1 ) ? t / 2 : 1;
+    }
+
+    /** Decides, once per search, how long to think.  Sets a soft budget
+     ** (m_SearchStopTime): once it is half spent no new iteration is
+     ** started, because each iteration costs several times its
+     ** predecessor.  Also sets a hard budget (m_SearchEmergencyStopTime)
+     ** at which the search aborts wherever it happens to be.
+     **/
     virtual void CalculateSearchStopTime(
         const Clock::ChessTickType /* currentTime */,
         const int /* nScore */,
@@ -3143,63 +3405,82 @@ public:
         const Moves & /* mPrincipalVariation */
     )
     {
-        int ply = rootPosition.GetPly();
+        m_bStopTimeCalculated = true;
+        m_SearchStopTime = 0;
+        m_SearchEmergencyStopTime = 0;
+
+        if ( m_nMoveTime != 0 )
+        {
+            m_SearchStopTime = m_nMoveTime;
+            m_SearchEmergencyStopTime = SubtractLatency( m_nMoveTime );
+            return;
+        }
+
         Color sideToMove = rootPosition.GetColorToMove();
-        Clock::ChessTickType timeLeft, themTimeLeft;
+        Clock::ChessTickType timeLeft = ( sideToMove == WHITE ) ?
+                                        m_WhiteTime : m_BlackTime;
+        Clock::ChessTickType inc = ( sideToMove == WHITE ) ?
+                                   m_WhiteInc : m_BlackInc;
 
-        if ( sideToMove == WHITE )
-        {
-            timeLeft = m_WhiteTime;
-            themTimeLeft = m_BlackTime;
-        }
-        else
-        {
-            timeLeft = m_BlackTime;
-            themTimeLeft = m_WhiteTime;
-        }
+        /* No clock at all: leave both limits at zero and ShouldCut falls
+         * back to a fixed depth.
+         */
+        if ( timeLeft <= 0 )
+            return;
 
-        int movesUntilTimeControl;
-        if ( m_nMovesToGo != 0 )
-            movesUntilTimeControl = m_nMovesToGo;
-        else
-            movesUntilTimeControl = 25;
+        Clock::ChessTickType movesToGo = ( m_nMovesToGo != 0 ) ?
+                                         m_nMovesToGo : 30;
+
+        Clock::ChessTickType soft = timeLeft / movesToGo + ( inc * 3 ) / 4;
 
         /* Good chess players tend to fall into a deep think around ply 17 or so.
          * Let's pretend we know what we're doing and do the same.
          */
-        float factor;
-        factor =  2.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
+        int ply = rootPosition.GetPly();
+        float factor = 2.0f - fabs( ( float )ply - 17.0f ) / 5.0f ;
 
         if ( factor > 2.0f )
             factor = 2.0f;
         if ( factor < 1.0f )
             factor = 1.0f;
 
-        m_SearchStopTime = timeLeft / movesUntilTimeControl;
-        float fSearchStopTime = ( float )m_SearchStopTime;
-        fSearchStopTime *= factor;
+        soft = ( Clock::ChessTickType )( soft * factor );
 
-        fSearchStopTime = fSearchStopTime * ( timeLeft * timeLeft ) /
-                          ( themTimeLeft * themTimeLeft );
+        /* Never plan to spend more than a quarter of the clock on one move. */
+        if ( soft > timeLeft / 4 )
+            soft = timeLeft / 4;
+        if ( soft < 1 )
+            soft = 1;
 
-        m_SearchStopTime = ( Clock::ChessTickType )fSearchStopTime;
+        /* Allow an iteration that is already under way to overrun the soft
+         * budget, but never by so much that we flag.
+         */
+        Clock::ChessTickType hard = soft * 3;
+        if ( hard > timeLeft / 3 )
+            hard = timeLeft / 3;
+        hard = SubtractLatency( hard );
+        if ( soft > hard )
+            soft = hard;
 
-        /* Don't think for longer than half of our remaining time, regardless... */
-        m_SearchEmergencyStopTime = timeLeft / 2;
+        m_SearchStopTime = soft;
+        m_SearchEmergencyStopTime = hard;
     }
 
     void Notify( const string &s );
 
+    /** Called just before the iterative deepener starts an iteration at
+     ** nDepthToSearch.  Returns true if the search should finish instead.
+     **/
     virtual bool ShouldCut(
         const Clock::ChessTickType currentTime,
         const int nScore,
-        const unsigned int nDepthSearched,
+        const unsigned int nDepthToSearch,
         const Position &rootPosition,
         const Moves &mPrincipalVariation
     )
     {
         /* This can happen in late end game. */
-        if ( nDepthSearched >= 100 )
+        if ( nDepthToSearch > MAX_SEARCH_DEPTH )
             return true;
 
         /* 'go mate N' asks us to stop as soon as we've proved a mate
@@ -3218,19 +3499,30 @@ public:
         }
 
         if ( m_nDepth != 0 )
-            return ( nDepthSearched >= m_nDepth );
-
-        if ( m_nMoveTime != 0 )
-            return ( currentTime >= m_nMoveTime );
+            return ( nDepthToSearch > m_nDepth );
 
         if ( m_bInfinite )
             return false;
 
-        if ( m_SearchStopTime == 0 )
-            CalculateSearchStopTime( currentTime, nScore, nDepthSearched,
+        if ( !m_bStopTimeCalculated )
+            CalculateSearchStopTime( currentTime, nScore, nDepthToSearch,
                                      rootPosition, mPrincipalVariation );
 
-        return ( currentTime >= m_SearchStopTime );
+        if ( m_SearchStopTime == 0 )
+        {
+            /* No clock and no movetime.  A node limit is enforced by
+             * ShouldCutEmergency; otherwise search to a fixed depth.
+             */
+            if ( m_nNodes != 0 )
+                return false;
+            return ( nDepthToSearch > DEFAULT_SEARCH_DEPTH );
+        }
+
+        /* Don't start an iteration that will probably not finish: each one
+         * costs several times its predecessor, so once half the budget is
+         * gone the next iteration would overrun it.
+         */
+        return ( currentTime * 2 >= m_SearchStopTime );
     }
 
     virtual bool ShouldCutEmergency( const Clock::ChessTickType currentTime,
@@ -3257,6 +3549,7 @@ protected:
     bool m_bInfinite;
     Clock::ChessTickType m_SearchStopTime;
     Clock::ChessTickType m_SearchEmergencyStopTime;
+    bool m_bStopTimeCalculated;
 
 };
 
@@ -3288,12 +3581,20 @@ public:
     virtual void Start( const Position &pos )
     {
         m_Root = pos;
+        m_Root.DetachHistory();
         m_nNodesSearched = 0;
+        m_Score = 0;
         m_Clock.Reset();
         m_Clock.Start();
     }
 
     virtual void Stop()
+    {
+
+    }
+
+    /** Block until any running search finishes of its own accord. */
+    virtual void Wait()
     {
 
     }
@@ -3316,13 +3617,28 @@ protected:
 
     void SearchComplete()
     {
-        if ( m_Result.Count() > 0 )
+        if ( m_Result.Count() == 0 )
         {
-            stringstream ss;
-            ss.str( "" );
-            ss << ( string )m_Result.GetFirst();
-            Bestmove( ss.str() );
+            /* Not even the first iteration finished (an immediate "stop",
+             * say).  UCI still requires a bestmove, so fall back to the
+             * first legal move.
+             */
+            Moves rootMoves = m_Root.GetMoves();
+            for ( const auto &move : rootMoves )
+            {
+                Position next( m_Root, move );
+                if ( !next.CanKingBeCapturedNow() )
+                {
+                    m_Result.Add( move );
+                    break;
+                }
+            }
         }
+
+        if ( m_Result.Count() > 0 )
+            Bestmove( ( string )m_Result.GetFirst() );
+        else
+            Bestmove( "0000" );
 
         m_bTerminated = true;
     }
@@ -3429,6 +3745,14 @@ public:
         m_Director.Cut();
     }
 
+    virtual void Wait()
+    {
+        SearchLockType guard( m_Lock );
+
+        if ( m_Thread.joinable() )
+            m_Thread.join();
+    }
+
 protected:
 
     virtual int Search()
@@ -3447,27 +3771,47 @@ protected:
                                           m_Root,
                                           PV
                                         ) )
-            {
-                m_bTerminated = true;
                 break;
-            }
 
-            m_Score = InternalSearch( -BIG_NUMBER, BIG_NUMBER,
-                                      nCurrentDepth, m_Root, PV );
-
-            /* Did we terminate prematurely due to time or node difficulties? */
-            if ( m_Director.ShouldCutEmergency( m_Clock.Get(),
-                                                m_nNodesSearched ) == false )
+            /* Aspiration window: search a narrow window around the last
+             * score, widening on the side that fails.
+             */
+            int alpha = -BIG_NUMBER, beta = BIG_NUMBER;
+            if ( nCurrentDepth >= 3 && abs( m_Score ) < CHECKMATE_VALUE )
             {
-                m_Result = PV;
-                /* The length of the principal variation may be zero if the position
-                * is some sort of terminal condition such as a stalemate or draw.
-                */
-                ReportCurrentPrincipalVariation( nCurrentDepth, PV );
+                alpha = m_Score - ASPIRATION_WINDOW;
+                beta = m_Score + ASPIRATION_WINDOW;
             }
 
+            int nScore;
+            for ( ;; )
+            {
+                PV.Clear();
+                nScore = InternalSearch( alpha, beta, nCurrentDepth, m_Root, PV );
+                if ( m_bTerminated )
+                    break;
+                if ( nScore <= alpha )
+                    alpha = -BIG_NUMBER;
+                else if ( nScore >= beta )
+                    beta = BIG_NUMBER;
+                else
+                    break;
+            }
+
+            /* An iteration cut short by the clock, the node limit or a
+             * "stop" command has scored a tree that was only partly
+             * searched, so neither its score nor its PV can be trusted.
+             * Keep the previous completed iteration's result instead.
+             */
             if ( m_bTerminated )
                 break;
+
+            m_Score = nScore;
+            m_Result = PV;
+            /* The length of the principal variation may be zero if the position
+             * is some sort of terminal condition such as a stalemate or draw.
+             */
+            ReportCurrentPrincipalVariation( nCurrentDepth, PV );
         }
 
         SearchComplete();
@@ -3519,17 +3863,102 @@ public:
     { }
 
 protected:
-    virtual int InternalSearch( int, int, int depth,
+    virtual int InternalSearch( int alpha, int beta, int depth,
                                 Position &pos, Moves &pv )
     {
-        return SearchPrincipalVariation( -BIG_NUMBER, BIG_NUMBER, depth, pos, pv );
+        return SearchPrincipalVariation( alpha, beta, depth, pos, pv );
+    }
+
+public:
+    virtual void Start( const Position &pos )
+    {
+        ClearHeuristics();
+        super::Start( pos );
+    }
+
+protected:
+    int PlyFromRoot( const Position &pos ) const
+    {
+        return ( int ) pos.GetPly() - ( int ) m_Root.GetPly();
+    }
+
+    /* ---- move ordering: killer moves and history heuristic ---- */
+
+    Move m_Killers[ MAX_PLY ][ 2 ];
+    int m_History[ 2 ][ MAX_SQUARES ][ MAX_SQUARES ];
+
+    void ClearHeuristics()
+    {
+        for ( int p = 0; p < MAX_PLY; p++ )
+            m_Killers[p][0] = m_Killers[p][1] = NullMove;
+        for ( int c = 0; c < 2; c++ )
+            for ( unsigned int i = 0; i < MAX_SQUARES; i++ )
+                for ( unsigned int j = 0; j < MAX_SQUARES; j++ )
+                    m_History[c][i][j] = 0;
+    }
+
+    bool IsKiller( const Move &move, int ply ) const
+    {
+        return ( ply < MAX_PLY ) &&
+               ( m_Killers[ply][0] == move || m_Killers[ply][1] == move );
+    }
+
+    /** A quiet move just caused a beta cutoff: remember it. */
+    void RecordCutoff( const Move &move, int ply, int depth, Color color )
+    {
+        if ( ply < MAX_PLY && !( m_Killers[ply][0] == move ) )
+        {
+            m_Killers[ply][1] = m_Killers[ply][0];
+            m_Killers[ply][0] = move;
+        }
+
+        int &h = m_History[color][move.Source().ToIndex()][move.Dest().ToIndex()];
+        h += depth * depth;
+        if ( h > ( 1 << 20 ) )
+            h = ( 1 << 20 );
+    }
+
+    /** Sort the list so that the most promising moves come first: the
+     ** transposition-table move, then captures by MVV/LVA, then killer
+     ** moves, then quiet moves by history.  The Score field is reused
+     ** as the sort key; this works on a copy, not the Position's cache.
+     **/
+    void OrderMoves( Moves &moves, const Position &pos, const Move &ttMove,
+                     int ply, int depth ) const
+    {
+        /* Quiescence lists are already sorted by captured value. */
+        if ( depth <= 0 )
+            return;
+
+        Color color = pos.GetColorToMove();
+
+        for ( auto &m : moves )
+        {
+            int key;
+            if ( m == ttMove )
+                key = 1 << 30;
+            else if ( m.Score() > 0 )
+            {
+                /* Captures and promotions: Score holds the material won. */
+                key = ( 1 << 24 ) + m.Score() * 16 - m.GetPiece()->PieceValue() / 10;
+            }
+            else if ( IsKiller( m, ply ) )
+                key = ( 1 << 23 ) + ( ( m_Killers[ply][0] == m ) ? 1 : 0 );
+            else
+                key = m_History[color][m.Source().ToIndex()][m.Dest().ToIndex()];
+
+            m.Score( key );
+        }
+
+        moves.Sort();
     }
 
     virtual void GetMoves( Moves &myMoves, Position &pos, const int /*depth*/ )
     {
+        /* An empty list (only possible from a broken FEN) simply falls
+         * through to the no-legal-moves handling in the move loop.
+         */
         myMoves = pos.GetMoves();
-        if ( myMoves.IsEmpty() )
-            Die( "No moves could be generated!" );
     }
 
     int m_nSearchExtension;
@@ -3549,65 +3978,38 @@ protected:
         m_nSearchExtension = 0;
     }
 
-    virtual void FilterCheckResolvingMoves( Moves &myMoves, Position &pos )
+    /** Draws that can be decided without looking at any move.  Mate and
+     ** stalemate are discovered by the move loop, which finds no legal
+     ** move to play.
+     **/
+    bool IsEndOfGame( int &score, Position &pos )
     {
-        Moves checkResolvingMoves;
-        /* Filter out all moves to ones that resolve the check */
-        Moves::iterator it = myMoves.begin();
-
-        while ( it != myMoves.end() )
-        {
-            Position tempPos( pos, *it );
-            if ( !tempPos.CanKingBeCapturedNow() )
-                checkResolvingMoves.Add( *it );
-
-            ++it;
-        }
-
-        myMoves = checkResolvingMoves;
-    }
-
-    bool IsEndOfGame( int &score, Position &pos, Moves &myMoves )
-    {
-        if ( IsDrawByRepetition( pos, score ) )
-            return true;
-
+        /* Repetition has already been tested by SearchPrincipalVariation. */
         if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
         {
             score = DRAW_SCORE;
             return true;
         }
 
-        if ( pos.CanKingBeCapturedNow() )
-        {
-            score = KING_VALUE;
-            return true;
-        }
-
-        if ( pos.IsStalemate() )
+        if ( pos.IsInsufficientMaterial() )
         {
             score = DRAW_SCORE;
             return true;
         }
 
         if ( pos.IsCheck() )
-        {
             ExtendSearchDepth();
-            FilterCheckResolvingMoves( myMoves, pos );
-            if ( myMoves.Count() == 0 )
-            {
-                // checkmate, no move possible
-                score = -KING_VALUE;
-                return true;
-            }
-        }
 
         return false;
     }
 
+    /** A position that has occurred before on the path or in the game is
+     ** treated as a draw: if it was repeated once, nothing stops it from
+     ** being repeated again.
+     **/
     bool IsDrawByRepetition( Position &pos, int &score )
     {
-        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
+        if ( pos.CountRepetitions() >= 1 )
         {
             score = DRAW_SCORE;
             return true;
@@ -3679,11 +4081,16 @@ protected:
         m_nNodesSearched++;
         ResetSearchDepth();
 
+        const int ply = PlyFromRoot( pos );
+        const bool bIsRoot = ( ply == 0 );
+        const bool bIsPVNode = ( beta - alpha > 1 );
+
         /* We have to check draw by repetition first, because the transposition table
          * can't really keep track of them and they could occur at any time.
+         * The root itself is never a draw by repetition: the game is
+         * still going, and a GUI adjudicates real threefolds.
          */
-
-        if ( IsDrawByRepetition( pos, score ) )
+        if ( !bIsRoot && IsDrawByRepetition( pos, score ) )
             return score;
 
         /* Now we can see if any previous search has been useful */
@@ -3695,10 +4102,49 @@ protected:
         if ( IsFrontier( score, pos, alpha, beta, depth ) )
             return score;
 
+        if ( IsEndOfGame( score, pos ) )
+        {
+            /* Mates are worth remembering at any draft.  Draws by the
+             * fifty-move rule depend on the path taken, so they are not
+             * cached; neither are repetitions, which never reach here.
+             */
+            if ( abs( score ) > CHECKMATE_VALUE )
+                CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
+                               MAX_SEARCH_DEPTH, NullMove );
+            return score;
+        }
+
+        /* IsEndOfGame may have asked for a check extension.  The flag is a
+         * member that every recursive call resets, so it must be read once
+         * here rather than inside the loop, where it would hold whatever
+         * the last node of the previous subtree left behind.
+         */
+        const int nExtension = m_nSearchExtension;
+        const bool bInCheck = ( nExtension != 0 );
+
+        /* Null-move pruning: if passing still leaves us at or above beta
+         * after a reduced search, a real move surely will too.  Not when
+         * in check, not twice in a row, and not with only pawns left,
+         * where zugzwang makes passing genuinely attractive.
+         */
+        if ( !bIsPVNode && !bInCheck && depth >= 2 && !pos.WasNullMove() &&
+                pos.HasNonPawnMaterial( pos.GetColorToMove() ) )
+        {
+            Position nullPos( pos, NullMove );
+            Moves nullPV;
+            const int R = ( depth > 6 ) ? 3 : 2;
+            int nullScore = -SearchPrincipalVariation( -beta, -beta + 1,
+                            depth - 1 - R, nullPos, nullPV );
+            if ( m_bTerminated )
+                return alpha;
+            if ( nullScore >= beta && abs( nullScore ) < CHECKMATE_VALUE )
+                return beta;
+        }
+
         GetMoves( myMoves, pos, depth );
 
         /* 'go searchmoves ...' restricts the root to a user-supplied subset. */
-        if ( pos.GetPly() == m_Root.GetPly() )
+        if ( bIsRoot )
         {
             const Moves &allowed = m_Director.GetSearchMoves();
             if ( !allowed.IsEmpty() )
@@ -3717,63 +4163,94 @@ protected:
             }
         }
 
-        if ( bestMove != NullMove )
-        {
-            /* We got a recommendation from the transposition table. */
-            if ( myMoves.Bump( bestMove ) == false )
-            {
-                /* At this point we didn't find the move to bump in the list of legal moves.
-                * Typically this is not a good scene, but let's soldier on and do a full search.
-                */
-            }
-        }
+        OrderMoves( myMoves, pos, bestMove, ply, depth );
+        bestMove = NullMove;
 
-        if ( IsEndOfGame( score, pos, myMoves ) )
-        {
-            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, depth, NullMove );
-            return score;
-        }
-        bool bFirstSearch = true;
         bool bAlphaExceeded = false;
+        unsigned int nLegalMoves = 0;
+        const Board &board = pos.GetBoard();
 
         for ( auto &move : myMoves )
         {
+            Position nextPos( pos, move );
+
+            /* Move generation is pseudo-legal: skip anything that leaves
+             * our own king capturable.
+             */
+            if ( nextPos.CanKingBeCapturedNow() )
+                continue;
+
+            nLegalMoves++;
+
+            const bool bQuiet = ( board.Get( move.Dest() ) == &None &&
+                                  move.GetPromoteTo() == &None );
+            /* SearchNode subtracts one ply itself. */
+            const int nextDepth = depth + nExtension;
+
             currentPV = pv;
             currentPV.Make( move );
-            Position nextPos( pos, move );
-            score = SearchNode( beta, alpha, depth + m_nSearchExtension, nextPos,
-                                currentPV );
+
+            if ( nLegalMoves == 1 )
+            {
+                /* The first move gets the full window. */
+                score = SearchNode( beta, alpha, nextDepth, nextPos, currentPV );
+            }
+            else
+            {
+                /* Later moves are expected to fail low, so prove that with
+                 * a zero-width window, and search late quiet moves a ply
+                 * shallower still.  Anything that surprises us by beating
+                 * alpha is re-searched properly.
+                 */
+                int reduction = 0;
+                if ( bQuiet && depth >= 3 && nLegalMoves > 4 && !bInCheck &&
+                        !IsKiller( move, ply ) )
+                    reduction = 1;
+
+                score = SearchNode( alpha + 1, alpha, nextDepth - reduction,
+                                    nextPos, currentPV );
+
+                if ( reduction > 0 && score > alpha && !m_bTerminated )
+                {
+                    currentPV = pv;
+                    currentPV.Make( move );
+                    score = SearchNode( alpha + 1, alpha, nextDepth, nextPos,
+                                        currentPV );
+                }
+
+                if ( score > alpha && score < beta && !m_bTerminated )
+                {
+                    currentPV = pv;
+                    currentPV.Make( move );
+                    score = SearchNode( beta, alpha, nextDepth, nextPos,
+                                        currentPV );
+                }
+            }
 
             // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
             score = AttenuateForMate( score );
 
-            if ( bFirstSearch )
+            if ( nLegalMoves == 1 )
             {
                 bestPV = currentPV;
                 bestMove = move;
-                bFirstSearch = false;
             }
 
             if ( score >= beta )
             {
-                /* Hard beta cutoff of the search now.  This is a CUT node, and the hash entry
-                * is called "LOWER" because the score you have is a lower bound, where the
-                * real score is greater than or equal to beta...
-                * Cut nodes(Knuth's Type 2), otherwise known as fail-high nodes, are nodes in which a
-                * beta-cutoff was performed. So with bounds [a,b], s>=b. A minimum of one move at a
-                * Cut-node needs to be searched. The score returned is a lower bound (might be
-                * greater) on the exact score of the node.
-                */
-                pv = bestPV;
+                /* Hard beta cutoff: a CUT node.  The score is a lower bound
+                 * on the exact score of the node.
+                 */
+                if ( bQuiet )
+                    RecordCutoff( move, ply, depth, pos.GetColorToMove() );
+                pv = currentPV;
                 CacheNodeType( HET_CUT_NODE, pos, score, depth, move );
                 return beta;   // fail-high beta-cutoff
             }
 
             if ( score > alpha )
             {
-                /* The score is between alpha and beta.  We have a new best move.  This could
-                * be an exact entry in the hash table, if it survives the rest of the search at this level.
-                */
+                /* The score is between alpha and beta.  We have a new best move. */
                 bAlphaExceeded = true;
                 alpha = score; // alpha acts like max in MiniMax
                 bestPV = currentPV;
@@ -3784,6 +4261,24 @@ protected:
 
             if ( m_bTerminated )
                 break;
+        }
+
+        if ( nLegalMoves == 0 )
+        {
+            /* Below the horizon only captures were tried; none being
+             * legal just means we stand pat on the score IsFrontier
+             * already folded into alpha.
+             */
+            if ( depth <= 0 && !bInCheck )
+                return alpha;
+
+            /* No legal move at all: checkmate if in check, else stalemate. */
+            score = bInCheck ? -KING_VALUE : DRAW_SCORE;
+            if ( score != DRAW_SCORE )
+                CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
+                               MAX_SEARCH_DEPTH, NullMove );
+            pv = bestPV;
+            return score;
         }
 
         if ( bAlphaExceeded )
@@ -3852,16 +4347,22 @@ public:
          * (king move, interposition) can be found.
          */
         if ( depth > 0 || pos.IsCheck() )
-        {
             myMoves = pos.GetMoves();
-            if ( myMoves.IsEmpty() )
-                Die( "No moves could be generated!" );
-        }
         else
         {
-            myMoves = pos.GetCaptures();
-            if ( myMoves.IsEmpty() )
-                Die( "No captures could be generated!" );
+            /* Rook and bishop under-promotions are practically never
+             * better than a queen or a knight; leave them to the
+             * full-width search rather than quadrupling promotion nodes.
+             */
+            myMoves.Clear();
+            for ( const auto &m : pos.GetCaptures() )
+            {
+                const Piece *pPromote = m.GetPromoteTo();
+                if ( pPromote != &None &&
+                        ( pPromote->Type() == ROOK || pPromote->Type() == BISHOP ) )
+                    continue;
+                myMoves.Add( m );
+            }
         }
     }
 };
@@ -3874,33 +4375,12 @@ public:
         super( interface )
     { }
 protected:
-    /* Mate scores drift by one per ply on the way up the search stack
-     * (AttenuateForMate). Store them normalized to the current node so a
-     * TT lookup from a different ply distance returns a consistent mate
-     * distance. 'plyFromRoot' is used as the offset.
+    /* Mate scores shrink by one per ply on the way up the search stack
+     * (AttenuateForMate), so the score a node returns is already
+     * "mate in N plies from this node", independent of how the node
+     * was reached.  That is exactly the form the transposition table
+     * needs, so mate scores are stored and retrieved unchanged.
      */
-    int PlyFromRoot( const Position &pos ) const
-    {
-        return ( int ) pos.GetPly() - ( int ) m_Root.GetPly();
-    }
-
-    int MateScoreToTT( int score, int plyFromRoot ) const
-    {
-        if ( score > CHECKMATE_VALUE )
-            return score + plyFromRoot;
-        if ( score < -CHECKMATE_VALUE )
-            return score - plyFromRoot;
-        return score;
-    }
-
-    int MateScoreFromTT( int score, int plyFromRoot ) const
-    {
-        if ( score > CHECKMATE_VALUE )
-            return score - plyFromRoot;
-        if ( score < -CHECKMATE_VALUE )
-            return score + plyFromRoot;
-        return score;
-    }
 
     virtual void CacheNodeType( const HashEntryType &het, Position &pos,
                                 const int score, const int depth,
@@ -3911,9 +4391,8 @@ protected:
         phe.m_Ply = pos.GetPly();
         phe.m_BestMove = move;
         phe.m_TypeBits = het;
-        phe.m_Score = MateScoreToTT( score, PlyFromRoot( pos ) );
-        PositionHasher ph( pos );
-        phe.m_Hash = ph.GetHash();
+        phe.m_Score = score;
+        phe.m_Hash = pos.GetHash();
         s_pPositionHashTable->Insert( phe );
     }
 
@@ -3925,7 +4404,6 @@ protected:
     {
         const PositionHashEntry *pEntry = pos.LookUp();
         bestMove = NullMove;
-        int plyFromRoot = PlyFromRoot( pos );
 
         /* Logic copied heavily from Bob Hyatt at http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
         /* See if an entry in the hash table exists at this depth for this
@@ -3951,7 +4429,7 @@ protected:
                 */
                 case HET_PRINCIPAL_VARIATION:
                     bestMove = pEntry->m_BestMove;
-                    nSearchResult = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    nSearchResult = pEntry->m_Score;
                     return true;
 
                 /*
@@ -3964,7 +4442,7 @@ protected:
                 */
                 case HET_ALL_NODE:
                 {
-                    int adj = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    int adj = pEntry->m_Score;
                     if ( adj <= alpha )
                     {
                         bestMove = pEntry->m_BestMove;
@@ -3981,7 +4459,7 @@ protected:
                 indication to search which says "just return beta, no need to do a search." */
                 case HET_CUT_NODE:
                 {
-                    int adj = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    int adj = pEntry->m_Score;
                     if ( adj >= beta )
                     {
                         bestMove = pEntry->m_BestMove;
@@ -4015,7 +4493,9 @@ protected:
                                                beta, depth );
         if ( bFound )
         {
-            pv.Add( bestMove );
+            /* Terminal positions are stored with no best move. */
+            if ( bestMove != NullMove )
+                pv.Add( bestMove );
             score = nSearchResult;
             return true;
         }
@@ -4246,7 +4726,7 @@ Moves King::GenerateCastlingMoves( const Square &source,
                                    const Position &pos ) const
 {
     Moves moves;
-    Board board = pos.GetBoard();
+    const Board &board = pos.GetBoard();
 
     if ( pos.GetColorToMove() == WHITE )
     {
@@ -4259,26 +4739,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( D1 ) == &None )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( C1, BLACK ) &&
+                        !pos.IsSquareAttacked( D1, BLACK ) &&
+                        !pos.IsSquareAttacked( E1, BLACK ) )
                 {
-                    if ( ( response.Dest() == C1 ) ||
-                            ( response.Dest() == D1 ) ||
-                            ( response.Dest() == E1 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, C1 );
                     moves.Add( m );
                 }
@@ -4290,26 +4754,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( H1 ) == &WhiteRook )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( E1, BLACK ) &&
+                        !pos.IsSquareAttacked( F1, BLACK ) &&
+                        !pos.IsSquareAttacked( G1, BLACK ) )
                 {
-                    if ( ( response.Dest() == E1 ) ||
-                            ( response.Dest() == F1 ) ||
-                            ( response.Dest() == G1 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, G1 );
                     moves.Add( m );
                 }
@@ -4328,26 +4776,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( D8 ) == &None )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( C8, WHITE ) &&
+                        !pos.IsSquareAttacked( D8, WHITE ) &&
+                        !pos.IsSquareAttacked( E8, WHITE ) )
                 {
-                    if ( ( response.Dest() == C8 ) ||
-                            ( response.Dest() == D8 ) ||
-                            ( response.Dest() == E8 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, C8 );
                     moves.Add( m );
                 }
@@ -4359,26 +4791,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( H8 ) == &BlackRook )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( E8, WHITE ) &&
+                        !pos.IsSquareAttacked( F8, WHITE ) &&
+                        !pos.IsSquareAttacked( G8, WHITE ) )
                 {
-                    if ( ( response.Dest() == E8 ) ||
-                            ( response.Dest() == F8 ) ||
-                            ( response.Dest() == G8 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, G8 );
                     moves.Add( m );
                 }
@@ -4467,6 +4883,7 @@ public:
     }
     void SetPosition( Position &pos )
     {
+        pos.DetachHistory();
         m_Position = pos;
     }
 
@@ -4573,13 +4990,22 @@ public:
 
         while ( m_bIsRunning )
         {
-            getline( *m_In, sInputLine );
+            /* End of input must end the engine too, or this loop spins
+             * forever on an empty line.  Let a search that is already
+             * running finish first, so "printf 'go depth 6' | superpawn"
+             * still gets its bestmove.
+             */
+            if ( !getline( *m_In, sInputLine ) )
+                break;
+
             if ( m_bLogInputToFile )
                 LogLineToFile( sInputLine );
 
             LockGuardType guard( m_Lock );
             Execute( sInputLine );
         }
+
+        m_pSearcher->Wait();
     }
 
     typedef lock_guard<mutex> LockGuardType;
@@ -4591,6 +5017,7 @@ public:
 
     INTERFACE_PROTOTYPE( Notify )
     {
+        LockGuardType guard( m_OutLock );
         switch ( m_Protocol )
         {
         case PROTOCOL_XBOARD:
@@ -4606,6 +5033,7 @@ public:
 
     INTERFACE_PROTOTYPE( Instruct )
     {
+        LockGuardType guard( m_OutLock );
         ( *m_Out ) << sParams << endl;
     }
 
@@ -4924,12 +5352,21 @@ protected:
 
             if ( sType == "fen" )
             {
+                /* A full FEN has six fields, but four-field EPD-style
+                 * FENs are common, so stop at "moves" or end of line.
+                 */
                 string sArg, sFen;
                 const int fenArgs = 6;
 
                 for ( int t = 0; t < fenArgs; t++ )
                 {
-                    ss >> sArg;
+                    if ( !( ss >> sArg ) )
+                        break;
+                    if ( sArg == "moves" )
+                    {
+                        sType = "moves";
+                        break;
+                    }
                     if ( t != 0 )
                         sFen.append( " " );
                     sFen.append( sArg );
@@ -4938,9 +5375,6 @@ protected:
                 Position pos;
                 pos.SetFEN( sFen );
                 m_pGame->SetPosition( pos );
-
-                Notify( "New position: " );
-                Notify( sFen );
             }
 
             if ( sType == "startpos" )
@@ -4953,9 +5387,33 @@ protected:
                 while ( ss >> sMove )
                 {
                     Position *pLast = m_pGame->GetPosition();
-                    Move nextMove( sMove, pLast->GetColorToMove() );
+                    Move wanted( sMove, pLast->GetColorToMove() );
 
-                    Position nextPos( *pLast, nextMove );
+                    /* Only play moves we can generate ourselves; anything
+                     * else (a typo, "0000") is reported and ends the list
+                     * rather than aborting the engine.
+                     */
+                    bool bFound = false;
+                    Move matched;
+                    for ( const auto &m : pLast->GetMoves() )
+                    {
+                        if ( m.Source() == wanted.Source() &&
+                                m.Dest() == wanted.Dest() &&
+                                m.GetPromoteTo() == wanted.GetPromoteTo() )
+                        {
+                            matched = m;
+                            bFound = true;
+                            break;
+                        }
+                    }
+
+                    if ( !bFound )
+                    {
+                        Notify( "Ignoring unplayable move: " + sMove );
+                        break;
+                    }
+
+                    Position nextPos( *pLast, matched );
                     m_pGame->SetPosition( nextPos );
                 }
             }
@@ -4965,6 +5423,7 @@ protected:
     INTERFACE_PROTOTYPE_NO_PARAMS( New )
     {
         m_pGame->New();
+        s_pPositionHashTable->Purge();
     }
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Stop )
@@ -5038,6 +5497,8 @@ protected:
     ostream *m_Out;
 
     mutex m_Lock;
+    /** The search thread and the command thread both write to m_Out. */
+    mutex m_OutLock;
 
     Moves m_PrincipalVariation;
 

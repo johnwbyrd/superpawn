@@ -150,11 +150,15 @@ Features
   with Arena 3.0+, Tarrasch Chess GUI, Fritz GUI, cutechess-cli and others
 - Pluggable architecture permits easy experimentation with
   new algorithms for search and evaluation
-- Principal variation search with quiescence and check extension
-- Material, mobility, and piece-square-table evaluators
+- Principal variation search with aspiration windows, null-move pruning,
+  late move reductions, quiescence search and check extension
+- Move ordering by transposition-table move, MVV/LVA, killer moves and
+  the history heuristic
+- Material and piece-square-table evaluators
 - Pawn-structure evaluator: doubled, isolated, and passed pawns
 - Positional terms: rook on open/semi-open file, bishop pair, king pawn-shield
-- Mop-up evaluator pulls the kings together in the endgame
+- Mop-up evaluator drives the losing king to the edge and brings the
+  winning king up to it; insufficient material is scored as a draw
 - Gratuitous functional programming
 - All the code exists within a single C++ source file
 - Vaguely sort of const-correct
@@ -166,15 +170,18 @@ Features
 - Castling, stalemate, fifty move rule, and draw by repetition
 - Zobrist hashing with castling rights and en-passant file folded in
 - Reports distance to mate
-- Basic time management controls
+- Time management that budgets a fraction of the clock per move, uses the
+  increment, and never starts an iteration it cannot finish
 - Basic transposition table (default 128 MB, configurable 1-2048 MB)
+- Legal-move checking by direct attack detection rather than by
+  generating the opponent's replies
 
 Things it doesn't do
 --------------------
 
-- Better endgame logic for say KRK and KQK. The mop-up evaluator pulls the
-  kings together but there is no edge-driving term for the losing king, so
-  Superpawn is still perfectly capable of throwing easily winnable endgames.
+- Pondering
+- Any evaluation of mobility, king attack patterns or pawn chains beyond
+  the terms listed above
 - Play chess well
 
 License
