@@ -84,6 +84,11 @@ Test suite
 from Chessprogramming Wiki and checks the node counts against known-correct
 totals; it's wired into the GitHub Actions build on every platform.
 
+[TESTING.md](TESTING.md) describes how changes are judged: a `bench`
+node count for non-functional changes, and an SPRT self-play match with
+[fastchess](https://github.com/Disservin/fastchess) against the previous
+build for anything that alters the search or evaluation.
+
 [tests/gauntlet/gauntlet.sh](tests/gauntlet/gauntlet.sh) runs Superpawn
 against a configurable set of opponent engines via
 [cutechess-cli](https://github.com/cutechess/cutechess) at a short time
