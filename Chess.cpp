@@ -1889,17 +1889,18 @@ public:
     {
         CopyFrom( position );
 
+        if ( &move == &NullMove )
+        {
+            SetColorToMove( !GetColorToMove() );
+            ComputeHash();
+            return;
+        }
+
         Square source = move.Source();
         DevirginizeRooks( source );
 
         const Piece *pPiece = GetBoard().Get( source );
         DevirginizeKing( pPiece );
-
-        if ( &move == &NullMove )
-        {
-            SetColorToMove( !GetColorToMove() );
-            return;
-        }
 
         if ( pPiece == &None )
         {
@@ -1917,7 +1918,7 @@ public:
         m_Board.Set( move.Source().I(), move.Source().J(), &None );
         SetColorToMove( !GetColorToMove() );
 
-        PushHashInHistory();
+        ComputeHash();
     }
 
     void Initialize()
@@ -1939,6 +1940,8 @@ public:
         m_bIsCheckDetermined = false;
         m_bIsCheck = false;
         m_PreviousPositions.clear();
+        m_pParent = nullptr;
+        m_Hash = 0;
     }
 
     int GetColorBias() const
@@ -1956,9 +1959,7 @@ public:
      **/
     const PositionHashEntry *LookUp() const
     {
-        PositionHashTable *pHT = GetHashTable();
-        PositionHasher ph( *this );
-        return pHT->LookUp( ph.GetHash() );
+        return GetHashTable()->LookUp( GetHash() );
     }
 
     /** Inserts this position into the hash table.  Takes care of updating
@@ -2038,26 +2039,61 @@ public:
     }
 
 
-    void PushHashInHistory()
+    void ComputeHash()
     {
         PositionHasher ph( *this );
-        m_PreviousPositions.push_back( ph.GetHash() );
+        m_Hash = ph.GetHash();
     }
 
-    void PopHashFromHistory()
-    {
-        m_PreviousPositions.pop_back();
-    }
-
-    unsigned int CountHashesInHistory( const HashValue &theHash ) const
+    /** How many times has this position occurred before, counting the
+     ** search path (the chain of parents) and then the game history
+     ** stored on the detached position at the top of that chain?
+     **/
+    unsigned int CountRepetitions() const
     {
         unsigned int count = 0;
-        for ( auto previous : m_PreviousPositions )
+        const Position *p = m_pParent;
+
+        while ( p != nullptr )
         {
-            if ( previous == theHash )
+            if ( p->m_Hash == m_Hash )
                 count++;
+
+            if ( p->m_pParent == nullptr )
+            {
+                for ( auto previous : p->m_PreviousPositions )
+                    if ( previous == m_Hash )
+                        count++;
+            }
+
+            p = p->m_pParent;
         }
+
         return count;
+    }
+
+    /** Positions created by making a move only point at their parent
+     ** rather than copying the whole game history.  Before a position
+     ** outlives its parent (it is stored in the Game, or becomes a
+     ** search root) that chain must be flattened into a list it owns.
+     **/
+    void DetachHistory()
+    {
+        if ( m_pParent == nullptr )
+            return;
+
+        PreviousPositionType history;
+        for ( const Position *p = m_pParent; p != nullptr; p = p->m_pParent )
+        {
+            history.push_back( p->m_Hash );
+            if ( p->m_pParent == nullptr )
+                history.insert( history.end(),
+                                p->m_PreviousPositions.begin(),
+                                p->m_PreviousPositions.end() );
+        }
+
+        m_PreviousPositions = history;
+        m_pParent = nullptr;
     }
 
     void CopyFrom( const Position &position )
@@ -2066,7 +2102,10 @@ public:
         m_ColorToMove = position.m_ColorToMove;
         m_Material = position.m_Material;
         m_nMaterialScore = position.m_nMaterialScore;
-        m_PreviousPositions = position.m_PreviousPositions;
+        /* The history is reached through the parent, not copied. */
+        m_PreviousPositions.clear();
+        m_pParent = &position;
+        m_Hash = 0;
 
         m_nPly = position.m_nPly + 1;
         m_sEnPassant = Square( -1, -1 );
@@ -2244,18 +2283,115 @@ public:
 
     }
 
-    bool CanKingBeCapturedNow()
+    /** Where is this color's king?  Off the board if there isn't one. */
+    Square FindKing( Color color ) const
     {
-        Moves moves = GetMoves();
+        const Piece *pKing = ( color == WHITE ) ?
+                             ( const Piece * )&WhiteKing :
+                             ( const Piece * )&BlackKing;
 
-        if ( !moves.IsEmpty() )
+        for ( unsigned int index = 0; index < MAX_SQUARES; index++ )
+            if ( m_Board.Get( index ) == pKing )
+                return Square( index & 7, index >> 3 );
+
+        return Square( -1, -1 );
+    }
+
+    /** Does any piece of 'byColor' attack 'target'?  Looks outward from
+     ** the target, so it costs a few dozen board probes rather than a
+     ** full move generation.
+     **/
+    bool IsSquareAttacked( const Square &target, Color byColor ) const
+    {
+        if ( !target.IsOnBoard() )
+            return false;
+
+        const int ti = target.I();
+        const int tj = target.J();
+
+        const Piece *pPawn, *pKnight, *pBishop, *pRook, *pQueen, *pKing;
+        if ( byColor == WHITE )
         {
-            Move bestMove = moves.GetFirst();
-            if ( bestMove.Score() >= KING_VALUE )
+            pPawn = &WhitePawn;
+            pKnight = &WhiteKnight;
+            pBishop = &WhiteBishop;
+            pRook = &WhiteRook;
+            pQueen = &WhiteQueen;
+            pKing = &WhiteKing;
+        }
+        else
+        {
+            pPawn = &BlackPawn;
+            pKnight = &BlackKnight;
+            pBishop = &BlackBishop;
+            pRook = &BlackRook;
+            pQueen = &BlackQueen;
+            pKing = &BlackKing;
+        }
+
+        /* Pawns attack diagonally forward, so look diagonally backward. */
+        const int pj = ( byColor == WHITE ) ? tj - 1 : tj + 1;
+        if ( pj >= 0 && pj < ( int )MAX_FILES )
+        {
+            if ( ti > 0 && m_Board.Get( ti - 1, pj ) == pPawn )
+                return true;
+            if ( ti < ( int )HIGHEST_FILE && m_Board.Get( ti + 1, pj ) == pPawn )
                 return true;
         }
 
+        static const int knightSteps[8][2] =
+        {
+            { 1, 2 }, { -1, 2 }, { 1, -2 }, { -1, -2 },
+            { 2, 1 }, { -2, 1 }, { 2, -1 }, { -2, -1 }
+        };
+        static const int kingSteps[8][2] =
+        {
+            { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 },
+            { 1, 1 }, { -1, 1 }, { 1, -1 }, { -1, -1 }
+        };
+
+        for ( int n = 0; n < 8; n++ )
+        {
+            Square sq( ti + knightSteps[n][0], tj + knightSteps[n][1] );
+            if ( sq.IsOnBoard() && m_Board.Get( sq ) == pKnight )
+                return true;
+
+            Square ks( ti + kingSteps[n][0], tj + kingSteps[n][1] );
+            if ( ks.IsOnBoard() && m_Board.Get( ks ) == pKing )
+                return true;
+        }
+
+        /* Sliders: walk each ray until something is hit. */
+        for ( int n = 0; n < 8; n++ )
+        {
+            const int di = kingSteps[n][0];
+            const int dj = kingSteps[n][1];
+            const bool bDiagonal = ( di != 0 && dj != 0 );
+            const Piece *pSlider = bDiagonal ? pBishop : pRook;
+
+            Square sq( ti + di, tj + dj );
+            while ( sq.IsOnBoard() )
+            {
+                const Piece *p = m_Board.Get( sq );
+                if ( p != &None )
+                {
+                    if ( p == pSlider || p == pQueen )
+                        return true;
+                    break;
+                }
+                sq.Change( di, dj );
+            }
+        }
+
         return false;
+    }
+
+    /** True if the side to move could capture the enemy king, i.e. the
+     ** previous move was illegal.
+     **/
+    bool CanKingBeCapturedNow() const
+    {
+        return IsSquareAttacked( FindKing( !m_ColorToMove ), m_ColorToMove );
     }
 
     bool IsCheck()
@@ -2263,32 +2399,9 @@ public:
         if ( m_bIsCheckDetermined )
             return m_bIsCheck;
 
-        /* To determine check, apply a null move to the current position and see if the result
-         * permits the king to be captured.
-         */
-        Position tempPos( *this, NullMove );
-        m_bIsCheck = tempPos.CanKingBeCapturedNow();
+        m_bIsCheck = IsSquareAttacked( FindKing( m_ColorToMove ), !m_ColorToMove );
         m_bIsCheckDetermined = true;
         return m_bIsCheck;
-    }
-
-    bool IsStalemate()
-    {
-        if ( IsCheck() )
-            return false;
-
-        Moves moves = GetMoves();
-        for ( auto move : moves )
-        {
-            Position nextPos( *this, move );
-            if ( nextPos.CanKingBeCapturedNow() == false )
-            {
-                // terminate asap
-                return false;
-            }
-        }
-
-        return true;
     }
 
     const Board &GetBoard() const
@@ -2308,6 +2421,7 @@ public:
         m_ColorToMove = WHITE;
         m_Material.UpdateFrom( *this );
         m_Material.CalculateMaximumMaterial();
+        ComputeHash();
     }
 
     void Dump() const
@@ -2481,6 +2595,7 @@ public:
         m_nPly = ( nMoves - 1 ) * 2 + ( m_ColorToMove ? 0 : 1 );
 
         UpdateScore();
+        ComputeHash();
 
         return 0;
     }
@@ -2604,10 +2719,7 @@ public:
 
     HashValue GetHash() const
     {
-        if ( !m_PreviousPositions.empty() )
-            return m_PreviousPositions.back();
-        PositionHasher ph( *this );
-        return ph.GetHash();
+        return m_Hash;
     }
 
     float GetPhase()
@@ -2638,6 +2750,11 @@ protected:
     Moves m_Captures;
     bool m_bIsCheckDetermined;
     bool m_bIsCheck;
+    /** Zobrist hash of this position, fixed once it is constructed. */
+    HashValue m_Hash;
+    /** The position this one was reached from, or null if detached. */
+    const Position *m_pParent;
+    /** Hashes of earlier positions; only used on a detached position. */
     typedef std::vector< HashValue > PreviousPositionType;
     PreviousPositionType m_PreviousPositions;
 };
@@ -3432,6 +3549,7 @@ public:
     virtual void Start( const Position &pos )
     {
         m_Root = pos;
+        m_Root.DetachHistory();
         m_nNodesSearched = 0;
         m_Score = 0;
         m_Clock.Reset();
@@ -3699,9 +3817,10 @@ protected:
 
     virtual void GetMoves( Moves &myMoves, Position &pos, const int /*depth*/ )
     {
+        /* An empty list (only possible from a broken FEN) simply falls
+         * through to the no-legal-moves handling in the move loop.
+         */
         myMoves = pos.GetMoves();
-        if ( myMoves.IsEmpty() )
-            Die( "No moves could be generated!" );
     }
 
     int m_nSearchExtension;
@@ -3721,25 +3840,11 @@ protected:
         m_nSearchExtension = 0;
     }
 
-    virtual void FilterCheckResolvingMoves( Moves &myMoves, Position &pos )
-    {
-        Moves checkResolvingMoves;
-        /* Filter out all moves to ones that resolve the check */
-        Moves::iterator it = myMoves.begin();
-
-        while ( it != myMoves.end() )
-        {
-            Position tempPos( pos, *it );
-            if ( !tempPos.CanKingBeCapturedNow() )
-                checkResolvingMoves.Add( *it );
-
-            ++it;
-        }
-
-        myMoves = checkResolvingMoves;
-    }
-
-    bool IsEndOfGame( int &score, Position &pos, Moves &myMoves )
+    /** Draws that can be decided without looking at any move.  Mate and
+     ** stalemate are discovered by the move loop, which finds no legal
+     ** move to play.
+     **/
+    bool IsEndOfGame( int &score, Position &pos )
     {
         /* Repetition has already been tested by SearchPrincipalVariation. */
         if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
@@ -3754,36 +3859,19 @@ protected:
             return true;
         }
 
-        if ( pos.CanKingBeCapturedNow() )
-        {
-            score = KING_VALUE;
-            return true;
-        }
-
-        if ( pos.IsStalemate() )
-        {
-            score = DRAW_SCORE;
-            return true;
-        }
-
         if ( pos.IsCheck() )
-        {
             ExtendSearchDepth();
-            FilterCheckResolvingMoves( myMoves, pos );
-            if ( myMoves.Count() == 0 )
-            {
-                // checkmate, no move possible
-                score = -KING_VALUE;
-                return true;
-            }
-        }
 
         return false;
     }
 
+    /** A position that has occurred before on the path or in the game is
+     ** treated as a draw: if it was repeated once, nothing stops it from
+     ** being repeated again.
+     **/
     bool IsDrawByRepetition( Position &pos, int &score )
     {
-        if ( pos.CountHashesInHistory( pos.GetHash() ) >= 3 )
+        if ( pos.CountRepetitions() >= 1 )
         {
             score = DRAW_SCORE;
             return true;
@@ -3859,7 +3947,10 @@ protected:
          * can't really keep track of them and they could occur at any time.
          */
 
-        if ( IsDrawByRepetition( pos, score ) )
+        /* The root itself is never a draw by repetition: the game is
+         * still going, and a GUI adjudicates real threefolds.
+         */
+        if ( pos.GetPly() != m_Root.GetPly() && IsDrawByRepetition( pos, score ) )
             return score;
 
         /* Now we can see if any previous search has been useful */
@@ -3904,7 +3995,7 @@ protected:
             }
         }
 
-        if ( IsEndOfGame( score, pos, myMoves ) )
+        if ( IsEndOfGame( score, pos ) )
         {
             /* Mates are worth remembering at any draft.  Draws by the
              * fifty-move rule depend on the path taken, so they are not
@@ -3925,12 +4016,21 @@ protected:
 
         bool bFirstSearch = true;
         bool bAlphaExceeded = false;
+        unsigned int nLegalMoves = 0;
 
         for ( auto &move : myMoves )
         {
+            Position nextPos( pos, move );
+
+            /* Move generation is pseudo-legal: skip anything that leaves
+             * our own king capturable.
+             */
+            if ( nextPos.CanKingBeCapturedNow() )
+                continue;
+
+            nLegalMoves++;
             currentPV = pv;
             currentPV.Make( move );
-            Position nextPos( pos, move );
             score = SearchNode( beta, alpha, depth + nExtension, nextPos,
                                 currentPV );
 
@@ -3974,6 +4074,24 @@ protected:
 
             if ( m_bTerminated )
                 break;
+        }
+
+        if ( nLegalMoves == 0 )
+        {
+            /* Below the horizon only captures were tried; none being
+             * legal just means we stand pat on the score IsFrontier
+             * already folded into alpha.
+             */
+            if ( depth <= 0 && !pos.IsCheck() )
+                return alpha;
+
+            /* No legal move at all: checkmate if in check, else stalemate. */
+            score = pos.IsCheck() ? -KING_VALUE : DRAW_SCORE;
+            if ( score != DRAW_SCORE )
+                CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
+                               MAX_SEARCH_DEPTH, NullMove );
+            pv = bestPV;
+            return score;
         }
 
         if ( bAlphaExceeded )
@@ -4042,16 +4160,22 @@ public:
          * (king move, interposition) can be found.
          */
         if ( depth > 0 || pos.IsCheck() )
-        {
             myMoves = pos.GetMoves();
-            if ( myMoves.IsEmpty() )
-                Die( "No moves could be generated!" );
-        }
         else
         {
-            myMoves = pos.GetCaptures();
-            if ( myMoves.IsEmpty() )
-                Die( "No captures could be generated!" );
+            /* Rook and bishop under-promotions are practically never
+             * better than a queen or a knight; leave them to the
+             * full-width search rather than quadrupling promotion nodes.
+             */
+            myMoves.Clear();
+            for ( const auto &m : pos.GetCaptures() )
+            {
+                const Piece *pPromote = m.GetPromoteTo();
+                if ( pPromote != &None &&
+                        ( pPromote->Type() == ROOK || pPromote->Type() == BISHOP ) )
+                    continue;
+                myMoves.Add( m );
+            }
         }
     }
 };
@@ -4081,8 +4205,7 @@ protected:
         phe.m_BestMove = move;
         phe.m_TypeBits = het;
         phe.m_Score = score;
-        PositionHasher ph( pos );
-        phe.m_Hash = ph.GetHash();
+        phe.m_Hash = pos.GetHash();
         s_pPositionHashTable->Insert( phe );
     }
 
@@ -4416,7 +4539,7 @@ Moves King::GenerateCastlingMoves( const Square &source,
                                    const Position &pos ) const
 {
     Moves moves;
-    Board board = pos.GetBoard();
+    const Board &board = pos.GetBoard();
 
     if ( pos.GetColorToMove() == WHITE )
     {
@@ -4429,26 +4552,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( D1 ) == &None )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( C1, BLACK ) &&
+                        !pos.IsSquareAttacked( D1, BLACK ) &&
+                        !pos.IsSquareAttacked( E1, BLACK ) )
                 {
-                    if ( ( response.Dest() == C1 ) ||
-                            ( response.Dest() == D1 ) ||
-                            ( response.Dest() == E1 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, C1 );
                     moves.Add( m );
                 }
@@ -4460,26 +4567,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( H1 ) == &WhiteRook )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( E1, BLACK ) &&
+                        !pos.IsSquareAttacked( F1, BLACK ) &&
+                        !pos.IsSquareAttacked( G1, BLACK ) )
                 {
-                    if ( ( response.Dest() == E1 ) ||
-                            ( response.Dest() == F1 ) ||
-                            ( response.Dest() == G1 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, G1 );
                     moves.Add( m );
                 }
@@ -4498,26 +4589,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( D8 ) == &None )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( C8, WHITE ) &&
+                        !pos.IsSquareAttacked( D8, WHITE ) &&
+                        !pos.IsSquareAttacked( E8, WHITE ) )
                 {
-                    if ( ( response.Dest() == C8 ) ||
-                            ( response.Dest() == D8 ) ||
-                            ( response.Dest() == E8 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, C8 );
                     moves.Add( m );
                 }
@@ -4529,26 +4604,10 @@ Moves King::GenerateCastlingMoves( const Square &source,
                     ( board.Get( H8 ) == &BlackRook )
                )
             {
-                Position nextPos( pos, NullMove );
-                nextPos.m_bVirginBlackKing = false;
-                nextPos.m_bVirginWhiteKing = false;
-
-                Moves responses = nextPos.GetMoves();
-
-                bool bCanCastle = true;
-
-                for ( auto response : responses )
+                if ( !pos.IsSquareAttacked( E8, WHITE ) &&
+                        !pos.IsSquareAttacked( F8, WHITE ) &&
+                        !pos.IsSquareAttacked( G8, WHITE ) )
                 {
-                    if ( ( response.Dest() == E8 ) ||
-                            ( response.Dest() == F8 ) ||
-                            ( response.Dest() == G8 ) )
-                    {
-                        bCanCastle = false;
-                        break;
-                    }
-                }
-
-                if ( bCanCastle ) {
                     Move m( this, source, G8 );
                     moves.Add( m );
                 }
@@ -4637,6 +4696,7 @@ public:
     }
     void SetPosition( Position &pos )
     {
+        pos.DetachHistory();
         m_Position = pos;
     }
 
