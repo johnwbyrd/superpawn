@@ -3741,9 +3741,7 @@ protected:
 
     bool IsEndOfGame( int &score, Position &pos, Moves &myMoves )
     {
-        if ( IsDrawByRepetition( pos, score ) )
-            return true;
-
+        /* Repetition has already been tested by SearchPrincipalVariation. */
         if ( pos.GetPlySinceCaptureOrPawnMove() >= 100 )
         {
             score = DRAW_SCORE;
@@ -3908,9 +3906,23 @@ protected:
 
         if ( IsEndOfGame( score, pos, myMoves ) )
         {
-            CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score, depth, NullMove );
+            /* Mates are worth remembering at any draft.  Draws by the
+             * fifty-move rule depend on the path taken, so they are not
+             * cached; neither are repetitions, which never reach here.
+             */
+            if ( abs( score ) > CHECKMATE_VALUE )
+                CacheNodeType( HET_PRINCIPAL_VARIATION, pos, score,
+                               MAX_SEARCH_DEPTH, NullMove );
             return score;
         }
+
+        /* IsEndOfGame may have asked for a check extension.  The flag is a
+         * member that every recursive call resets, so it must be read once
+         * here rather than inside the loop, where it would hold whatever
+         * the last node of the previous subtree left behind.
+         */
+        const int nExtension = m_nSearchExtension;
+
         bool bFirstSearch = true;
         bool bAlphaExceeded = false;
 
@@ -3919,7 +3931,7 @@ protected:
             currentPV = pv;
             currentPV.Make( move );
             Position nextPos( pos, move );
-            score = SearchNode( beta, alpha, depth + m_nSearchExtension, nextPos,
+            score = SearchNode( beta, alpha, depth + nExtension, nextPos,
                                 currentPV );
 
             // Attenuate for distance from mate, so that mate in 2 is preferable to mate in 5
@@ -4052,33 +4064,12 @@ public:
         super( interface )
     { }
 protected:
-    /* Mate scores drift by one per ply on the way up the search stack
-     * (AttenuateForMate). Store them normalized to the current node so a
-     * TT lookup from a different ply distance returns a consistent mate
-     * distance. 'plyFromRoot' is used as the offset.
+    /* Mate scores shrink by one per ply on the way up the search stack
+     * (AttenuateForMate), so the score a node returns is already
+     * "mate in N plies from this node", independent of how the node
+     * was reached.  That is exactly the form the transposition table
+     * needs, so mate scores are stored and retrieved unchanged.
      */
-    int PlyFromRoot( const Position &pos ) const
-    {
-        return ( int ) pos.GetPly() - ( int ) m_Root.GetPly();
-    }
-
-    int MateScoreToTT( int score, int plyFromRoot ) const
-    {
-        if ( score > CHECKMATE_VALUE )
-            return score + plyFromRoot;
-        if ( score < -CHECKMATE_VALUE )
-            return score - plyFromRoot;
-        return score;
-    }
-
-    int MateScoreFromTT( int score, int plyFromRoot ) const
-    {
-        if ( score > CHECKMATE_VALUE )
-            return score - plyFromRoot;
-        if ( score < -CHECKMATE_VALUE )
-            return score + plyFromRoot;
-        return score;
-    }
 
     virtual void CacheNodeType( const HashEntryType &het, Position &pos,
                                 const int score, const int depth,
@@ -4089,7 +4080,7 @@ protected:
         phe.m_Ply = pos.GetPly();
         phe.m_BestMove = move;
         phe.m_TypeBits = het;
-        phe.m_Score = MateScoreToTT( score, PlyFromRoot( pos ) );
+        phe.m_Score = score;
         PositionHasher ph( pos );
         phe.m_Hash = ph.GetHash();
         s_pPositionHashTable->Insert( phe );
@@ -4103,7 +4094,6 @@ protected:
     {
         const PositionHashEntry *pEntry = pos.LookUp();
         bestMove = NullMove;
-        int plyFromRoot = PlyFromRoot( pos );
 
         /* Logic copied heavily from Bob Hyatt at http://www.open-chess.org/viewtopic.php?f=5&t=1872 */
         /* See if an entry in the hash table exists at this depth for this
@@ -4129,7 +4119,7 @@ protected:
                 */
                 case HET_PRINCIPAL_VARIATION:
                     bestMove = pEntry->m_BestMove;
-                    nSearchResult = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    nSearchResult = pEntry->m_Score;
                     return true;
 
                 /*
@@ -4142,7 +4132,7 @@ protected:
                 */
                 case HET_ALL_NODE:
                 {
-                    int adj = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    int adj = pEntry->m_Score;
                     if ( adj <= alpha )
                     {
                         bestMove = pEntry->m_BestMove;
@@ -4159,7 +4149,7 @@ protected:
                 indication to search which says "just return beta, no need to do a search." */
                 case HET_CUT_NODE:
                 {
-                    int adj = MateScoreFromTT( pEntry->m_Score, plyFromRoot );
+                    int adj = pEntry->m_Score;
                     if ( adj >= beta )
                     {
                         bestMove = pEntry->m_BestMove;
@@ -4193,7 +4183,9 @@ protected:
                                                beta, depth );
         if ( bFound )
         {
-            pv.Add( bestMove );
+            /* Terminal positions are stored with no best move. */
+            if ( bestMove != NullMove )
+                pv.Add( bestMove );
             score = nSearchResult;
             return true;
         }
