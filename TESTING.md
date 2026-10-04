@@ -34,6 +34,10 @@ in Qt. The gauntlet script in `tests/gauntlet/` still uses it.
 Perft is run with `tests/perft/perft.sh` and must pass before anything
 below is attempted. It runs in CI on every platform.
 
+`tests/sprt.sh` wraps fastchess with every fixed condition from this
+document already filled in, so a test is one command. `bench` is a
+command inside the engine itself.
+
 Two kinds of change
 -------------------
 
@@ -42,11 +46,17 @@ which.
 
 **Non-functional changes** do not alter any search decision: refactors,
 speedups, UCI fixes, build changes. These are proved non-functional by
-the `bench` command, which searches a fixed set of positions to a fixed
-depth and prints the total node count. If the count is identical before
-and after, the search made exactly the same decisions, and the change
-needs no games. Measure the speed (nodes per second from the same
-`bench` run) and you are done.
+the `bench` command, which searches 33 fixed positions to depth 8 with
+a fixed 16 MB hash and prints one line:
+
+    $ printf 'bench\n' | ./build/superpawn
+    bench: 7058234 nodes 14745 ms 478686 nps (depth 8, 33 positions)
+
+If the node count is identical before and after, the search made exactly
+the same decisions, and the change needs no games. Measure the speed
+(the nps figure from the same line, best of three runs on a quiet
+machine) and you are done. `bench N` uses depth N instead, for a quicker
+check; the count is only comparable across runs at the same depth.
 
 **Functional changes** alter the bench count: anything in evaluation,
 move ordering, pruning, extensions, time management. These need games.
@@ -71,17 +81,18 @@ changes can be compared. Changing any of them starts a new baseline.
 | Long control     | 60+0.6, for confirmation runs only                  |
 | Hash             | 64 MB per engine                                    |
 | Concurrency      | one game per physical core, never more              |
-| Openings         | `tests/openings/book.epd`, random order, 8 plies    |
+| Openings         | `tests/openings/book.epd`, random order             |
 | Colours          | each opening played twice, colours swapped          |
 | Draw adjudication| after move 40, when both scores are within 10 cp for 8 moves |
 | Resign adjudication | when both scores are beyond 800 cp for 3 moves   |
 | SPRT bounds      | elo0 = 0, elo1 = 5, alpha = 0.05, beta = 0.05        |
 
-The opening book is any EPD file of a few thousand positions, 6 to 10
-plies into normal openings. It is checked into the repository so every
+The opening book is 5000 positions eight moves into balanced openings,
+sampled from the Stockfish project's `8moves_v3` book; see
+`tests/openings/README.md` for its provenance. It is checked in so every
 test uses the same positions. Playing every game from the start
-position is not acceptable: the engines will repeat the same handful of
-games.
+position is not acceptable: the engines would repeat the same handful
+of games.
 
 ### Running it
 
@@ -89,28 +100,35 @@ Build the candidate and the base into two separately named binaries.
 Never test against a binary rebuilt from the same tree at another time;
 copy the base binary aside before touching the source.
 
-    cmake --build build && cp build/superpawn /tmp/sp-new
     git stash && cmake --build build && cp build/superpawn /tmp/sp-old && git stash pop
+    cmake --build build && cp build/superpawn /tmp/sp-new
 
 Then:
+
+    tests/sprt.sh /tmp/sp-new /tmp/sp-old
+
+The script runs fastchess with the conditions in the table above and
+writes the PGN under `/tmp/superpawn-sprt/`. It needs `fastchess` on the
+PATH, or `FASTCHESS=/path/to/fastchess`. It uses one game per core,
+leaving one core free; set `CONCURRENCY` to override. Anything after
+the two binaries is passed to fastchess unchanged, so `-rounds 20`
+caps a quick shakedown run. The command it ends up running is
+essentially:
 
     fastchess \
       -engine cmd=/tmp/sp-new name=new \
       -engine cmd=/tmp/sp-old name=old \
       -each proto=uci tc=10+0.1 option.Hash=64 \
-      -openings file=tests/openings/book.epd format=epd order=random plies=8 \
-      -repeat -rounds 5000 -games 2 \
+      -openings file=tests/openings/book.epd format=epd order=random \
+      -repeat -games 2 -rounds 5000 \
       -sprt elo0=0 elo1=5 alpha=0.05 beta=0.05 \
       -draw movenumber=40 movecount=8 score=10 \
-      -resign movecount=3 score=800 \
-      -concurrency 4 \
-      -ratinginterval 10 \
-      -pgnout file=sprt.pgn
+      -resign movecount=3 score=800 twosided=true \
+      -concurrency 3 -ratinginterval 10 \
+      -pgnout file=/tmp/superpawn-sprt/sprt-DATE.pgn
 
 `-rounds 5000` is a ceiling, not a target; the SPRT stops the match
-when it has a verdict. Adjust `-concurrency` to the number of physical
-cores on the machine, leaving none spare for anything else that is
-running.
+when it has a verdict.
 
 ### Reading the result
 
@@ -147,7 +165,10 @@ a change that does nothing gets accepted.
 Search changes (pruning, reductions, extensions, time management) can
 help at short time controls and hurt at long ones. After such a change
 passes at 10+0.1, run the same test at 60+0.6 with bounds
-`elo0=-3 elo1=1`, which asks only "is it not worse". A change that
+`elo0=-3 elo1=1`, which asks only "is it not worse":
+
+    TC=60+0.6 ELO0=-3 ELO1=1 tests/sprt.sh /tmp/sp-new /tmp/sp-old
+ A change that
 passes short and fails long is a time-control-dependent heuristic:
 usually keep it, but say so in the commit message.
 
@@ -158,7 +179,7 @@ Evaluation-only changes do not need the long run.
 For a change that touches only the evaluation, replace the time control
 with a fixed node count:
 
-    -each proto=uci tc=inf nodes=200000 option.Hash=64
+    TC=inf NODES=200000 tests/sprt.sh /tmp/sp-new /tmp/sp-old
 
 The result is then immune to machine load and reproducible on any
 computer, and the evaluation is the only thing that differs between the
@@ -240,11 +261,13 @@ What an improvement cycle looks like
    the rejected list, discard the change.
 5. Every five or so accepted changes, run the gauntlet and record it.
 
-Prerequisites still to be added to the engine
----------------------------------------------
+Files involved
+--------------
 
-- A `bench` UCI command that searches a fixed list of positions to a
-  fixed depth and prints total nodes and nodes per second. Without it,
-  non-functional changes cannot be proved non-functional and must be
-  played out like any other.
-- `tests/openings/book.epd`, the shared opening book.
+| File                        | Purpose                                      |
+|-----------------------------|----------------------------------------------|
+| `tests/perft/perft.sh`      | move-generation correctness, run first       |
+| `bench` (engine command)    | functional fingerprint and speed             |
+| `tests/sprt.sh`             | the standard new-versus-old SPRT test        |
+| `tests/openings/book.epd`   | the shared opening book, with its README     |
+| `tests/gauntlet/gauntlet.sh`| absolute strength against other engines      |
