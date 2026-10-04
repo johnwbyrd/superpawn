@@ -1,0 +1,93 @@
+# Superpawn style: 4-space Allman C++, pointer attaches to name, 80
+# columns, modern spacing (no padded parens / brackets / casts).
+#
+# Historical note: the original source was formatted with astyle using
+# --pad-paren-in which added inner spaces to every ( ... ) and [ ... ].
+# That idiom has been retired in favour of mainstream C++ spacing.
+
+Language: Cpp
+Standard: c++11
+
+ColumnLimit: 80
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+NamespaceIndentation: None
+IndentCaseLabels: false
+IndentPPDirectives: None
+
+# Braces: Allman (own line)
+BreakBeforeBraces: Allman
+
+# Pointer / reference glued to the name (int *p, int &r)
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+DerivePointerAlignment: false
+
+# Spacing: modern C++, no padded parens or brackets
+SpaceBeforeParens: ControlStatements
+SpacesInParentheses: false
+SpaceInEmptyParentheses: false
+SpacesInSquareBrackets: false
+SpacesInCStyleCastParentheses: false
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceAfterTemplateKeyword: true
+SpacesInAngles: false
+SpacesInContainerLiterals: false
+SpaceBeforeRangeBasedForLoopColon: true
+SpaceAfterLogicalNot: false
+
+# Keep single-statement bodies on their own line without braces, and
+# don't collapse small blocks to a single line.
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+
+# Function argument / parameter wrapping: wrap one-per-line when the
+# whole call doesn't fit, align under the opening paren.
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: Align
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: true
+
+# Discourage breaking the return type onto its own line.
+AlwaysBreakAfterReturnType: None
+PenaltyReturnTypeOnItsOwnLine: 1000
+
+# Member-initializer lists: colon on same line as the function signature,
+# one initializer per line.
+BreakConstructorInitializers: AfterColon
+PackConstructorInitializers: Never
+
+# Operator / colon alignment
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+AlignOperands: Align
+AlignTrailingComments: true
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+
+# Includes: don't reorder, project-specific include ordering matters
+SortIncludes: Never
+SortUsingDeclarations: false
+
+# Reflow long comments. The project's doxygen /** ... **/ blocks are
+# mostly fine, but a handful of comment lines run over 80 cols; letting
+# clang-format wrap them keeps the whole file inside the column limit.
+ReflowComments: true
+
+# Misc
+Cpp11BracedListStyle: true
+FixNamespaceComments: true
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+CompactNamespaces: false
