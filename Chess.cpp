@@ -1096,10 +1096,19 @@ public:
 
         m_PromoteTo = &None;
 
-        if ( moveLength != 4 && moveLength != 5 ) //-V112
-            Die( "Got an incoming Move string that had a weird length " );
-
         m_Piece = &None;
+        m_Score = 0;
+
+        /* A malformed string (or the GUI null move "0000") becomes a move
+         * from off the board, which will never match a generated move.
+         */
+        if ( moveLength != 4 && moveLength != 5 ) //-V112
+        {
+            m_Source = Square( -99, -99 );
+            m_Dest = Square( -99, -99 );
+            return;
+        }
+
         m_Source.I( sMove[0] - 'a' );
         m_Source.J( sMove[1] - '1' );
         m_Dest.I( sMove[2] - 'a' );
@@ -1633,15 +1642,12 @@ public:
 
     virtual ~PositionHashTable()
     {
-        if ( m_SizeBytes )
-            delete[] m_pEntries;
+        delete[] m_pEntries;
     }
 
+    /** Forget everything: a new game is starting. */
     virtual void Purge()
     {
-        delete[] m_pEntries;
-        m_nEntriesInUse = 0;
-        m_CacheLookups = m_CacheMisses = m_CacheHits = 0;
         SetSize( m_SizeBytes );
     }
 
@@ -1697,6 +1703,11 @@ public:
         size |= size >> 8;
         size |= size >> 16;
         size++;
+
+        delete[] m_pEntries;
+        m_pEntries = nullptr;
+        m_nEntriesInUse = 0;
+        m_CacheLookups = m_CacheMisses = m_CacheHits = 0;
 
         m_SizeBytes = size;
         m_SizeBytesMask = size - 1;
@@ -1920,7 +1931,7 @@ public:
                     m_bVirginA1 =
                         m_bVirginBlackKing =
                             m_bVirginWhiteKing = true;
-        m_nPlySinceCaptureOrPawnMove = 1;
+        m_nPlySinceCaptureOrPawnMove = 0;
         m_sEnPassant.Set( -1, -1 );
         m_Moves.Clear();
         m_Board.Initialize();
@@ -2083,7 +2094,7 @@ public:
         if ( sourceType == PAWN )
         {
             /* The fifty move rule resets whenever a pawn is moved. */
-            m_nPlySinceCaptureOrPawnMove = 1;
+            m_nPlySinceCaptureOrPawnMove = 0;
             HandleEnPassant( move, position, captureSquare );
         }
         else
@@ -2113,7 +2124,7 @@ public:
          * fifty-move clock resets regardless. MovePiece normally handles
          * the pawn-move reset, but PromotePiece bypasses it entirely.
          */
-        m_nPlySinceCaptureOrPawnMove = 1;
+        m_nPlySinceCaptureOrPawnMove = 0;
 
         /* Update the material counts: pawn is gone, promoted piece appears,
          * and anything we captured on the back rank is also gone.
@@ -2162,7 +2173,7 @@ public:
         if ( pCaptured != &None )
         {
             m_Material.CaptureMaterial( pCaptured );
-            m_nPlySinceCaptureOrPawnMove = 1;
+            m_nPlySinceCaptureOrPawnMove = 0;
         }
 
         if ( captureSquare == A1 )
@@ -2323,9 +2334,22 @@ public:
         ss.str( sFEN );
 
         string sBoard, sToMove, sVirgins, sEnPassant;
+        unsigned int nHalfmoveClock;
         int nMoves;
 
-        ss >> sBoard >> sToMove >> sVirgins >> sEnPassant >> m_nPly >> nMoves;
+        ss >> sBoard >> sToMove;
+
+        /* The last four fields are optional (EPD-style FENs omit them). */
+        if ( !( ss >> sVirgins ) )
+            sVirgins = "-";
+        if ( !( ss >> sEnPassant ) )
+            sEnPassant = "-";
+        if ( !( ss >> nHalfmoveClock ) )
+            nHalfmoveClock = 0;
+        if ( !( ss >> nMoves ) || nMoves < 1 )
+            nMoves = 1;
+
+        m_nPlySinceCaptureOrPawnMove = nHalfmoveClock;
 
         int j = MAX_FILES - 1;
         int i = 0;
@@ -2408,7 +2432,7 @@ public:
             }
         }
 
-        SetColorToMove( sToMove == "w" ? WHITE : BLACK );
+        SetColorToMove( sToMove == "b" ? BLACK : WHITE );
 
         stringstream ssVirgins( sVirgins );
 
@@ -2527,7 +2551,7 @@ public:
         ss << " ";
         ss << ( string ) m_sEnPassant;
         ss << " ";
-        ss << m_nPly;
+        ss << m_nPlySinceCaptureOrPawnMove;
         ss << " ";
         ss << m_nPly / 2 + 1;
 
@@ -3419,6 +3443,12 @@ public:
 
     }
 
+    /** Block until any running search finishes of its own accord. */
+    virtual void Wait()
+    {
+
+    }
+
     virtual void SetDirector( const Director &director )
     {
         m_Director = director;
@@ -3563,6 +3593,14 @@ public:
             m_Thread.join();
 
         m_Director.Cut();
+    }
+
+    virtual void Wait()
+    {
+        SearchLockType guard( m_Lock );
+
+        if ( m_Thread.joinable() )
+            m_Thread.join();
     }
 
 protected:
@@ -4713,13 +4751,22 @@ public:
 
         while ( m_bIsRunning )
         {
-            getline( *m_In, sInputLine );
+            /* End of input must end the engine too, or this loop spins
+             * forever on an empty line.  Let a search that is already
+             * running finish first, so "printf 'go depth 6' | superpawn"
+             * still gets its bestmove.
+             */
+            if ( !getline( *m_In, sInputLine ) )
+                break;
+
             if ( m_bLogInputToFile )
                 LogLineToFile( sInputLine );
 
             LockGuardType guard( m_Lock );
             Execute( sInputLine );
         }
+
+        m_pSearcher->Wait();
     }
 
     typedef lock_guard<mutex> LockGuardType;
@@ -4731,6 +4778,7 @@ public:
 
     INTERFACE_PROTOTYPE( Notify )
     {
+        LockGuardType guard( m_OutLock );
         switch ( m_Protocol )
         {
         case PROTOCOL_XBOARD:
@@ -4746,6 +4794,7 @@ public:
 
     INTERFACE_PROTOTYPE( Instruct )
     {
+        LockGuardType guard( m_OutLock );
         ( *m_Out ) << sParams << endl;
     }
 
@@ -5064,12 +5113,21 @@ protected:
 
             if ( sType == "fen" )
             {
+                /* A full FEN has six fields, but four-field EPD-style
+                 * FENs are common, so stop at "moves" or end of line.
+                 */
                 string sArg, sFen;
                 const int fenArgs = 6;
 
                 for ( int t = 0; t < fenArgs; t++ )
                 {
-                    ss >> sArg;
+                    if ( !( ss >> sArg ) )
+                        break;
+                    if ( sArg == "moves" )
+                    {
+                        sType = "moves";
+                        break;
+                    }
                     if ( t != 0 )
                         sFen.append( " " );
                     sFen.append( sArg );
@@ -5078,9 +5136,6 @@ protected:
                 Position pos;
                 pos.SetFEN( sFen );
                 m_pGame->SetPosition( pos );
-
-                Notify( "New position: " );
-                Notify( sFen );
             }
 
             if ( sType == "startpos" )
@@ -5093,9 +5148,33 @@ protected:
                 while ( ss >> sMove )
                 {
                     Position *pLast = m_pGame->GetPosition();
-                    Move nextMove( sMove, pLast->GetColorToMove() );
+                    Move wanted( sMove, pLast->GetColorToMove() );
 
-                    Position nextPos( *pLast, nextMove );
+                    /* Only play moves we can generate ourselves; anything
+                     * else (a typo, "0000") is reported and ends the list
+                     * rather than aborting the engine.
+                     */
+                    bool bFound = false;
+                    Move matched;
+                    for ( const auto &m : pLast->GetMoves() )
+                    {
+                        if ( m.Source() == wanted.Source() &&
+                                m.Dest() == wanted.Dest() &&
+                                m.GetPromoteTo() == wanted.GetPromoteTo() )
+                        {
+                            matched = m;
+                            bFound = true;
+                            break;
+                        }
+                    }
+
+                    if ( !bFound )
+                    {
+                        Notify( "Ignoring unplayable move: " + sMove );
+                        break;
+                    }
+
+                    Position nextPos( *pLast, matched );
                     m_pGame->SetPosition( nextPos );
                 }
             }
@@ -5105,6 +5184,7 @@ protected:
     INTERFACE_PROTOTYPE_NO_PARAMS( New )
     {
         m_pGame->New();
+        s_pPositionHashTable->Purge();
     }
 
     INTERFACE_PROTOTYPE_NO_PARAMS( Stop )
@@ -5178,6 +5258,8 @@ protected:
     ostream *m_Out;
 
     mutex m_Lock;
+    /** The search thread and the command thread both write to m_Out. */
+    mutex m_OutLock;
 
     Moves m_PrincipalVariation;
 
