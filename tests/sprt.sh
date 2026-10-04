@@ -28,7 +28,10 @@ if [ $# -lt 2 ]; then
     exit 2
 fi
 
-NEW="$1"; OLD="$2"; shift 2
+# Absolute paths: fastchess is run from OUT_DIR so its resume file
+# (config.json) and logs land there rather than in the repository.
+abs() { case "$1" in /*) echo "$1";; *) echo "$PWD/$1";; esac; }
+NEW="$(abs "$1")"; OLD="$(abs "$2")"; shift 2
 
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 FASTCHESS="${FASTCHESS:-$(command -v fastchess || true)}"
@@ -37,7 +40,7 @@ NODES="${NODES:-}"
 HASH="${HASH:-64}"
 ELO0="${ELO0:-0}"
 ELO1="${ELO1:-5}"
-BOOK="${BOOK:-$HERE/tests/openings/book.epd}"
+BOOK="$(abs "${BOOK:-$HERE/tests/openings/book.epd}")"
 OUT_DIR="${OUT_DIR:-/tmp/superpawn-sprt}"
 if [ -z "${CONCURRENCY:-}" ]; then
     CORES=$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 2)
@@ -63,6 +66,7 @@ echo "old: $OLD"
 echo "pgn: $OUT_DIR/sprt-$STAMP.pgn"
 echo
 
+cd "$OUT_DIR" || die "cannot enter $OUT_DIR"
 exec "$FASTCHESS" \
     -engine cmd="$NEW" name=new \
     -engine cmd="$OLD" name=old \
