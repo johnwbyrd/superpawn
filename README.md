@@ -146,31 +146,35 @@ Features
 - ANSI C++11 code
 - Compiles under Microsoft Visual Studio 2013, gcc 3.8.2, AppleClang 5.1.0,
   and clang 3.3
-- Implements a subset of UCI protocol sufficient to permit play 
+- Implements a subset of UCI protocol sufficient to permit play
   with Arena 3.0+, Tarrasch Chess GUI, Fritz GUI, cutechess-cli and others
-- Pluggable architecture permits easy experimentation with 
-  new algorithms for search and evaluation  
-- Principal variation search
-- Basic material evaluator
-- Basic mobility evaluator
+- Pluggable architecture permits easy experimentation with
+  new algorithms for search and evaluation
+- Principal variation search with quiescence and check extension
+- Material, mobility, and piece-square-table evaluators
+- Pawn-structure evaluator: doubled, isolated, and passed pawns
+- Positional terms: rook on open/semi-open file, bishop pair, king pawn-shield
+- Mop-up evaluator pulls the kings together in the endgame
 - Gratuitous functional programming
 - All the code exists within a single C++ source file
 - Vaguely sort of const-correct
 - Compiles cleanly in 32-bit and 64-bit modes
 - Compatible with cmake build systems
 - Simple test framework based on [cutechess-cli](http://cutechess.com/)
+- Perft command and a correctness test suite against the six standard
+  [perft positions](https://www.chessprogramming.org/Perft_Results)
 - Castling, stalemate, fifty move rule, and draw by repetition
+- Zobrist hashing with castling rights and en-passant file folded in
 - Reports distance to mate
 - Basic time management controls
-- Basic transposition table
+- Basic transposition table (default 128 MB, configurable 1-2048 MB)
 
 Things it doesn't do
 --------------------
 
-- Take castling into account in computing hashes
-- Understand pawn structure
-- Better endgame logic for say KRK and KQK.  Superpawn is currently perfectly capable
-  of throwing easily winnable endgames.
+- Better endgame logic for say KRK and KQK. The mop-up evaluator pulls the
+  kings together but there is no edge-driving term for the losing king, so
+  Superpawn is still perfectly capable of throwing easily winnable endgames.
 - Play chess well
 
 License

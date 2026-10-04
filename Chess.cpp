@@ -9,10 +9,7 @@
  **/
 
 /**
-** \todo Distance to mate reporting is wrong
-** \todo Take castling into account in computing hashes
-** \todo Understand pawn structure
-** \todo Better endgame logic for say KRK
+** \todo Better endgame logic for say KRK (MopUp only pulls kings together)
 **/
 
 #include "BuildInfo.h"
@@ -1105,9 +1102,6 @@ public:
         m_Dest.I( sMove[2] - 'a' );
         m_Dest.J( sMove[3] - '1' );
 
-        /* TODO: handle piece promotion -- we have to know this somehow
-         * from the color doing the moving
-         */
         if ( moveLength == 5 )
         {
             char cPromote = ( char ) tolower( ( int ) sMove[ 4 ] );
@@ -2952,31 +2946,52 @@ public:
         if ( wBishops >= 2 ) score += BISHOP_PAIR;
         if ( bBishops >= 2 ) score -= BISHOP_PAIR;
 
-        /* King pawn-shield, only material in the opening/early middlegame.
-         * Scale down linearly to zero by late middlegame.
+        /* King safety: shield + open files near king + enemy pawn storm +
+         * king-stuck-in-centre, all only material in the opening/early
+         * middlegame and scaled linearly down to zero by late middlegame.
          */
         float phase = pos.GetPhase();
         if ( phase < 0.7f )
         {
             float middlegameFactor = 1.0f - phase / 0.7f;
-            int wShield = wKingFound ? KingShield( board, wKing, WHITE ) : 0;
-            int bShield = bKingFound ? KingShield( board, bKing, BLACK ) : 0;
-            score += ( int )( ( wShield - bShield ) * middlegameFactor );
+            int wSafety = 0, bSafety = 0;
+            if ( wKingFound )
+                wSafety = KingSafety( board, wKing, WHITE,
+                                      wPawnsOnFile, bPawnsOnFile, bMinRank );
+            if ( bKingFound )
+                bSafety = KingSafety( board, bKing, BLACK,
+                                      bPawnsOnFile, wPawnsOnFile, wMaxRank );
+            score += ( int )( ( wSafety - bSafety ) * middlegameFactor );
         }
 
         return Bias( pos, score );
     }
 
 private:
-    static int KingShield( const Board &board, const Square &king, Color c )
+    /** Positive = this king is safe. Negative = exposed.
+     ** 'myPawnsOnFile' / 'enemyPawnsOnFile' are the per-file pawn counts
+     ** from the caller's single scan; 'enemyAdvancedRank' is the enemy
+     ** pawn closest to this king on each file (bMinRank for white's
+     ** king, wMaxRank for black's).
+     **/
+    static int KingSafety( const Board &board, const Square &king, Color c,
+                           const int *myPawnsOnFile,
+                           const int *enemyPawnsOnFile,
+                           const int *enemyAdvancedRank )
     {
         int kf = king.I();
         int kr = king.J();
         int fwd = ( c == WHITE ) ? 1 : -1;
+        int ownBackRank = ( c == WHITE ) ? 0 : ( int )( MAX_FILES - 1 );
         const Piece *myPawn = ( c == WHITE )
                               ? ( const Piece * )&WhitePawn
                               : ( const Piece * )&BlackPawn;
+
         int score = 0;
+
+        /* Pawn shield: friendly pawns on the three files near the king,
+         * on the two ranks in front of it.
+         */
         for ( int df = -1; df <= 1; df++ )
         {
             int f = kf + df;
@@ -2989,6 +3004,42 @@ private:
                     score += ( dr == 1 ) ? 12 : 6;
             }
         }
+
+        /* Open / semi-open file near king: file in front of the king with
+         * no friendly pawn is a highway for enemy heavy pieces. Fully open
+         * (neither side has a pawn) is worse than semi-open.
+         */
+        for ( int df = -1; df <= 1; df++ )
+        {
+            int f = kf + df;
+            if ( f < 0 || f >= ( int )MAX_FILES ) continue;
+            if ( myPawnsOnFile[ f ] == 0 )
+                score -= ( enemyPawnsOnFile[ f ] == 0 ) ? 25 : 15;
+        }
+
+        /* Enemy pawn storm: enemy pawns within three ranks of the king on
+         * the three nearby files. 'enemyAdvancedRank' is already the rank
+         * of the enemy pawn closest to us -- a sentinel outside [0,7] if
+         * there's no such pawn.
+         */
+        static const int STORM[ 4 ] = { 0, 25, 15, 5 };
+        for ( int df = -1; df <= 1; df++ )
+        {
+            int f = kf + df;
+            if ( f < 0 || f >= ( int )MAX_FILES ) continue;
+            int er = enemyAdvancedRank[ f ];
+            if ( er < 0 || er >= ( int )MAX_FILES ) continue;
+            int dist = fwd * ( er - kr );
+            if ( dist > 0 && dist <= 3 )
+                score -= STORM[ dist ];
+        }
+
+        /* King still on d/e file on its own back rank in the opening/early
+         * middlegame: hasn't castled, probably about to get hit.
+         */
+        if ( ( kf == 3 || kf == 4 ) && kr == ownBackRank )
+            score -= 15;
+
         return score;
     }
 };
@@ -4582,6 +4633,19 @@ protected:
         RegisterCommand( "test",  &Interface::Test );
         RegisterCommand( "perft", &Interface::PerftCmd );
         RegisterCommand( "divide", &Interface::PerftDivideCmd );
+        RegisterCommand( "eval", &Interface::EvalCmd );
+    }
+
+    INTERFACE_PROTOTYPE_NO_PARAMS( EvalCmd )
+    {
+        Evaluator ev;
+        Position *pPos = m_pGame->GetPosition();
+        int s = ev.Evaluate( *pPos );
+        stringstream r;
+        r << "eval: " << s << " cp (from "
+          << ( pPos->GetColorToMove() == WHITE ? "white" : "black" )
+          << "'s perspective)";
+        Instruct( r.str() );
     }
 
     INTERFACE_PROTOTYPE( PerftCmd )
