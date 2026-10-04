@@ -79,10 +79,21 @@ unpack it into `build/`, and run the same xboard command.
 Test suite
 ----------
 
-Superpawn includes a simple test suite that uses the [cutechess-cli](https://chessprogramming.wikispaces.com/Cutechess-cli) application
-to run a series of tests against existing chess engines.  Superpawn currently
-loses handily to most of them.  The test suite currently runs on Windows
-platforms only but could be modified to run on other platforms.
+[tests/perft/perft.sh](tests/perft/perft.sh) runs the six standard
+[perft positions](https://www.chessprogramming.org/Perft_Results)
+from Chessprogramming Wiki and checks the node counts against known-correct
+totals; it's wired into the GitHub Actions build on every platform.
+
+[tests/gauntlet/gauntlet.sh](tests/gauntlet/gauntlet.sh) runs Superpawn
+against a configurable set of opponent engines via
+[cutechess-cli](https://github.com/cutechess/cutechess) at a short time
+control and prints a per-opponent score table. By default it looks for
+`fairymax` (install via `apt install fairymax`) and TSCP at
+`~/git/tscp/tscp`; missing opponents are silently skipped. If `ordo` is
+installed it'll also print an Elo table from the aggregated PGN.
+
+Historical note: the project also contains an older Windows-only test
+suite using cutechess-cli, described below.
 
 The core of the test suite is a Lua script that enumerates all currently
 existing chess engines in the tools\engines subdirectory, and uses
@@ -129,16 +140,6 @@ user interface on the Pi.
  
 You will need to have gcc 3.8.2 or higher installed on the Pi.  As of this
 writing, instructions for updating the Pi from older compilers are [here](http://somewideopenspace.wordpress.com/2014/02/28/gcc-4-8-on-raspberry-pi-wheezy/).
-
-Genesis
--------
-
-When my wife Amanda was very small, her older sister made her play chess.
-Although her older sister was quite serious at the chessboard, Amanda quickly tired
-of the slow game.  Eventually Amanda would grab a pawn and yell 
-"It's SUUUUPERPAWWWWWN!" and whoosh it around, knocking all the other
-pieces off the board.  This is the basic strategic and evaluation methodology that 
-I have attempted to incorporate into this chess engine.
 
 Features
 --------
