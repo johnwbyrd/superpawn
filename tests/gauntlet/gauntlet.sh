@@ -9,12 +9,20 @@
 # Environment knobs:
 #   CUTECHESS   path to cutechess-cli; auto-detected on PATH and at
 #               ~/git/cutechess/build/cutechess-cli if not set.
-#   ROUNDS      pairs of games per opponent; default 5 (10 games/opp).
-#   TC          time control in cutechess syntax; default 10+0.1
-#               (10 seconds base, 0.1 second increment per move).
+#   ROUNDS      pairs of games per opponent; default 3 (6 games/opp).
+#   TC          time control in cutechess syntax; default 1+0.05
+#               (1 second base, 0.05 second increment per move).
+#               Chosen to keep each game under a minute of wall time.
 #   OUT_DIR     where to write PGN files; default /tmp/superpawn-gauntlet.
 #   TSCP        path to the tscp binary; auto-detected at ~/git/tscp/tscp.
 #   FAIRYMAX    path to fairymax; auto-detected via `command -v fairymax`.
+#   STOCKFISH   path to stockfish; auto-detected via `command -v stockfish`.
+#               Stockfish is always depth-limited (see SF_DEPTH), so it
+#               only shows up as an opponent when SF_DEPTH is set.
+#   SF_DEPTH    if set, add stockfish as an opponent at this fixed search
+#               depth per move. 5 or 6 produces a fair match with the
+#               current build (score ~0.60-0.70); 1-4 is a walkover,
+#               7+ a crush the other way.
 #
 # Missing opponents are silently skipped so the script does something
 # useful on a stock Debian/Ubuntu box with only one of them installed.
@@ -32,12 +40,14 @@ if [ -z "$CUTECHESS" ]; then
     fi
 fi
 
-ROUNDS="${ROUNDS:-5}"
-TC="${TC:-10+0.1}"
+ROUNDS="${ROUNDS:-3}"
+TC="${TC:-1+0.05}"
 OUT_DIR="${OUT_DIR:-/tmp/superpawn-gauntlet}"
 
 TSCP="${TSCP:-$HOME/git/tscp/tscp}"
 FAIRYMAX="${FAIRYMAX:-$(command -v fairymax || true)}"
+STOCKFISH="${STOCKFISH:-$(command -v stockfish || true)}"
+SF_DEPTH="${SF_DEPTH:-}"
 
 die() { echo "error: $*" >&2; exit 2; }
 
@@ -49,13 +59,17 @@ mkdir -p "$OUT_DIR"
 AGG_PGN="$OUT_DIR/all-games.pgn"
 : > "$AGG_PGN"
 
-# Each opponent is: label|command|protocol|dir (dir may be empty).
+# Each opponent is: label|command|protocol|dir|extra. 'extra' is any
+# extra per-engine cutechess options (e.g. 'depth=6'), space-separated.
 OPPONENTS=()
-[ -x "$FAIRYMAX" ] && OPPONENTS+=( "fairymax|$FAIRYMAX|xboard|" )
-[ -x "$TSCP" ]     && OPPONENTS+=( "tscp|$TSCP|xboard|$(dirname "$TSCP")" )
+[ -x "$FAIRYMAX" ] && OPPONENTS+=( "fairymax|$FAIRYMAX|xboard||" )
+[ -x "$TSCP" ]     && OPPONENTS+=( "tscp|$TSCP|xboard|$(dirname "$TSCP")|" )
+if [ -x "$STOCKFISH" ] && [ -n "$SF_DEPTH" ]; then
+    OPPONENTS+=( "stockfish-d${SF_DEPTH}|$STOCKFISH|uci||depth=$SF_DEPTH" )
+fi
 
 if [ "${#OPPONENTS[@]}" -eq 0 ]; then
-    die "no opponents found; install fairymax (apt) or build TSCP at ~/git/tscp/tscp"
+    die "no opponents found; install fairymax (apt), build TSCP at ~/git/tscp/tscp, or set SF_DEPTH to use stockfish"
 fi
 
 echo "Superpawn gauntlet"
@@ -74,15 +88,17 @@ printf '%-12s  %4s  %4s  %4s  %5s\n' "opponent" "W" "D" "L" "score"
 printf '%-12s  %4s  %4s  %4s  %5s\n' "--------" "----" "----" "----" "-----"
 
 for entry in "${OPPONENTS[@]}"; do
-    IFS='|' read -r label cmd proto dir <<< "$entry"
+    IFS='|' read -r label cmd proto dir extra <<< "$entry"
     pgn="$OUT_DIR/vs-${label}.pgn"
-    opp_args=( -engine "cmd=$cmd" "name=$label" "proto=$proto" )
+    # Per-engine tc so an opponent that also wants `depth=N` or similar
+    # can keep tc as a safety net without forcing it on Superpawn.
+    opp_args=( -engine "cmd=$cmd" "name=$label" "proto=$proto" "tc=$TC" )
     [ -n "$dir" ] && opp_args+=( "dir=$dir" )
+    for opt in $extra; do opp_args+=( "$opt" ); done
 
     out=$( "$CUTECHESS" \
-        -engine "cmd=$ENGINE" "name=Superpawn" "proto=uci" \
+        -engine "cmd=$ENGINE" "name=Superpawn" "proto=uci" "tc=$TC" \
         "${opp_args[@]}" \
-        -each "tc=$TC" \
         -rounds "$ROUNDS" -games 2 \
         -pgnout "$pgn" \
         -recover 2>&1 )
