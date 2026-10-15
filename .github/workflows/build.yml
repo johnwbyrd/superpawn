@@ -2,10 +2,10 @@ name: Build
 
 on:
   push:
-    branches: [master]
+    branches: [master, feature/next]
     tags: ['v*']
   pull_request:
-    branches: [master]
+    branches: [master, feature/next]
   workflow_dispatch:
 
 jobs:
@@ -16,117 +16,82 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: linux-x64
-            os: ubuntu-latest
-            artifact: superpawn
-            archive: superpawn-linux-x64.tar.gz
-            cmake_args: ""
-          - name: macos-universal
+          - name: linux-gcc
+            os: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            cmake_args: -DSP_WERROR=ON
+            artifact: superpawn-linux-x64
+            binary: superpawn
+          - name: linux-clang
+            os: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            cmake_args: -DSP_WERROR=ON
+          - name: linux-generic-debug
+            os: ubuntu-24.04
+            cc: gcc
+            cxx: g++
+            # Debug build with assertions, generic architecture, no PEXT
+            cmake_args: -DCMAKE_BUILD_TYPE=Debug -DSP_ARCH=x86-64 -DSP_LTO=OFF
+            bench_depth: 6
+          - name: linux-pext
+            os: ubuntu-24.04
+            cc: clang
+            cxx: clang++
+            cmake_args: -DSP_USE_PEXT=ON -DSP_WERROR=ON
+          - name: macos-arm64
             os: macos-latest
-            artifact: superpawn
-            archive: superpawn-macos-universal.tar.gz
-            cmake_args: "'-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64'"
-          - name: windows-x64
+            cc: clang
+            cxx: clang++
+            # Apple Silicon: exercises the portable (non-x86) code paths
+            cmake_args: -DSP_WERROR=ON
+            artifact: superpawn-macos-arm64
+            binary: superpawn
+          - name: windows-msvc
             os: windows-latest
-            artifact: superpawn.exe
-            archive: superpawn-windows-x64.zip
-            cmake_args: "-A x64"
-          - name: windows-x86
-            os: windows-latest
-            artifact: superpawn.exe
-            archive: superpawn-windows-x86.zip
-            cmake_args: "-A Win32"
+            cmake_args: -A x64
+            artifact: superpawn-windows-x64
+            binary: Release/superpawn.exe
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # for git describe
 
-      - name: Set build metadata
-        shell: bash
-        run: |
-          echo "BUILD_ID=${GITHUB_SHA::8}" >> $GITHUB_ENV
-          echo "BUILD_NUMBER=${GITHUB_RUN_NUMBER}" >> $GITHUB_ENV
-          echo "BUILD_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
-          echo "BUILD_BRANCH=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+      - name: Install ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
 
-      - name: Configure
-        run: cmake -S . -B build -DBUILD_DOCS=OFF -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+      - name: Configure (Unix)
+        if: runner.os != 'Windows'
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+
+      - name: Configure (Windows)
+        if: runner.os == 'Windows'
+        run: cmake -S . -B build ${{ matrix.cmake_args }}
 
       - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Locate binary
-        id: locate
+      - name: Unit tests
+        run: ctest --test-dir build -C Release --output-on-failure -R unit
+
+      - name: Bench
         shell: bash
         run: |
-          if [ -f "build/Release/${{ matrix.artifact }}" ]; then
-            echo "path=build/Release/${{ matrix.artifact }}" >> $GITHUB_OUTPUT
-          else
-            echo "path=build/${{ matrix.artifact }}" >> $GITHUB_OUTPUT
-          fi
+          BIN=build/${{ matrix.binary || 'superpawn' }}
+          [ -f "$BIN" ] || BIN=build/Release/superpawn.exe
+          [ -f "$BIN" ] || BIN=build/superpawn
+          printf 'uci\nquit\n' | "$BIN" | grep -q uciok
+          "$BIN" bench 16 1 ${{ matrix.bench_depth || 12 }} 2>&1 | tail -4
 
-      - name: Smoke test
-        shell: bash
-        run: |
-          printf 'uci\nquit\n' | "${{ steps.locate.outputs.path }}" | grep -q uciok
-
-      - name: Perft tests
-        shell: bash
-        run: tests/perft/perft.sh "${{ steps.locate.outputs.path }}"
-
-      - name: Stage artifact
-        shell: bash
-        run: |
-          mkdir -p dist
-          cp "${{ steps.locate.outputs.path }}" dist/
-          cp README.md dist/
-          cp logo/logo-small.bmp dist/ 2>/dev/null || true
-
-      - name: Package (tar.gz)
-        if: runner.os != 'Windows'
-        run: tar -czf ${{ matrix.archive }} -C dist .
-
-      - name: Package (zip)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path dist/* -DestinationPath ${{ matrix.archive }}
-
-      - uses: actions/upload-artifact@v5
+      - name: Upload binary
+        if: matrix.artifact
+        uses: actions/upload-artifact@v5
         with:
-          name: ${{ matrix.name }}
-          path: ${{ matrix.archive }}
-
-  release:
-    name: Release
-    needs: build
-    if: >-
-      github.event_name == 'push' &&
-      (startsWith(github.ref, 'refs/tags/v') || github.ref == 'refs/heads/master')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v5
-        with:
-          path: artifacts
-          merge-multiple: true
-
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*
-          generate_release_notes: true
-
-      - name: Update rolling 'latest' release
-        if: github.ref == 'refs/heads/master'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*
-          tag_name: latest
-          name: Latest master build
-          prerelease: true
-          make_latest: false
-          body: >-
-            Rolling build from the tip of master. Overwritten on every push.
-            For stable versioned builds, see tagged releases.
-            Commit ${{ github.sha }}.
+          name: ${{ matrix.artifact }}
+          path: build/${{ matrix.binary }}

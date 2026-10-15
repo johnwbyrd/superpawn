@@ -1,200 +1,87 @@
-<link rel="stylesheet" href="http://jasonm23.github.io/markdown-css-themes/foghorn.css">
-</link>
-
-![Superpawn logo designed by Angela M. Eads](http://chess.johnbyrd.org/logo/logo-medium.jpg "Superpawn logo designed by Angela M. Eads")
+![Superpawn logo designed by Angela M. Eads](logo/logo-medium.jpg "Superpawn logo designed by Angela M. Eads")
 
 Superpawn
 =========
 
-Superpawn is an experimental C++ [chess engine](http://en.wikipedia.org/wiki/Chess_engine) 
-which should not be taken very seriously.  Superpawn uses the [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
-protocol in order to communicate with a [compatible graphical user interface](http://www.playwitharena.com/) of 
-your choice.
+Superpawn is a [UCI](https://en.wikipedia.org/wiki/Universal_Chess_Interface)
+chess engine written in C++23. This branch is a complete rewrite, built from
+the ground up for strength: bitboard move generation, a lockless shared
+transposition table, Lazy SMP parallel search, a modern alpha-beta search with
+the full set of pruning, reduction and extension heuristics, and an NNUE
+evaluator trained on our own hardware.
 
-The latest build of Superpawn can always be downloaded from the
-[GitHub Releases page](https://github.com/johnwbyrd/superpawn/releases).
+Superpawn is free software under the GNU Affero General Public License,
+version 3 or later. See [LICENSE](LICENSE).
 
-Downloads
----------
+Status
+------
 
-Prebuilt binaries are published on the [GitHub Releases page](https://github.com/johnwbyrd/superpawn/releases).
-The newest master commit is always available as the `latest` rolling release:
+The rewrite is in its first milestone: the engine generates moves correctly
+(verified against the standard perft suite), speaks UCI, plays legal games on
+the clock with any number of threads, and searches with a placeholder
+hand-crafted evaluation. The NNUE evaluator and the testing and tuning
+pipeline are next. See [DESIGN.md](DESIGN.md) for the architecture and the
+roadmap.
 
-- [Windows x64](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-windows-x64.zip) — probably the right pick on modern Windows.
-- [Windows x86](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-windows-x86.zip) — for older 32-bit Windows.
-- [macOS universal](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-macos-universal.tar.gz) — single binary for both Intel and Apple Silicon.
-- [Linux x64](https://github.com/johnwbyrd/superpawn/releases/download/latest/superpawn-linux-x64.tar.gz).
-
-[Source code is on GitHub](https://github.com/johnwbyrd/superpawn). Current build status:
-
-[![Build](https://github.com/johnwbyrd/superpawn/actions/workflows/build.yml/badge.svg)](https://github.com/johnwbyrd/superpawn/actions/workflows/build.yml)
-
-Description
------------
-
-Superpawn is capable of making many fascinating chess moves, many
-of which are legal.  It beats its author handily at the game,
-which is not terribly surprising since its author is a lifelong patzer.
-
-Superpawn is an excellent example of the "objects gone wild" style of
-programming, in which Everything Is An Object.  Even the pieces themselves
-are objects; they know how to move, capture, etc.  This of course slows 
-down the move generation and evaluation process immensely, making this 
-program irredeemably slow in tournament conditions.  However, its logic
-is easy to follow and extend as you see fit.
-
-Superpawn requires a [C++11](http://en.wikipedia.org/wiki/C%2B%2B11) compiler
-with support for threading.  It builds and runs on Windows, Linux and MacOS systems, 
-and  compiles under Microsoft, gcc and clang compilers.  A [CMake](http://www.cmake.org/)
-implementation is provided to ease compilation on arbitrary targets.
-
-If you are compiling with gcc, Superpawn requires gcc 3.8.2 or higher to compile.
-Earlier versions don't support all C++11 features, and your compilation will fail.
-
-Building on Windows
--------------------
-
-To attempt a Windows build, from the root directory of the installation type:
-
-    tools\win32\make\build.bat
-
-Playing against Superpawn with xboard
--------------------------------------
-
-Superpawn speaks UCI, and xboard speaks the older xboard/winboard protocol,
-so you need [polyglot](https://wbec-ridderkerk.nl/html/details1/PolyGlot.html) as an adapter. On Debian/Ubuntu:
-
-    sudo apt install polyglot xboard
-
-Then from the repo root:
-
-    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build
-    xboard -fcp "polyglot play.ini"
-
-[play.ini](play.ini) tells polyglot where the engine binary lives and how to launch it.
-To play against the latest master without building, download the Linux
-binary from the [latest release](https://github.com/johnwbyrd/superpawn/releases/tag/latest),
-unpack it into `build/`, and run the same xboard command.
-
-Test suite
-----------
-
-[tests/perft/perft.sh](tests/perft/perft.sh) runs the six standard
-[perft positions](https://www.chessprogramming.org/Perft_Results)
-from Chessprogramming Wiki and checks the node counts against known-correct
-totals; it's wired into the GitHub Actions build on every platform.
-
-[TESTING.md](TESTING.md) describes how changes are judged: a `bench`
-node count for non-functional changes, and an SPRT self-play match with
-[fastchess](https://github.com/Disservin/fastchess) against the previous
-build for anything that alters the search or evaluation.
-
-[tests/gauntlet/gauntlet.sh](tests/gauntlet/gauntlet.sh) runs Superpawn
-against a configurable set of opponent engines via
-[cutechess-cli](https://github.com/cutechess/cutechess) at a short time
-control and prints a per-opponent score table. By default it looks for
-`fairymax` (install via `apt install fairymax`) and TSCP at
-`~/git/tscp/tscp`; missing opponents are silently skipped. If `ordo` is
-installed it'll also print an Elo table from the aggregated PGN.
-
-Historical note: the project also contains an older Windows-only test
-suite using cutechess-cli, described below.
-
-The core of the test suite is a Lua script that enumerates all currently
-existing chess engines in the tools\engines subdirectory, and uses
-the cutechess-cli application to launch a gauntlet test against Superpawn.
-The results of the gauntlet are automatically stored in the build\tests
-subdirectory.
-
-To build and run against the test gauntlet, run the following on a Windows 
-box from the root directory:
-
-    tools\win32\make\build --TESTS
-
-As of this writing, I test against specific Windows builds of the following engines:
-
-- [ACE](https://code.google.com/p/ace-chess/)
-- [DesasterArea](http://desasterarea.jimdo.com/)
-- [Dika](http://kirr.homeunix.org/chess/engines/Norbert%27s%20collection/Dika%20v0.4209/)
-- [GiuChess](https://chessprogramming.wikispaces.com/GiuChess)
-- [Piranha](http://www.villwock.com/piranha/)
-- [Senpai](https://chessprogramming.wikispaces.com/Senpai)
-- [Stockfish](https://stockfishchess.org/)
-- [Tarrasch Toy Engine](http://www.triplehappy.com/)
-- [Testina](http://www.g-sei.org/testina/) 
-- [TSCP](http://www.tckerrigan.com/chess/tscp) 
-
-I make no proprietary claim for cutechess-cli or any of the included chess engines except Superpawn.  If you don't want me to test against your engine or include it in github, let me know and I'll happily delete it from the repository.
-
-Information on recent gauntlet results, including 
-[PGN](http://en.wikipedia.org/wiki/Portable_Game_Notation) format games
-and their [elostat](http://www.playwitharena.com/?User_Files%2C_Engines:Axon%2C_EloStat%2C_Nalimov:EloStat) analyses, may be online
-[here](http://chess.johnbyrd.org/tests).
-
-Raspberry Pi
-------------
-
-Superpawn has been demonstrated to work, excruciatingly slowly, on the 
-[Raspberry Pi](http://www.raspberrypi.org) embeddable computer.  However, most graphical user interfaces for 
-chess on the Pi utilize the older [xboard](http://www.gnu.org/software/xboard/engine-intf.html)
-protocol, while Superpawn uses the [Universal Chess Interface](http://en.wikipedia.org/wiki/Universal_Chess_Interface)
-protocol.  This can be worked around by installing and using [Polyglot](http://wbec-ridderkerk.nl/html/details1/PolyGlot.html) to launch Superpawn.
-A sample polyglot.ini for the Raspberry Pi is included with this 
-distribution.  This configuration works well with the eboard graphical
-user interface on the Pi.
- 
-You will need to have gcc 3.8.2 or higher installed on the Pi.  As of this
-writing, instructions for updating the Pi from older compilers are [here](http://somewideopenspace.wordpress.com/2014/02/28/gcc-4-8-on-raspberry-pi-wheezy/).
-
-Features
+Building
 --------
 
-- ANSI C++11 code
-- Compiles under Microsoft Visual Studio 2013, gcc 3.8.2, AppleClang 5.1.0,
-  and clang 3.3
-- Implements a subset of UCI protocol sufficient to permit play
-  with Arena 3.0+, Tarrasch Chess GUI, Fritz GUI, cutechess-cli and others
-- Pluggable architecture permits easy experimentation with
-  new algorithms for search and evaluation
-- Principal variation search with aspiration windows, null-move pruning,
-  late move reductions, quiescence search and check extension
-- Move ordering by transposition-table move, MVV/LVA, killer moves and
-  the history heuristic
-- Material and piece-square-table evaluators
-- Pawn-structure evaluator: doubled, isolated, and passed pawns
-- Positional terms: rook on open/semi-open file, bishop pair, king pawn-shield
-- Mop-up evaluator drives the losing king to the edge and brings the
-  winning king up to it; insufficient material is scored as a draw
-- Gratuitous functional programming
-- All the code exists within a single C++ source file
-- Vaguely sort of const-correct
-- Compiles cleanly in 32-bit and 64-bit modes
-- Compatible with cmake build systems
-- Simple test framework based on [cutechess-cli](http://cutechess.com/)
-- Perft command and a correctness test suite against the six standard
-  [perft positions](https://www.chessprogramming.org/Perft_Results)
-- Castling, stalemate, fifty move rule, and draw by repetition
-- Zobrist hashing with castling rights and en-passant file folded in
-- Reports distance to mate
-- Time management that budgets a fraction of the clock per move, uses the
-  increment, and never starts an iteration it cannot finish
-- Basic transposition table (default 128 MB, configurable 1-2048 MB)
-- Legal-move checking by direct attack detection rather than by
-  generating the opponent's replies
+You need CMake 3.21 or newer and a C++23 compiler: GCC 13, Clang 17, or
+Visual Studio 2022 17.8 and later.
 
-Things it doesn't do
---------------------
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --parallel
+    ./build/superpawn
 
-- Pondering
-- Any evaluation of mobility, king attack patterns or pawn chains beyond
-  the terms listed above
-- Play chess well
+Useful CMake options:
 
-License
+| Option          | Default      | Meaning                                                      |
+|-----------------|--------------|--------------------------------------------------------------|
+| `SP_ARCH`       | `x86-64-v3`  | Target CPU: `x86-64-v3` (AVX2), `x86-64-v4` (AVX-512), `x86-64` (any x86-64), `native`, or `none` |
+| `SP_USE_PEXT`   | `OFF`        | Use the BMI2 PEXT instruction for sliding attacks. Fast on Intel and AMD Zen 3 and later, slow on Zen 1 and 2 |
+| `SP_LTO`        | `ON`         | Link-time optimisation                                       |
+| `SP_BUILD_TESTS`| `ON`         | Build the unit tests                                         |
+| `SP_WERROR`     | `OFF`        | Treat compiler warnings as errors                            |
+
+On non-x86 hosts such as Apple Silicon, `SP_ARCH` defaults to `none` and the
+engine uses its portable code paths.
+
+Running
 -------
 
-Source code is provided under the [Creative Commons 3.0 Attribution 
-Unported](http://creativecommons.org/licenses/by/3.0/deed.en_US) license.  Please
-don't pass off this chess engine as your own work.
+Superpawn is meant to be driven by a UCI-compatible GUI such as Cute Chess,
+Arena, Banksia, or En Croissant. It also accepts commands on the console:
 
-Feel free to contact or ridicule the author at <mailto:johnwbyrdatgmaildotcom>.
+    uci                       print the engine name and options
+    position startpos moves e2e4 e7e5
+    go depth 20               search to a fixed depth
+    go wtime 60000 btime 60000 winc 1000 binc 1000
+    bench [hash] [threads] [depth]
+    perft 6                   count leaf nodes of the legal move tree
+    d                         display the board
+    eval                      print the static evaluation
+
+Running `superpawn bench` from the command line searches a fixed set of
+positions and prints the total node count. Identical builds give identical
+counts, so the number acts as a signature of the search when reviewing
+changes.
+
+UCI options: `Threads`, `Hash` (MB), `Clear Hash`, `MultiPV`, `Move Overhead`.
+
+Testing
+-------
+
+    ctest --test-dir build --output-on-failure
+
+The unit tests cover bitboard primitives, FEN parsing, make and unmake,
+hash key consistency, the perft suite including the standard edge cases for
+en passant, castling and promotion, static exchange evaluation, and a few
+searches that must find short mates.
+
+Contributing
+------------
+
+Search and evaluation changes are accepted on the basis of SPRT test results
+against the previous version, in the usual way for chess engines. The tooling
+for this is part of the roadmap in [DESIGN.md](DESIGN.md). Format code with
+`clang-format` using the repository's `.clang-format`.
