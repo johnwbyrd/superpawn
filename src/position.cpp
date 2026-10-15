@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cstring>
 #include <sstream>
+#include <string>
 
 #include "movegen.h"
 

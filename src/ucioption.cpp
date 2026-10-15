@@ -9,6 +9,7 @@
 #include <cctype>
 #include <ostream>
 #include <sstream>
+#include <string>
 
 namespace sp {
 

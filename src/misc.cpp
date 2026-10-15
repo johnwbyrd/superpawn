@@ -6,6 +6,7 @@
 
 #include <mutex>
 #include <sstream>
+#include <string>
 
 #ifndef SP_VERSION
     #define SP_VERSION "dev"

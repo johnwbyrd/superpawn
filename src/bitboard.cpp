@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <initializer_list>
+#include <string>
 
 namespace sp {
 

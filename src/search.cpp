@@ -5,9 +5,13 @@
 #include "search.h"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
 #include <sstream>
+#include <string>
+#include <thread>
 
 #include "eval.h"
 #include "movegen.h"

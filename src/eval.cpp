@@ -10,7 +10,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <sstream>
+#include <string>
 
 #include "bitboard.h"
 #include "position.h"

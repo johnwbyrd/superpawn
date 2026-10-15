@@ -4,8 +4,10 @@
 
 #pragma once
 
+#include <algorithm>
 #include <bit>
 #include <cstdint>
+#include <cstdlib>
 #include <string>
 
 #include "types.h"
