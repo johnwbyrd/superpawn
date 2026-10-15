@@ -12,7 +12,7 @@
 
 #include "types.h"
 
-#if defined(SP_USE_PEXT) && (defined(__BMI2__) || defined(_MSC_VER))
+#if defined(SP_USE_PEXT) && (defined(__BMI2__) || (defined(_MSC_VER) && defined(_M_X64)))
     #include <immintrin.h>
 #endif
 
@@ -58,7 +58,7 @@ struct Magic {
 
     unsigned index(Bitboard occupied) const {
         if constexpr (HasPext) {
-#if defined(SP_USE_PEXT) && (defined(__BMI2__) || defined(_MSC_VER))
+#if defined(SP_USE_PEXT) && (defined(__BMI2__) || (defined(_MSC_VER) && defined(_M_X64)))
             return unsigned(_pext_u64(occupied, mask));
 #endif
         }

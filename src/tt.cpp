@@ -13,10 +13,9 @@
 
 #if defined(_MSC_VER)
     #include <malloc.h>
-#endif
-
-#if defined(__GNUC__) || defined(__clang__)
-    #include <xmmintrin.h>
+    #if defined(_M_X64) || defined(_M_IX86)
+        #include <xmmintrin.h>
+    #endif
 #endif
 
 namespace sp {
@@ -136,8 +135,10 @@ TTEntry* TranspositionTable::probe(Key key, bool& found) const {
 void TranspositionTable::prefetch(Key key) const {
 #if defined(__GNUC__) || defined(__clang__)
     __builtin_prefetch(first_entry(key));
-#elif defined(_MSC_VER)
+#elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
     _mm_prefetch(reinterpret_cast<const char*>(first_entry(key)), _MM_HINT_T0);
+#else
+    (void) key;
 #endif
 }
 

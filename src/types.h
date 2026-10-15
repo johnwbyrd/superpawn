@@ -29,7 +29,7 @@ constexpr bool IsX64 = true;
 constexpr bool IsX64 = false;
 #endif
 
-#if defined(SP_USE_PEXT) && (defined(__BMI2__) || defined(_MSC_VER))
+#if defined(SP_USE_PEXT) && (defined(__BMI2__) || (defined(_MSC_VER) && defined(_M_X64)))
 constexpr bool HasPext = true;
 #else
 constexpr bool HasPext = false;
