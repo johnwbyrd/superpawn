@@ -1,10 +1,12 @@
 Releasing
 =========
 
-Versions are `2.0.x`. The patch number goes up by one per release and means
-nothing else; the minor number changes when the engine changes character,
-such as a new network architecture. A release is a git tag `v2.0.x` on
-`main`; the Release workflow does the rest.
+Versions are `major.minor.patch`, starting at 1.9.0 for the rewrite. The
+patch number goes up by one per release and means nothing else; the minor
+number changes when the engine changes character, such as a new network
+architecture; the major is for a change people must know about. A release is
+a git tag `vX.Y.Z` on `main`; the Release workflow does the rest. The old
+engine's `v0.0.1` tag is ignored, so the major must be at least 1.
 
 What gets released
 ------------------
@@ -14,12 +16,12 @@ linked binaries with the current network embedded:
 
 | Archive | For |
 |---|---|
-| `superpawn-2.0.x-linux-x86-64-avx2.tar.gz` | Linux, any x86-64 CPU from about 2015 on |
-| `superpawn-2.0.x-linux-x86-64.tar.gz` | Linux, older CPUs |
-| `superpawn-2.0.x-windows-x86-64-avx2.zip` | Windows, any x86-64 CPU from about 2015 on |
-| `superpawn-2.0.x-windows-x86-64.zip` | Windows, older CPUs |
-| `superpawn-2.0.x-macos-arm64.tar.gz` | Apple Silicon Macs |
-| `superpawn-2.0.x-macos-x86-64.tar.gz` | Intel Macs |
+| `superpawn-X.Y.Z-linux-x86-64-avx2.tar.gz` | Linux, any x86-64 CPU from about 2015 on |
+| `superpawn-X.Y.Z-linux-x86-64.tar.gz` | Linux, older CPUs |
+| `superpawn-X.Y.Z-windows-x86-64-avx2.zip` | Windows, any x86-64 CPU from about 2015 on |
+| `superpawn-X.Y.Z-windows-x86-64.zip` | Windows, older CPUs |
+| `superpawn-X.Y.Z-macos-arm64.tar.gz` | Apple Silicon Macs |
+| `superpawn-X.Y.Z-macos-x86-64.tar.gz` | Intel Macs |
 
 Each archive holds the binary, `README.md`, `LICENSE` and the logo. The
 release notes start with the network name and the bench signature and
@@ -35,7 +37,7 @@ Cutting a release
 When a network has been adopted or enough tested changes have accumulated:
 
     git checkout main && git pull
-    tools/release.sh 2.0.1
+    tools/release.sh 1.9.0
 
 The script refuses to proceed unless you are on a clean `main` identical to
 `origin/main`, the Build workflow is green for that commit, and the version
@@ -44,8 +46,8 @@ message records the network and the bench, pushes it, and the workflow
 publishes the release a few minutes later at
 https://github.com/johnwbyrd/superpawn/releases.
 
-The engine reports its version from the tag: `Superpawn 2.0.1` when built at
-the tag, `Superpawn 2.0.1-14-g1a2b3c4` for a build fourteen commits later.
+The engine reports its version from the tag: `Superpawn 1.9.0` when built at
+the tag, `Superpawn 1.9.0-14-g1a2b3c4` for a build fourteen commits later.
 
 Rhythm
 ------

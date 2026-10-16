@@ -6,7 +6,7 @@
 # Cuts a release: checks the tree, tags the current commit and pushes the tag.
 # The Release workflow then builds the binaries and publishes the release.
 #
-#   tools/release.sh 2.0.1
+#   tools/release.sh 1.9.0
 #
 # Requirements: on main, clean, identical to origin/main, CI green for this
 # commit, version higher than the last release tag.
@@ -14,7 +14,9 @@
 set -euo pipefail
 
 VERSION="${1:-}"
-[[ "$VERSION" =~ ^2\.[0-9]+\.[0-9]+$ ]] || { echo "usage: $0 2.0.x" >&2; exit 2; }
+# major.minor.patch; the major must be at least 1 so the old engine's v0.0.1
+# tag never collides with the new series.
+[[ "$VERSION" =~ ^[1-9][0-9]*\.[0-9]+\.[0-9]+$ ]] || { echo "usage: $0 major.minor.patch (e.g. 1.9.0)" >&2; exit 2; }
 TAG="v$VERSION"
 
 ROOT=$(git rev-parse --show-toplevel)
@@ -29,7 +31,7 @@ git fetch -q origin main --tags
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && fail "tag $TAG already exists"
 
 # The version must be greater than the latest release tag
-LAST=$(git tag -l 'v2.*' --sort=-v:refname | head -1)
+LAST=$(git tag -l 'v[1-9]*' --sort=-v:refname | head -1)
 if [[ -n "$LAST" ]]; then
     HIGHEST=$(printf '%s\n%s\n' "$LAST" "$TAG" | sort -V | tail -1)
     [[ "$HIGHEST" == "$TAG" ]] || fail "$TAG is not higher than the last release $LAST"

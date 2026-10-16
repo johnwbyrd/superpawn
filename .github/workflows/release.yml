@@ -1,7 +1,7 @@
 name: Release
 
 # Builds distributable binaries for every push to main and for release tags.
-# A push to main refreshes the rolling "latest" prerelease; a tag v2.0.x
+# A push to main refreshes the rolling "latest" prerelease; a tag vX.Y.Z
 # publishes a versioned release with generated notes. The network named in
 # nets/NETWORK is downloaded and embedded by the build.
 
@@ -93,7 +93,7 @@ jobs:
       - name: Package
         shell: bash
         run: |
-          VERSION=$(git describe --tags --always --match 'v[2-9]*' | sed 's/^v//')
+          VERSION=$(git describe --tags --always --match 'v[1-9]*' | sed 's/^v//')
           NAME="superpawn-${VERSION}-${{ matrix.name }}"
           mkdir -p "dist/$NAME"
           cp "${{ matrix.binary }}" "dist/$NAME/"
