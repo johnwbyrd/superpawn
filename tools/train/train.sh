@@ -64,17 +64,38 @@ MSG
 fi
 
 # The trainer runs inside tools/train so that its checkpoints land there;
-# make path arguments absolute first so they still resolve.
+# make path arguments absolute first so they still resolve. Data files must
+# exist; checking here gives a clearer message than the trainer's panic.
+absolute() {
+    case "$1" in
+    /*) echo "$1" ;;
+    *) echo "$PWD/$1" ;;
+    esac
+}
+
 ARGS=()
-expect_path=0
+expect_path=""
 for arg in "$@"; do
-    if [[ $expect_path -eq 1 ]]; then
-        ARGS+=("$(cd "$(dirname "$arg")" 2>/dev/null && pwd)/$(basename "$arg")")
-        expect_path=0
+    if [[ -n "$expect_path" ]]; then
+        ARGS+=("$(absolute "$arg")")
+        if [[ "$expect_path" == "--data" && ! -f "$arg" ]]; then
+            cat >&2 <<MSG
+train.sh: data file not found: $arg
+
+Generate and shuffle training data first, from the repository root:
+
+    build/superpawn datagen data/run1.bin --threads 15 --nodes 5000 --positions 100000000
+    ../bullet/target/release/bullet-utils shuffle -i data/run1.bin -o data/run1.shuffled.bin -m 8000
+
+See tools/train/README.md.
+MSG
+            exit 1
+        fi
+        expect_path=""
     else
         ARGS+=("$arg")
         case "$arg" in
-        --data | --resume | --out) expect_path=1 ;;
+        --data | --resume | --out) expect_path="$arg" ;;
         esac
     fi
 done
