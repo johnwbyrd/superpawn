@@ -40,9 +40,12 @@ echo "nets/NETWORK now names $NAME ($SHA)"
 
 if command -v gh >/dev/null 2>&1; then
     if ! gh release view nets --repo johnwbyrd/superpawn >/dev/null 2>&1; then
+        # A prerelease, so that GitHub never picks it as the project's
+        # "latest release" (the README's download links go through
+        # releases/latest).
         gh release create nets --repo johnwbyrd/superpawn --title "Networks" \
             --notes "NNUE networks referenced by nets/NETWORK. Each file is immutable once uploaded." \
-            --target main
+            --target main --prerelease
     fi
     gh release upload nets "$ROOT/nets/$NAME" --repo johnwbyrd/superpawn --clobber
     echo "uploaded $NAME to the nets release"

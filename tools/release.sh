@@ -26,7 +26,10 @@ fail() { echo "release: $*" >&2; exit 1; }
 
 [[ "$(git branch --show-current)" == "main" ]] || fail "not on main"
 [[ -z "$(git status --porcelain)" ]] || fail "working tree is not clean"
-git fetch -q origin main --tags
+# --force: the rolling "latest" tag moves with every push to main, and
+# without it git refuses to update a tag that exists locally and aborts the
+# fetch.
+git fetch -q --force origin main '+refs/tags/*:refs/tags/*'
 [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main)" ]] || fail "HEAD differs from origin/main; push or pull first"
 git rev-parse -q --verify "refs/tags/$TAG" >/dev/null && fail "tag $TAG already exists"
 

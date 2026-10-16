@@ -51,6 +51,15 @@ message records the network and the bench, pushes it, and the workflow
 publishes the release a few minutes later at
 https://github.com/johnwbyrd/superpawn/releases.
 
+Two tags on the repository are not releases and are kept out of the way.
+The rolling `latest` tag moves with every push to `main`, so `git fetch`
+refuses to update a stale local copy of it unless given `--force`; the
+release script fetches that way, and if a plain `git pull` complains about
+it, `git fetch --force --tags` clears it. The `nets` release that holds the
+network files is marked a prerelease so that GitHub never treats it as the
+newest release: `releases/latest`, which the README's download links go
+through, resolves to the newest release that is not a prerelease.
+
 The engine reports its version from the tag: `Superpawn 1.9.0` when built at
 the tag, `Superpawn 1.9.0-14-g1a2b3c4` for a build fourteen commits later.
 
