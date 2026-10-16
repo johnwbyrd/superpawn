@@ -22,7 +22,8 @@ constexpr Depth DEPTH_UNSEARCHED   = -2;
 constexpr Depth DEPTH_ENTRY_OFFSET = -3;
 
 // A transposition table entry packed into 10 bytes:
-//   key        16 bit  upper bits of the position key
+//   key        16 bit  low bits of the position key (the cluster index uses
+//                      the high bits, so these must be independent of it)
 //   depth       8 bit  search depth plus DEPTH_ENTRY_OFFSET
 //   generation  5 bit  age, pv 1 bit, bound 2 bit
 //   move       16 bit

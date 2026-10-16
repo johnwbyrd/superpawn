@@ -23,7 +23,7 @@ namespace sp {
 // Writes to an entry. The entry is only overwritten by a worse-depth search of
 // the same position when the bound is exact or the entry is stale.
 void TTEntry::save(Key k, Value v, bool pv, Bound b, Depth d, Move m, Value ev, std::uint8_t generation8) {
-    const std::uint16_t k16 = std::uint16_t(k >> 48);
+    const std::uint16_t k16 = std::uint16_t(k);
 
     // Keep the old move if the new search found none.
     if (m || k16 != key16)
@@ -116,7 +116,7 @@ int TranspositionTable::hashfull(int maxAge) const {
 // in the cluster that is the best candidate for replacement.
 TTEntry* TranspositionTable::probe(Key key, bool& found) const {
     TTEntry* const      tte = first_entry(key)->entry;
-    const std::uint16_t k16 = std::uint16_t(key >> 48);
+    const std::uint16_t k16 = std::uint16_t(key);
 
     for (int i = 0; i < ClusterSize; ++i)
         if (tte[i].key16 == k16)
@@ -138,7 +138,7 @@ void TranspositionTable::prefetch(Key key) const {
 #elif defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
     _mm_prefetch(reinterpret_cast<const char*>(first_entry(key)), _MM_HINT_T0);
 #else
-    (void) key;
+    (void)key;
 #endif
 }
 

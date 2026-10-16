@@ -139,7 +139,8 @@ if(SP_BUILD_TESTS)
     tests/test_eval.cpp
     tests/test_position.cpp
     tests/test_perft.cpp
-    tests/test_search.cpp)
+    tests/test_search.cpp
+    tests/test_tt.cpp)
 
   target_include_directories(superpawn_tests PRIVATE tests)
   target_link_libraries(superpawn_tests PRIVATE superpawn_core)

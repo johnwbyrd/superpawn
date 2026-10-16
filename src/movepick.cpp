@@ -176,9 +176,11 @@ top:
     case QUIET_INIT :
         if (!skipQuiets) {
             cur      = endBadCaptures;
-            endMoves = endCaptures = generate<QUIETS>(pos, cur);
+            endMoves = beginBadQuiets = endBadQuiets = generate<QUIETS>(pos, cur);
 
             score<QUIETS>();
+            // Quiets above the threshold are sorted to the front; the rest
+            // stay behind them in generation order.
             partial_insertion_sort(cur, endMoves, quiet_threshold(depth));
         }
 
@@ -186,8 +188,14 @@ top:
         [[fallthrough]];
 
     case GOOD_QUIET :
-        if (!skipQuiets && select([&]() { return cur->value > quiet_threshold(depth); }))
-            return *(cur - 1);
+        if (!skipQuiets && select([]() { return true; })) {
+            if ((cur - 1)->value > quiet_threshold(depth))
+                return *(cur - 1);
+
+            // The first quiet below the threshold marks the start of the bad
+            // quiets, which are tried after the bad captures.
+            beginBadQuiets = cur - 1;
+        }
 
         // Now the bad captures, which were stored at the start of the list.
         cur      = moves;
@@ -201,8 +209,8 @@ top:
             return *(cur - 1);
 
         // Finally the quiets that fell below the history threshold.
-        cur      = endBadCaptures;
-        endMoves = endCaptures;
+        cur      = beginBadQuiets;
+        endMoves = endBadQuiets;
 
         ++stage;
         [[fallthrough]];
