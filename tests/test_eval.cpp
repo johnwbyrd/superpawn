@@ -3,6 +3,7 @@
 // Licensed under the GNU Affero General Public License v3.0 or later.
 
 #include <cctype>
+#include <cstdlib>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -81,21 +82,38 @@ TEST_CASE("evaluation is colour symmetric") {
     }
 }
 
-TEST_CASE("evaluation basics") {
+TEST_CASE("hand-crafted evaluation basics") {
+    // These ranges describe the hand-crafted terms; a network is free to
+    // value a rook ending differently, so test the hand-crafted evaluation
+    // directly whatever is embedded.
     Position pos;
 
     // The starting position is roughly balanced, with a small tempo bonus
     pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
-    const Value start = Eval::evaluate(pos);
+    const Value start = Eval::evaluate_hce(pos);
     CHECK(start >= 0);
     CHECK(start < 50);
 
     // An extra rook is worth roughly a rook
     pos.set("4k3/8/8/8/8/8/8/4K2R w - - 0 1");
-    CHECK(Eval::evaluate(pos) > 400);
-    CHECK(Eval::evaluate(pos) < 600);
+    CHECK(Eval::evaluate_hce(pos) > 400);
+    CHECK(Eval::evaluate_hce(pos) < 600);
 
     // The same from the other side
     pos.set("4k3/8/8/8/8/8/8/4K2R b - - 0 1");
-    CHECK(Eval::evaluate(pos) < -400);
+    CHECK(Eval::evaluate_hce(pos) < -400);
+}
+
+TEST_CASE("the active evaluation knows material") {
+    // Whatever evaluation is in use, hand-crafted or an embedded network, a
+    // rook up must be clearly positive and symmetric in sign.
+    Position pos;
+    pos.set("4k3/8/8/8/8/8/8/4K2R w - - 0 1");
+    const Value up = Eval::evaluate(pos);
+    CHECK(up > 300);
+    pos.set("4k3/8/8/8/8/8/8/4K2R b - - 0 1");
+    CHECK(Eval::evaluate(pos) < -300);
+
+    pos.set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+    CHECK(std::abs(Eval::evaluate(pos)) < 100);
 }
