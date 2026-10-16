@@ -124,6 +124,19 @@ void UCIEngine::run_command(const std::string& cmd, bool& quit) {
     else if (token == "datagen")
         datagen_command(is);
 
+    else if (token == "evalstats") {
+        // evalstats <datafile> [max positions]
+        std::string   file;
+        std::uint64_t maxPositions = 1'000'000;
+        is >> file >> maxPositions;
+        if (file.empty())
+            sync_cout << "usage: evalstats <datafile> [max positions]" << sync_endl;
+        else {
+            threads.wait_for_search_finished();
+            datagen::eval_stats(file, maxPositions);
+        }
+    }
+
     else if (token == "convert") {
         // convert <bullet quantised.bin> <output.nnue>
         std::string in, out, error;

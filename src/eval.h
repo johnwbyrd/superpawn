@@ -31,6 +31,9 @@ std::string info();
 // Static evaluation from the side to move's point of view, in centipawns.
 Value evaluate(const Position& pos);
 
+// The hand-crafted evaluation on its own, for diagnostics.
+Value evaluate_hce(const Position& pos);
+
 // Human-readable breakdown, for the `eval` command.
 std::string trace(const Position& pos);
 

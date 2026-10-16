@@ -23,8 +23,6 @@ namespace {
 
 std::unique_ptr<nnue::Network> theNetwork;
 
-Value evaluate_hce(const Position& pos);
-
 struct Score {
     int              mg, eg;
     constexpr Score  operator+(Score o) const { return {mg + o.mg, eg + o.eg}; }
@@ -134,9 +132,7 @@ Value Eval::evaluate(const Position& pos) {
     return evaluate_hce(pos);
 }
 
-namespace {
-
-Value evaluate_hce(const Position& pos) {
+Value Eval::evaluate_hce(const Position& pos) {
     Score score = {0, 0};
     int   phase = 0;
 
@@ -162,8 +158,6 @@ Value evaluate_hce(const Position& pos) {
 
     return pos.side_to_move() == WHITE ? v : -v;
 }
-
-}  // namespace
 
 std::string Eval::trace(const Position& pos) {
     std::ostringstream ss;

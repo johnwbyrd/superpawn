@@ -7,6 +7,7 @@
 #include <atomic>
 #include <bit>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -17,6 +18,7 @@
 #include <vector>
 
 #include "bitboard.h"
+#include "eval.h"
 #include "misc.h"
 #include "movegen.h"
 #include "position.h"
@@ -202,6 +204,95 @@ BulletBoard pack(const Position& pos, Value scoreStm) {
     b.oppKsq   = std::uint8_t(relative_square(stm, pos.square<KING>(~stm)) ^ 56);
     b.extra[0] = std::uint8_t(stm);  // remembered until the result is known, then cleared
     return b;
+}
+
+// Rebuilds the FEN of a packed board. The side to move is always "white" in
+// the packed layout; castling and en passant are not stored.
+std::string unpack_fen(const BulletBoard& b) {
+    char board[64] = {};
+    int  idx       = 0;
+    for (Bitboard occ = b.occ; occ; ++idx) {
+        const Square s   = pop_lsb(occ);
+        const int    nib = (b.pcs[idx / 2] >> (4 * (idx & 1))) & 15;
+        const char   c   = "PNBRQK"[nib & 7];
+        board[s]         = nib & 8 ? char(c + ('a' - 'A')) : c;
+    }
+
+    std::string fen;
+    for (int r = 7; r >= 0; --r) {
+        int empty = 0;
+        for (int f = 0; f < 8; ++f) {
+            const char c = board[r * 8 + f];
+            if (!c)
+                ++empty;
+            else {
+                if (empty)
+                    fen += char('0' + empty), empty = 0;
+                fen += c;
+            }
+        }
+        if (empty)
+            fen += char('0' + empty);
+        if (r)
+            fen += '/';
+    }
+    return fen + " w - - 0 1";
+}
+
+void eval_stats(const std::string& file, std::uint64_t maxPositions) {
+    std::ifstream in(file, std::ios::binary);
+    if (!in) {
+        std::fprintf(stderr, "evalstats: cannot open %s\n", file.c_str());
+        return;
+    }
+
+    const nnue::Network* net = Eval::network();
+
+    struct Stats {
+        double sumAbs = 0, sumSq = 0, sumSig = 0, sumX = 0, sumY = 0, sumXY = 0, sumXX = 0, sumYY = 0;
+        void   add(double pred, double target) {
+            const double d = pred - target;
+            sumAbs += std::abs(d);
+            sumSq += d * d;
+            const double sp = 1.0 / (1.0 + std::exp(-pred / 400.0)), st = 1.0 / (1.0 + std::exp(-target / 400.0));
+            sumSig += (sp - st) * (sp - st);
+            sumX += pred, sumY += target, sumXY += pred * target, sumXX += pred * pred, sumYY += target * target;
+        }
+        void print(const char* name, double n) const {
+            const double corr =
+                (n * sumXY - sumX * sumY) / std::sqrt((n * sumXX - sumX * sumX) * (n * sumYY - sumY * sumY));
+            std::printf("%-14s mean abs error %6.1f cp   rmse %6.1f cp   sigmoid mse %.5f   correlation %.3f\n", name,
+                        sumAbs / n, std::sqrt(sumSq / n), sumSig / n, corr);
+        }
+    } hce, nn;
+
+    Position      pos;
+    BulletBoard   b;
+    std::uint64_t n = 0, resultsMatch = 0;
+    while (n < maxPositions && in.read(reinterpret_cast<char*>(&b), sizeof(b))) {
+        pos.set(unpack_fen(b));
+        const double target = b.score;
+        hce.add(Eval::evaluate_hce(pos), target);
+        if (net)
+            nn.add(nnue::evaluate(*net, pos), target);
+        // sanity: a positive score should mostly go with a win for the side to move
+        resultsMatch +=
+            (b.score > 0 && b.result == 2) || (b.score < 0 && b.result == 0) || (b.score == 0 && b.result == 1);
+        ++n;
+    }
+
+    if (!n) {
+        std::printf("evalstats: no positions read\n");
+        return;
+    }
+
+    std::printf("%llu positions from %s; score sign agrees with result in %.1f%%\n", (unsigned long long)n,
+                file.c_str(), 100.0 * double(resultsMatch) / double(n));
+    hce.print("hand-crafted", double(n));
+    if (net)
+        nn.print("NNUE", double(n));
+    else
+        std::printf("NNUE           no network loaded\n");
 }
 
 void set_result(BulletBoard& b, Color stm, int whiteResult2) {

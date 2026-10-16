@@ -37,6 +37,11 @@ struct Options {
 
 void run(const Options& options);
 
+// Reads a data file and reports how well the hand-crafted evaluation and the
+// loaded network predict the stored search scores. A trained network must do
+// clearly better than the hand-crafted evaluation, or training has failed.
+void eval_stats(const std::string& file, std::uint64_t maxPositions);
+
 // One position in the bulletformat ChessBoard layout: 32 bytes.
 struct BulletBoard {
     std::uint64_t occ;
