@@ -88,12 +88,12 @@ jobs:
         shell: bash
         run: |
           ctest --test-dir build -C Release --output-on-failure -R unit
-          "${{ matrix.binary }}" bench 16 1 12 2>&1 | tail -2 | tee bench.txt
+          "${{ matrix.binary }}" bench 16 1 12 2>&1 | tail -2 | tr -d '\r' | tee "bench-${{ matrix.name }}.txt"
 
       - name: Package
         shell: bash
         run: |
-          VERSION=$(git describe --tags --always --match 'v[0-9]*' | sed 's/^v//')
+          VERSION=$(git describe --tags --always --match 'v[2-9]*' | sed 's/^v//')
           NAME="superpawn-${VERSION}-${{ matrix.name }}"
           mkdir -p "dist/$NAME"
           cp "${{ matrix.binary }}" "dist/$NAME/"
@@ -113,7 +113,7 @@ jobs:
           path: |
             superpawn-*.tar.gz
             superpawn-*.zip
-            bench.txt
+            bench-*.txt
           if-no-files-found: error
 
   publish:
@@ -135,7 +135,7 @@ jobs:
         shell: bash
         run: |
           NET=$(grep -v '^#' nets/NETWORK | awk 'NF {print $1; exit}')
-          BENCH=$(grep -h "Nodes searched" artifacts/bench.txt 2>/dev/null | head -1 | awk '{print $NF}')
+          BENCH=$(grep -h "Nodes searched" artifacts/bench-linux-x86-64-avx2.txt 2>/dev/null | head -1 | awk '{print $NF}' | tr -d '\r')
           {
             echo "Network: \`$NET\` (embedded). Bench: \`${BENCH:-n/a}\`."
             echo

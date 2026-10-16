@@ -39,11 +39,11 @@ set(SP_EMBED_NET "${CMAKE_SOURCE_DIR}/nets/default.nnue" CACHE FILEPATH "NNUE ne
 # ---------------------------------------------------------------------------
 # Release tags are v2.0.x; the version is the tag without the "v", followed
 # by the distance and commit for builds between tags (e.g. 2.0.3-14-g1a2b3c4).
-# Other tags (nets, latest) are not versions and are skipped.
+# Other tags (nets, latest, and the old engine's v0.0.1) are skipped.
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
   execute_process(
-    COMMAND "${GIT_EXECUTABLE}" describe --tags --always --dirty --match "v[0-9]*"
+    COMMAND "${GIT_EXECUTABLE}" describe --tags --always --dirty --match "v[2-9]*"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_VARIABLE SP_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE
