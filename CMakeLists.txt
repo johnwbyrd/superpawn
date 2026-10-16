@@ -53,6 +53,7 @@ message(STATUS "Superpawn version: ${SP_VERSION}")
 add_library(superpawn_core OBJECT
   src/benchmark.cpp
   src/bitboard.cpp
+  src/datagen.cpp
   src/eval.cpp
   src/misc.cpp
   src/movegen.cpp
@@ -158,6 +159,7 @@ if(SP_BUILD_TESTS)
   add_executable(superpawn_tests
     tests/test_main.cpp
     tests/test_bitboard.cpp
+    tests/test_datagen.cpp
     tests/test_eval.cpp
     tests/test_nnue.cpp
     tests/test_position.cpp

@@ -11,6 +11,11 @@ rewrite; nothing from the old `master` sources is used.
     ./build/superpawn bench          # depth 13 bench; the node count is the search signature
     ./build/superpawn bench 16 1 8   # faster variant for quick checks
     tools/sprt/sprt.sh --base HEAD   # SPRT of the working tree against a commit (see tools/sprt/README.md)
+    ./build/superpawn datagen out.bin --threads 4 --nodes 5000 --games 100   # self-play training data
+    ./build/superpawn convert quantised.bin net.nnue                          # bullet export -> engine format
+
+NNUE training lives in tools/train (bullet, GPU only); see its README. The
+architecture constants in tools/train/src/main.rs must match src/nnue.h.
 
 Debug builds enable `assert()` including `Position::pos_is_ok()` after every
 move; run the perft tests in a debug build after touching `position.cpp` or

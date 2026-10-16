@@ -215,3 +215,40 @@ TEST_CASE("accumulators survive undo and are recomputed after set") {
     CHECK_FALSE(pos.accumulators().back().computed);
     CHECK(nnue::evaluate(*net, pos) == start);
 }
+
+TEST_CASE("bullet export converts to the engine format") {
+    auto              net  = random_network(314);
+    const std::string nnue = "test_bullet_roundtrip.nnue";
+    const std::string bin  = "test_bullet_quantised.bin";
+    REQUIRE(net->save(nnue));
+
+    // A bullet quantised.bin is the weights section of our file, padded to 64 bytes
+    {
+        std::FILE* in = std::fopen(nnue.c_str(), "rb");
+        REQUIRE(in);
+        std::vector<unsigned char> bytes(nnue::FILE_SIZE);
+        REQUIRE(std::fread(bytes.data(), 1, bytes.size(), in) == bytes.size());
+        std::fclose(in);
+
+        std::FILE* out = std::fopen(bin.c_str(), "wb");
+        REQUIRE(out);
+        std::fwrite(bytes.data() + nnue::HEADER_SIZE, 1, nnue::WEIGHTS_SIZE, out);
+        const std::size_t padded = (nnue::WEIGHTS_SIZE + 63) / 64 * 64;
+        for (std::size_t i = nnue::WEIGHTS_SIZE; i < padded; ++i)
+            std::fputc("bullet"[i % 6], out);
+        std::fclose(out);
+    }
+
+    std::string error;
+    auto        converted = nnue::Network::from_bullet(bin, error);
+    REQUIRE_MESSAGE(converted, error);
+    CHECK(std::equal(std::begin(net->featureWeights), std::end(net->featureWeights),
+                     std::begin(converted->featureWeights)));
+    CHECK(std::equal(std::begin(net->featureBias), std::end(net->featureBias), std::begin(converted->featureBias)));
+    CHECK(std::equal(&net->outputWeights[0][0], &net->outputWeights[0][0] + nnue::OUTPUT_BUCKETS * 2 * nnue::HIDDEN,
+                     &converted->outputWeights[0][0]));
+    CHECK(std::equal(std::begin(net->outputBias), std::end(net->outputBias), std::begin(converted->outputBias)));
+
+    std::remove(nnue.c_str());
+    std::remove(bin.c_str());
+}

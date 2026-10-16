@@ -1,0 +1,21 @@
+[package]
+name = "superpawn-train"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.87"
+publish = false
+description = "NNUE trainer for Superpawn, built on bullet"
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+bullet = { git = "https://github.com/jw1912/bullet", package = "bullet_lib" }
+
+# Pick the GPU backend with --features; CUDA is the default.
+[features]
+default = ["cuda"]
+cuda = ["bullet/cuda"]
+rocm = ["bullet/rocm"]
+metal = ["bullet/metal"]
+
+[profile.release]
+opt-level = 3

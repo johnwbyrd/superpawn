@@ -32,6 +32,7 @@ class UCIEngine {
     void   position(std::istringstream& is);
     void   setoption(std::istringstream& is);
     void   bench(std::istringstream& is);
+    void   datagen_command(std::istringstream& is);
     Limits parse_limits(std::istream& is) const;
     void   wait_and_print_perft(Depth depth);
 

@@ -10,6 +10,7 @@
 #include <string>
 
 #include "benchmark.h"
+#include "datagen.h"
 #include "eval.h"
 #include "misc.h"
 #include "movegen.h"
@@ -120,9 +121,27 @@ void UCIEngine::run_command(const std::string& cmd, bool& quit) {
     else if (token == "compiler")
         sync_cout << compiler_info() << sync_endl;
 
+    else if (token == "datagen")
+        datagen_command(is);
+
+    else if (token == "convert") {
+        // convert <bullet quantised.bin> <output.nnue>
+        std::string in, out, error;
+        is >> in >> out;
+        if (in.empty() || out.empty())
+            sync_cout << "usage: convert <bullet quantised.bin> <output.nnue>" << sync_endl;
+        else if (auto net = nnue::Network::from_bullet(in, error); !net)
+            sync_cout << "convert failed: " << error << sync_endl;
+        else if (!net->save(out))
+            sync_cout << "convert failed: cannot write " << out << sync_endl;
+        else
+            sync_cout << "wrote " << out << " (" << nnue::FILE_SIZE << " bytes)" << sync_endl;
+    }
+
     else if (token == "--help" || token == "help" || token == "--license" || token == "license")
         sync_cout << "\nSuperpawn is a UCI chess engine. Run it from a UCI-compatible GUI, or type UCI\n"
-                     "commands at the prompt. Extra commands: bench, perft <depth>, d, eval, compiler.\n\n"
+                     "commands at the prompt. Extra commands: bench, perft <depth>, d, eval, compiler,\n"
+                     "datagen <file> [options], convert <bullet quantised.bin> <output.nnue>.\n\n"
                      "Superpawn is free software licensed under the GNU Affero General Public\n"
                      "License v3.0 or later; see the LICENSE file for details."
                   << sync_endl;
@@ -132,6 +151,48 @@ void UCIEngine::run_command(const std::string& cmd, bool& quit) {
 
     if (token == "quit")
         quit = true;
+}
+
+// datagen <output> [--threads N] [--nodes N] [--positions N] [--games N] [--seed N]
+//         [--random-plies N] [--max-ply N] [--hash MB]
+void UCIEngine::datagen_command(std::istringstream& is) {
+    threads.wait_for_search_finished();
+
+    datagen::Options opt;
+    std::string      token;
+    is >> opt.output;
+
+    while (is >> token) {
+        if (token == "--threads")
+            is >> opt.threads;
+        else if (token == "--nodes")
+            is >> opt.nodes;
+        else if (token == "--positions")
+            is >> opt.positions;
+        else if (token == "--games")
+            is >> opt.games;
+        else if (token == "--seed")
+            is >> opt.seed;
+        else if (token == "--random-plies")
+            is >> opt.randomPlies;
+        else if (token == "--max-ply")
+            is >> opt.maxPly;
+        else if (token == "--hash")
+            is >> opt.hashMb;
+        else {
+            sync_cout << "datagen: unknown option " << token << sync_endl;
+            return;
+        }
+    }
+
+    if (opt.output.empty() || opt.output[0] == '-') {
+        sync_cout << "usage: datagen <output.bin> [--threads N] [--nodes N] [--positions N] [--games N] [--seed N]"
+                     " [--random-plies N] [--max-ply N] [--hash MB]"
+                  << sync_endl;
+        return;
+    }
+
+    datagen::run(opt);
 }
 
 // setoption name <name> [value <value>]

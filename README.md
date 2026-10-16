@@ -18,10 +18,12 @@ Status
 
 The engine generates moves correctly (verified against the standard perft
 suite), speaks UCI, plays legal games on the clock with any number of
-threads, and has SPRT tooling and an NNUE evaluator with incremental updates.
-No trained network exists yet, so builds fall back to a placeholder
-hand-crafted evaluation until the training pipeline produces one. See
-[DESIGN.md](DESIGN.md) for the architecture and the roadmap.
+threads, and has SPRT tooling, an NNUE evaluator with incremental updates,
+and the data generation and training pipeline for it
+([tools/train/README.md](tools/train/README.md)). No trained network has
+been produced yet, so builds fall back to a placeholder hand-crafted
+evaluation until one is. See [DESIGN.md](DESIGN.md) for the architecture and
+the roadmap.
 
 Building
 --------
@@ -61,6 +63,10 @@ Arena, Banksia, or En Croissant. It also accepts commands on the console:
     perft 6                   count leaf nodes of the legal move tree
     d                         display the board
     eval                      print the static evaluation
+    datagen data.bin --threads 8 --nodes 5000 --positions 100000000
+                              generate NNUE training data by self-play
+    convert quantised.bin net.nnue
+                              convert a bullet export to the engine's network format
 
 Running `superpawn bench` from the command line searches a fixed set of
 positions and prints the total node count. Identical builds give identical

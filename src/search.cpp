@@ -141,13 +141,16 @@ void Worker::start_searching() {
     // started, so only this thread's result exists.
     if (rootMoves.empty()) {
         rootMoves.emplace_back(Move::none());
-        sync_cout << "info depth 0 score " << score_to_uci(rootPos.checkers() ? -VALUE_MATE : VALUE_DRAW) << sync_endl;
+        if (!options.quiet)
+            sync_cout << "info depth 0 score " << score_to_uci(rootPos.checkers() ? -VALUE_MATE : VALUE_DRAW)
+                      << sync_endl;
 
         while (!threads.stop && limits.infinite)
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
 
         threads.stop = true;
-        sync_cout << "bestmove (none)" << sync_endl;
+        if (!options.quiet)
+            sync_cout << "bestmove (none)" << sync_endl;
         return;
     }
 
@@ -166,6 +169,14 @@ void Worker::start_searching() {
 
     bestPreviousScore        = best->rootMoves[0].score;
     bestPreviousAverageScore = best->rootMoves[0].averageScore;
+
+    // The main thread's root moves carry the chosen result, so callers that
+    // read them (data generation) see the best thread's move.
+    if (best != this)
+        rootMoves = best->rootMoves;
+
+    if (options.quiet)
+        return;
 
     // Print the best thread's PV if it differs from ours.
     if (best != this)
@@ -258,7 +269,7 @@ void Worker::iterative_deepening() {
                     break;
 
                 // Report a fail high/low after a few seconds so the GUI sees progress
-                if (is_main_thread() && multiPV == 1 && (bestValue <= alpha || bestValue >= beta)
+                if (is_main_thread() && !options.quiet && multiPV == 1 && (bestValue <= alpha || bestValue >= beta)
                     && tm.elapsed() > 3000)
                     sync_cout << pv_info(rootDepth, alpha, beta) << sync_endl;
 
@@ -279,7 +290,7 @@ void Worker::iterative_deepening() {
 
             std::stable_sort(rootMoves.begin(), rootMoves.begin() + pvIdx + 1);
 
-            if (is_main_thread() && (threads.stop || pvIdx + 1 == multiPV || tm.elapsed() > 3000))
+            if (is_main_thread() && !options.quiet && (threads.stop || pvIdx + 1 == multiPV || tm.elapsed() > 3000))
                 sync_cout << pv_info(rootDepth, alpha, beta) << sync_endl;
         }
 
@@ -585,7 +596,7 @@ moves_loop:  // When in check, search starts here
 
         ss->moveCount = ++moveCount;
 
-        if (rootNode && is_main_thread() && tm.elapsed() > 3000)
+        if (rootNode && is_main_thread() && !options.quiet && tm.elapsed() > 3000)
             sync_cout << "info depth " << depth << " currmove " << move_to_uci(move) << " currmovenumber "
                       << moveCount + pvIdx << sync_endl;
 

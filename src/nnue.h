@@ -79,6 +79,10 @@ struct alignas(64) Network {
 
     // Writes the network in the file format; used by the tests and tools.
     bool save(const std::string& path) const;
+
+    // Reads a bullet `quantised.bin` export (l0w, l0b, l1w transposed, l1b as
+    // little-endian int16, padded to 64 bytes) produced by tools/train.
+    static std::unique_ptr<Network> from_bullet(const std::string& path, std::string& error);
 };
 
 // The file format, little-endian:

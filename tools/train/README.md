@@ -1,0 +1,106 @@
+Training the NNUE
+=================
+
+The network is trained with [bullet](https://github.com/jw1912/bullet) on
+positions the engine generates by playing itself. The whole loop is:
+
+    generate data  ->  shuffle  ->  train  ->  convert  ->  embed  ->  SPRT
+
+Everything below runs on the training machine. Paths are examples.
+
+1. Generate data
+----------------
+
+Build the engine, then:
+
+    ./build/superpawn datagen data/run1.bin --threads 15 --nodes 5000 --positions 200000000
+
+Each thread plays games on its own: 8 or 9 random opening plies, then fixed
+node searches for both sides. Openings scored beyond 10 pawns are discarded,
+games are adjudicated after four plies beyond 20 pawns or at a forced mate,
+and drawn by repetition, the fifty-move rule, insufficient material or 400
+plies. Quiet positions (not in check, best move not a capture or promotion)
+are written as 32-byte bulletformat `ChessBoard` records with the search
+score and the game result. The file is appended to, so a run can be resumed
+or several runs merged by pointing at the same file; it prints progress every
+ten seconds and Ctrl-C stops it cleanly at a game boundary.
+
+Expect a few hundred positions per second per thread at 5000 nodes. A first
+network needs about 100 million positions; later ones gain from several
+hundred million and from regenerating data with the latest network.
+
+Other options: `--games N`, `--seed N`, `--random-plies N`, `--max-ply N`,
+`--hash MB`.
+
+2. Shuffle
+----------
+
+Training data must be shuffled, since positions from one game are strongly
+correlated. Build `bullet-utils` once (no GPU needed):
+
+    git clone --depth 1 https://github.com/jw1912/bullet
+    cd bullet && cargo build --release --package bullet-utils
+
+Then:
+
+    bullet/target/release/bullet-utils validate -i data/run1.bin
+    bullet/target/release/bullet-utils shuffle -i data/run1.bin -o data/run1.shuffled.bin -m 8000
+    bullet/target/release/bullet-utils interleave data/a.shuffled.bin data/b.shuffled.bin -o data/all.bin
+
+`-m` is the memory to use in MB. `interleave` merges several shuffled files.
+
+3. Train
+--------
+
+Needs Rust (via rustup) and the CUDA toolkit with `CUDA_PATH` set; for AMD
+use `--features rocm`, for Apple Silicon `--features metal`. See bullet's
+`docs/2-getting-started.md`.
+
+    cd tools/train
+    cargo run --release -- --data ../../data/all.bin --id spn-001 --superbatches 40
+
+A superbatch is about 100 million positions. Forty superbatches over 200
+million positions means each position is seen about twenty times, which is a
+sensible first run; a 4090 does a superbatch of this network in well under a
+minute. Checkpoints land in `tools/train/checkpoints/<id>-<n>/`.
+
+Defaults: learning rate 0.001 with cosine decay to 0.3^5 of that, WDL
+weight 0.75 (the loss target is 0.75 x game result + 0.25 x sigmoid of the
+search score), AdamW. `--lr`, `--wdl`, `--threads`, `--out` and `--resume
+<checkpoint dir>` adjust them.
+
+The architecture constants at the top of `src/main.rs` must match
+`src/nnue.h` in the engine. Change them together.
+
+4. Convert and embed
+--------------------
+
+    ./build/superpawn convert tools/train/checkpoints/spn-001-40/quantised.bin nets/spn-001.nnue
+
+checks the output weights fit the 16-bit inference and writes the engine's
+file format with its checksum. To test it without rebuilding:
+
+    setoption name EvalFile value nets/spn-001.nnue
+
+To embed it, copy it to `nets/default.nnue` (ignored by git) and rebuild,
+or configure with `-DSP_EMBED_NET=/path/to/net.nnue`.
+
+5. Test
+-------
+
+A new network is a functional change and goes through SPRT like anything
+else. With the candidate at `nets/default.nnue` in the working tree:
+
+    tools/sprt/sprt.sh --base origin/feature/next --name spn-001
+
+The first network is tested against the hand-crafted evaluation and should
+win by a wide margin; later ones are tested against the previous network
+with the usual bounds.
+
+Public data
+-----------
+
+The pipeline also accepts any file in bulletformat, so public datasets
+converted with `bullet-utils convert` can be mixed in. Self-play data from
+the engine's own search is the simplest start and keeps the network matched
+to the engine.

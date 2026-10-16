@@ -32,7 +32,10 @@ cutechess*.log
 /tools/sprt/builds/
 /tools/sprt/results/
 
-# Training data and networks that are not meant to be committed
+# Training data, checkpoints and networks that are not meant to be committed
 /data/
 *.binpack
 *.bullet
+/nets/*.nnue
+/tools/train/target/
+/tools/train/checkpoints/

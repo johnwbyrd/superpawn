@@ -237,6 +237,50 @@ std::unique_ptr<Network> Network::load(const std::string& path, std::string& err
     return net;
 }
 
+std::unique_ptr<Network> Network::from_bullet(const std::string& path, std::string& error) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) {
+        error = "cannot open " + path;
+        return nullptr;
+    }
+    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+    // bullet pads the file to a multiple of 64 bytes
+    const std::size_t padded = (WEIGHTS_SIZE + 63) / 64 * 64;
+    if (bytes.size() != WEIGHTS_SIZE && bytes.size() != padded) {
+        error = "unexpected size " + std::to_string(bytes.size())
+              + " for a bullet export of this architecture, expected " + std::to_string(WEIGHTS_SIZE) + " or "
+              + std::to_string(padded);
+        return nullptr;
+    }
+
+    auto                net = std::make_unique<Network>();
+    const std::uint8_t* p   = bytes.data();
+    std::memcpy(net->featureWeights, p, sizeof(net->featureWeights));
+    p += sizeof(net->featureWeights);
+    std::memcpy(net->featureBias, p, sizeof(net->featureBias));
+    p += sizeof(net->featureBias);
+    std::memcpy(net->outputWeights, p, sizeof(net->outputWeights));
+    p += sizeof(net->outputWeights);
+    std::memcpy(net->outputBias, p, sizeof(net->outputBias));
+
+    to_host_order(net->featureWeights, INPUTS * HIDDEN);
+    to_host_order(net->featureBias, HIDDEN);
+    to_host_order(&net->outputWeights[0][0], OUTPUT_BUCKETS * 2 * HIDDEN);
+    to_host_order(net->outputBias, OUTPUT_BUCKETS);
+
+    for (const auto& bucket : net->outputWeights)
+        for (std::int16_t w : bucket)
+            if (w <= -128 || w >= 128) {
+                error = "output weight " + std::to_string(w)
+                      + " out of the 16-bit safe range; clip the trainer's output weights";
+                return nullptr;
+            }
+
+    net->name = path;
+    return net;
+}
+
 std::unique_ptr<Network> Network::load_embedded(std::string& error) {
     if (gSuperpawnEmbeddedNetSize == 0) {
         error = "no network embedded in this build";

@@ -35,9 +35,10 @@ struct Limits {
 
 // UCI options the search reads. Set by the UCI layer before each search.
 struct SearchOptions {
-    int threads      = 1;
-    int multiPV      = 1;
-    int moveOverhead = 10;
+    int  threads      = 1;
+    int  multiPV      = 1;
+    int  moveOverhead = 10;
+    bool quiet        = false;  // suppress all UCI output (data generation)
 };
 
 // A root move with the principal variation found below it.
