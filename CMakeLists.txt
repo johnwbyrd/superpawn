@@ -69,24 +69,26 @@ add_library(superpawn_core OBJECT
   src/ucioption.cpp
   ${CMAKE_BINARY_DIR}/generated/embedded_net.cpp)
 
-# The embedded network is turned into a byte array at build time. With no
-# network file the array is empty and the engine uses its hand-crafted
-# evaluation.
-if(SP_EMBED_NET AND EXISTS "${SP_EMBED_NET}")
-  message(STATUS "Embedding NNUE network: ${SP_EMBED_NET}")
-  set(SP_EMBED_NET_DEPENDS "${SP_EMBED_NET}")
-else()
-  message(STATUS "No NNUE network embedded (SP_EMBED_NET=${SP_EMBED_NET})")
+# The embedded network is turned into a byte array by a step that runs on
+# every build, so dropping a file into nets/ (or removing it) takes effect on
+# the next `cmake --build` without reconfiguring. With no network file the
+# array is empty and the engine uses its hand-crafted evaluation.
+if(NOT SP_EMBED_NET)
   set(SP_EMBED_NET "")
-  set(SP_EMBED_NET_DEPENDS "")
 endif()
-add_custom_command(
-  OUTPUT ${CMAKE_BINARY_DIR}/generated/embedded_net.cpp
-  COMMAND ${CMAKE_COMMAND} -DINPUT=${SP_EMBED_NET} -DOUTPUT=${CMAKE_BINARY_DIR}/generated/embedded_net.cpp
+set(SP_EMBED_NET_CPP ${CMAKE_BINARY_DIR}/generated/embedded_net.cpp)
+file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated)
+# Generate once at configure time so the source exists for the first build
+execute_process(COMMAND ${CMAKE_COMMAND} -DINPUT=${SP_EMBED_NET} -DOUTPUT=${SP_EMBED_NET_CPP}
+                        -P ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake)
+add_custom_target(superpawn_embed_net ALL
+  COMMAND ${CMAKE_COMMAND} -DINPUT=${SP_EMBED_NET} -DOUTPUT=${SP_EMBED_NET_CPP}
           -P ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake
-  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake ${SP_EMBED_NET_DEPENDS}
-  COMMENT "Generating embedded network source"
+  BYPRODUCTS ${SP_EMBED_NET_CPP}
+  COMMENT "Checking for an NNUE network to embed"
   VERBATIM)
+set_source_files_properties(${SP_EMBED_NET_CPP} PROPERTIES GENERATED TRUE)
+add_dependencies(superpawn_core superpawn_embed_net)
 
 target_include_directories(superpawn_core PUBLIC src)
 target_compile_definitions(superpawn_core PUBLIC SP_VERSION="${SP_VERSION}")
