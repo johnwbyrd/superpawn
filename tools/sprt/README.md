@@ -47,6 +47,21 @@ Before each run the script prints the `bench` signature of both binaries.
 A functional change must change the signature; a change meant to be
 non-functional must not.
 
+Absolute strength
+-----------------
+
+SPRT only measures gains between two versions. For a rating estimate,
+`gauntlet.sh` plays the working tree against Stockfish at several `UCI_Elo`
+levels, whose strength limiter is calibrated to roughly CCRL-like ratings:
+
+    tools/sprt/gauntlet.sh --levels 1800,2200,2600,3000 --games 100
+
+Stockfish is downloaded into `tools/sprt/bin` on first use (Linux x86-64;
+`--stockfish` points at another binary). The level the engine scores about
+50 percent against is the estimate. fastchess prints warnings about
+Stockfish's best move not matching its PV at limited strength; they are
+harmless.
+
 Reporting
 ---------
 
