@@ -6,14 +6,26 @@ positions the engine generates by playing itself. The whole loop is:
 
     generate data  ->  shuffle  ->  train  ->  convert  ->  embed  ->  SPRT
 
-Everything below runs on the training machine. Paths are examples.
+Everything below runs on the training machine, **from the repository root**.
+Paths are examples.
+
+Requirements
+------------
+
+- The engine built in `build/` (`cmake -S . -B build && cmake --build build`).
+- Rust via [rustup](https://rustup.rs).
+- For training, the CUDA toolkit including nvrtc, installed from
+  https://developer.nvidia.com/cuda-downloads so that it lives in
+  `/usr/local/cuda` with `include/` and `lib64/` inside. bullet needs
+  `CUDA_PATH` to point there; `tools/train/train.sh` finds it and sets it.
+  If you see `CUDA_PATH is not defined`, that is the missing piece.
+  AMD GPUs use `SP_TRAIN_FEATURES=rocm` with `HIP_PATH`, Apple Silicon
+  `SP_TRAIN_FEATURES=metal`.
 
 1. Generate data
 ----------------
 
-Build the engine, then:
-
-    ./build/superpawn datagen data/run1.bin --threads 15 --nodes 5000 --positions 200000000
+    build/superpawn datagen data/run1.bin --threads 15 --nodes 5000 --positions 200000000
 
 Each thread plays games on its own: 8 or 9 random opening plies, then fixed
 node searches for both sides. Openings scored beyond 10 pawns are discarded,
@@ -38,47 +50,43 @@ Other options: `--games N`, `--seed N`, `--random-plies N`, `--max-ply N`,
 Training data must be shuffled, since positions from one game are strongly
 correlated. Build `bullet-utils` once (no GPU needed):
 
-    git clone --depth 1 https://github.com/jw1912/bullet
-    cd bullet && cargo build --release --package bullet-utils
+    git clone --depth 1 https://github.com/jw1912/bullet ../bullet
+    (cd ../bullet && cargo build --release --package bullet-utils)
 
 Then:
 
-    bullet/target/release/bullet-utils validate -i data/run1.bin
-    bullet/target/release/bullet-utils shuffle -i data/run1.bin -o data/run1.shuffled.bin -m 8000
-    bullet/target/release/bullet-utils interleave data/a.shuffled.bin data/b.shuffled.bin -o data/all.bin
+    ../bullet/target/release/bullet-utils validate -i data/run1.bin
+    ../bullet/target/release/bullet-utils shuffle -i data/run1.bin -o data/run1.shuffled.bin -m 8000
+    ../bullet/target/release/bullet-utils interleave data/a.shuffled.bin data/b.shuffled.bin -o data/all.bin
 
 `-m` is the memory to use in MB. `interleave` merges several shuffled files.
 
 3. Train
 --------
 
-Needs Rust (via rustup) and the CUDA toolkit with `CUDA_PATH` set; for AMD
-use `--features rocm`, for Apple Silicon `--features metal`. See bullet's
-`docs/2-getting-started.md`.
+    tools/train/train.sh --data data/run1.shuffled.bin --id spn-001 --superbatches 40
 
-    cd tools/train
-    cargo run --release -- --data ../../data/all.bin --id spn-001 --superbatches 40
-
-A superbatch is about 100 million positions. Forty superbatches over 200
-million positions means each position is seen about twenty times, which is a
-sensible first run; a 4090 does a superbatch of this network in well under a
-minute. Checkpoints land in `tools/train/checkpoints/<id>-<n>/`.
+The script locates the CUDA toolkit, builds the trainer in release mode and
+runs it. A superbatch is about 100 million positions. Forty superbatches over
+200 million positions means each position is seen about twenty times, which
+is a sensible first run; a 4090 does a superbatch of this network in well
+under a minute. Checkpoints land in `tools/train/checkpoints/<id>-<n>/`.
 
 Defaults: learning rate 0.001 with cosine decay to 0.3^5 of that, WDL
 weight 0.75 (the loss target is 0.75 x game result + 0.25 x sigmoid of the
 search score), AdamW. `--lr`, `--wdl`, `--threads`, `--out` and `--resume
-<checkpoint dir>` adjust them.
+<checkpoint dir>` adjust them. `--data` may be repeated.
 
-The architecture constants at the top of `src/main.rs` must match
-`src/nnue.h` in the engine. Change them together.
+The architecture constants at the top of `tools/train/src/main.rs` must
+match `src/nnue.h` in the engine. Change them together.
 
 4. Convert and embed
 --------------------
 
-    ./build/superpawn convert tools/train/checkpoints/spn-001-40/quantised.bin nets/spn-001.nnue
+    build/superpawn convert tools/train/checkpoints/spn-001-40/quantised.bin nets/spn-001.nnue
 
 checks the output weights fit the 16-bit inference and writes the engine's
-file format with its checksum. To test it without rebuilding:
+file format with its checksum. To try it without rebuilding:
 
     setoption name EvalFile value nets/spn-001.nnue
 
