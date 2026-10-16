@@ -270,7 +270,7 @@ printf '%q ' "${CMD[@]}" >"$RUN/command.txt"; echo >>"$RUN/command.txt"
 {
     echo "base:  $BASE ($BASE_NAME) bench $BASE_BENCH"
     echo "new:   ${NEW:-working tree} ($NEW_NAME) bench $NEW_BENCH"
-    echo "tc:    ${NODES:+$NODES nodes}${NODES:-$TC}  hash $HASH  threads $THREADS  concurrency $CONCURRENCY"
+    echo "limit: $LIMIT  hash $HASH  threads $THREADS  concurrency $CONCURRENCY"
     echo "sprt:  [$ELO0, $ELO1]  alpha $ALPHA  beta $BETA  $MODEL"
 } >"$RUN/summary.txt"
 cat "$RUN/summary.txt" >&2
