@@ -110,7 +110,7 @@ Position& Position::set(std::string_view fenString) {
     // 3. Castling availability. Standard chess only: K, Q, k, q.
     while ((ss >> token) && !std::isspace(token)) {
         const Color c = std::isupper(token) ? WHITE : BLACK;
-        token         = std::toupper(token);
+        token         = static_cast<unsigned char>(std::toupper(token));
 
         if (token == 'K' || token == 'Q') {
             const Square ksq = pieces(c, KING) ? square<KING>(c) : SQ_NONE;

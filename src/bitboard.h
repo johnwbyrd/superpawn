@@ -224,7 +224,7 @@ inline Square msb(Bitboard b) {
 
 inline Bitboard least_significant_square_bb(Bitboard b) {
     assert(b);
-    return b & -b;
+    return b & (~b + 1);  // isolates the lowest set bit without negating an unsigned
 }
 
 inline Square pop_lsb(Bitboard& b) {

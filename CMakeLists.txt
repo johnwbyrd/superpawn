@@ -160,7 +160,8 @@ endif()
 
 # Warnings
 if(MSVC)
-  target_compile_options(superpawn_core PUBLIC /W4 /permissive- /Zc:preprocessor /EHsc)
+  # C4324: structure padded due to alignas, which is intentional for the SIMD types
+  target_compile_options(superpawn_core PUBLIC /W4 /permissive- /Zc:preprocessor /EHsc /wd4324)
   if(SP_WERROR)
     target_compile_options(superpawn_core PUBLIC /WX)
   endif()
