@@ -4,8 +4,8 @@ Superpawn
 =========
 
 Superpawn is a [UCI](https://en.wikipedia.org/wiki/Universal_Chess_Interface)
-chess engine written in C++23. This branch is a complete rewrite, built from
-the ground up for strength: bitboard move generation, a lockless shared
+chess engine written in C++23, rewritten from the ground up for strength
+(the previous engine is preserved on the `feature/old` branch): bitboard move generation, a lockless shared
 transposition table, Lazy SMP parallel search, a modern alpha-beta search with
 the full set of pruning, reduction and extension heuristics, and an NNUE
 evaluator trained on our own hardware.
@@ -92,7 +92,7 @@ Contributing
 Search and evaluation changes are accepted on the basis of SPRT test results
 against the previous version, in the usual way for chess engines:
 
-    tools/sprt/sprt.sh --base origin/feature/next
+    tools/sprt/sprt.sh --base origin/main
 
 builds both versions, fetches fastchess and an opening book on first use,
 and runs the test. See [tools/sprt/README.md](tools/sprt/README.md) for the

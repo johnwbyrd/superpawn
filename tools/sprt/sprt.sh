@@ -8,7 +8,7 @@
 # ("base") at short time control with the usual gainer bounds [0, 5].
 #
 #   tools/sprt/sprt.sh                      # working tree vs HEAD, STC, [0, 5]
-#   tools/sprt/sprt.sh --base origin/feature/next
+#   tools/sprt/sprt.sh --base origin/main
 #   tools/sprt/sprt.sh --ltc --simplify     # 60+0.6, bounds [-5, 0]
 #   tools/sprt/sprt.sh --new HEAD --base HEAD~1 -c 8
 #

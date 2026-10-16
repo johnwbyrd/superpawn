@@ -130,7 +130,7 @@ positions independently of the engine and prints weight statistics.
 A new network is a functional change and goes through SPRT like anything
 else. With the candidate at `nets/default.nnue` in the working tree:
 
-    tools/sprt/sprt.sh --base origin/feature/next --name spn-001
+    tools/sprt/sprt.sh --base origin/main --name spn-001
 
 The first network is tested against the hand-crafted evaluation and should
 win by a wide margin; later ones are tested against the previous network

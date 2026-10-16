@@ -7,7 +7,7 @@ Probability Ratio Test, not on intuition. `sprt.sh` runs one with
 and a baseline commit.
 
     tools/sprt/sprt.sh                          # working tree vs HEAD, 10+0.1, bounds [0, 5]
-    tools/sprt/sprt.sh --base origin/feature/next --name lmr-tweak
+    tools/sprt/sprt.sh --base origin/main --name lmr-tweak
     tools/sprt/sprt.sh --ltc                    # 60+0.6, Hash 64
     tools/sprt/sprt.sh --simplify               # bounds [-5, 0]
     tools/sprt/sprt.sh --new HEAD --base HEAD~1 # two commits

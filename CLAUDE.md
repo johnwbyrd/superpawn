@@ -1,7 +1,7 @@
 # Superpawn
 
-UCI chess engine in C++23, AGPL-3.0. The `feature/next` branch is a complete
-rewrite; nothing from the old `master` sources is used.
+UCI chess engine in C++23, AGPL-3.0. `main` is a complete rewrite; the
+previous engine lives on `feature/old` and nothing from it is used.
 
 ## Build and test
 

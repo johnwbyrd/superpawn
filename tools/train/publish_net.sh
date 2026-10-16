@@ -42,7 +42,7 @@ if command -v gh >/dev/null 2>&1; then
     if ! gh release view nets --repo johnwbyrd/superpawn >/dev/null 2>&1; then
         gh release create nets --repo johnwbyrd/superpawn --title "Networks" \
             --notes "NNUE networks referenced by nets/NETWORK. Each file is immutable once uploaded." \
-            --target feature/next
+            --target main
     fi
     gh release upload nets "$ROOT/nets/$NAME" --repo johnwbyrd/superpawn --clobber
     echo "uploaded $NAME to the nets release"
