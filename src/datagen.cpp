@@ -10,6 +10,7 @@
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <thread>
@@ -214,10 +215,17 @@ void run(const Options& options) {
         opt.seed = std::uint64_t(std::chrono::steady_clock::now().time_since_epoch().count());
     opt.threads = std::max(1, opt.threads);
 
+    // Create the output directory if needed, then append to the file
+    std::error_code ec;
+    const auto      parent = std::filesystem::path(opt.output).parent_path();
+    if (!parent.empty())
+        std::filesystem::create_directories(parent, ec);
+
     Shared shared;
     shared.file.open(opt.output, std::ios::binary | std::ios::app);
     if (!shared.file) {
-        std::fprintf(stderr, "datagen: cannot open %s for writing\n", opt.output.c_str());
+        std::fprintf(stderr, "datagen: cannot open %s for writing%s\n", opt.output.c_str(),
+                     ec ? (": " + ec.message()).c_str() : "");
         return;
     }
 
