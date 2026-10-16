@@ -9,7 +9,7 @@
 //
 // Usage:
 //   cargo run --release -- --data shuffled.bin [--data more.bin] [--id spn-001]
-//                         [--superbatches 40] [--lr 0.001] [--wdl 0.75]
+//                         [--superbatches 40] [--lr 0.001] [--wdl 0.1]
 //                         [--threads 4] [--out checkpoints] [--resume <checkpoint dir>]
 //
 // Each superbatch is 6104 batches of 16384 positions, about 100 million.
@@ -51,7 +51,11 @@ fn parse_args() -> Args {
         id: "spn".to_string(),
         superbatches: 40,
         lr: 0.001,
-        wdl: 0.75,
+        // Weight of the game result in the target; the rest is the search
+        // score. Results from a weak engine's games are mostly noise, so the
+        // first networks learn from the scores. Raise this as the engine and
+        // its data improve.
+        wdl: 0.1,
         threads: 4,
         out: "checkpoints".to_string(),
         resume: None,
