@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "bitboard.h"
+#include "nnue.h"
 #include "types.h"
 
 namespace sp {
@@ -29,6 +30,9 @@ struct StateInfo {
     Bitboard blockersForKing[COLOR_NB];
     Bitboard pinners[COLOR_NB];
     Bitboard checkSquares[PIECE_TYPE_NB];
+
+    // The inputs the move leading to this state changed, for the NNUE update
+    nnue::DirtyPiece dirtyPiece;
 };
 
 // A chess position with full move history. Positions are plain values and may
@@ -123,6 +127,11 @@ class Position {
     // Move::none() if it does not match one.
     Move uci_to_move(std::string_view str) const;
 
+    // NNUE accumulators, one per state, computed lazily by nnue::accumulator().
+    // Mutable because computing them does not change the position.
+    std::vector<nnue::Accumulator>& accumulators() const { return accumulatorStack; }
+    const nnue::DirtyPiece&         dirty_piece(std::size_t stateIdx) const { return states[stateIdx].dirtyPiece; }
+
     std::string pretty() const;
     bool        pos_is_ok() const;
 
@@ -151,7 +160,8 @@ class Position {
     Color    sideToMove;
     int      gamePly;
 
-    std::vector<StateInfo> states;
+    std::vector<StateInfo>                 states;
+    mutable std::vector<nnue::Accumulator> accumulatorStack;
 };
 
 inline bool Position::capture(Move m) const {

@@ -16,12 +16,12 @@ version 3 or later. See [LICENSE](LICENSE).
 Status
 ------
 
-The rewrite is in its first milestone: the engine generates moves correctly
-(verified against the standard perft suite), speaks UCI, plays legal games on
-the clock with any number of threads, and searches with a placeholder
-hand-crafted evaluation. The NNUE evaluator and the testing and tuning
-pipeline are next. See [DESIGN.md](DESIGN.md) for the architecture and the
-roadmap.
+The engine generates moves correctly (verified against the standard perft
+suite), speaks UCI, plays legal games on the clock with any number of
+threads, and has SPRT tooling and an NNUE evaluator with incremental updates.
+No trained network exists yet, so builds fall back to a placeholder
+hand-crafted evaluation until the training pipeline produces one. See
+[DESIGN.md](DESIGN.md) for the architecture and the roadmap.
 
 Building
 --------
@@ -42,6 +42,7 @@ Useful CMake options:
 | `SP_LTO`        | `ON`         | Link-time optimisation                                       |
 | `SP_BUILD_TESTS`| `ON`         | Build the unit tests                                         |
 | `SP_WERROR`     | `OFF`        | Treat compiler warnings as errors                            |
+| `SP_EMBED_NET`  | `nets/default.nnue` | NNUE network file to embed in the binary, or `OFF`     |
 
 On non-x86 hosts such as Apple Silicon, `SP_ARCH` defaults to `none` and the
 engine uses its portable code paths.
@@ -66,7 +67,8 @@ positions and prints the total node count. Identical builds give identical
 counts, so the number acts as a signature of the search when reviewing
 changes.
 
-UCI options: `Threads`, `Hash` (MB), `Clear Hash`, `MultiPV`, `Move Overhead`.
+UCI options: `Threads`, `Hash` (MB), `Clear Hash`, `MultiPV`, `Move Overhead`,
+`EvalFile` (path to an NNUE network; the default is the embedded one).
 
 Testing
 -------

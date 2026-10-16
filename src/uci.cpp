@@ -33,8 +33,15 @@ UCIEngine::UCIEngine(int argc, char** argv) : threads(tt, searchOptions) {
     options.add("Clear Hash", Option([this](const Option&) { tt.clear(searchOptions.threads); }));
     options.add("MultiPV", Option(1, 1, 256, [this](const Option& o) { searchOptions.multiPV = int(o); }));
     options.add("Move Overhead", Option(10, 0, 5000, [this](const Option& o) { searchOptions.moveOverhead = int(o); }));
+    options.add("EvalFile", Option("<embedded>", [](const Option& o) {
+                    // The embedded network is loaded by Eval::init(); only react to a real path
+                    if (std::string(o) != "<embedded>")
+                        sync_cout << Eval::set_network(std::string(o)) << sync_endl;
+                }));
 
     pos.set(StartFEN);
+
+    sync_cout << Eval::info() << sync_endl;
 }
 
 UCIEngine::~UCIEngine() {

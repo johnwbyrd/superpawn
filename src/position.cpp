@@ -58,6 +58,7 @@ void Position::init() {
 
 Position::Position() {
     states.reserve(1024);
+    accumulatorStack.reserve(1024);
     set("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
 }
 
@@ -75,9 +76,13 @@ Position& Position::set(std::string_view fenString) {
     states.clear();
     states.emplace_back();
     StateInfo& si = st();
-    std::memset(&si, 0, sizeof(StateInfo));
+    std::memset(static_cast<void*>(&si), 0, sizeof(StateInfo));
     si.epSquare      = SQ_NONE;
     si.capturedPiece = NO_PIECE;
+
+    accumulatorStack.clear();
+    accumulatorStack.emplace_back();
+    accumulatorStack.back().computed = false;
 
     std::istringstream ss{std::string(fenString)};
     ss >> std::noskipws;
@@ -443,7 +448,11 @@ void Position::do_move(Move m, bool givesCheck) {
 
     // Copy the irreversible fields; the derived fields are recomputed below.
     states.push_back(states.back());
-    StateInfo& si = st();
+    StateInfo& si       = st();
+    si.dirtyPiece.count = 0;
+
+    accumulatorStack.emplace_back();
+    accumulatorStack.back().computed = false;
 
     ++gamePly;
     ++si.rule50;
@@ -468,6 +477,7 @@ void Position::do_move(Move m, bool givesCheck) {
         do_castling<true>(us, from, to, rfrom, rto);
 
         k ^= Zobrist::psq[make_piece(us, ROOK)][rfrom] ^ Zobrist::psq[make_piece(us, ROOK)][rto];
+        si.dirtyPiece.move(make_piece(us, ROOK), rfrom, rto);
     }
 
     if (captured) {
@@ -489,6 +499,7 @@ void Position::do_move(Move m, bool givesCheck) {
         remove_piece(capsq);
         k ^= Zobrist::psq[captured][capsq];
         si.rule50 = 0;
+        si.dirtyPiece.remove(captured, capsq);
     }
 
     k ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
@@ -506,6 +517,7 @@ void Position::do_move(Move m, bool givesCheck) {
 
     if (m.type() != CASTLING)
         move_piece(from, to);
+    si.dirtyPiece.move(pc, from, to);
 
     if (type_of(pc) == PAWN) {
         // A double push sets the en passant square only if an enemy pawn can use it.
@@ -521,6 +533,10 @@ void Position::do_move(Move m, bool givesCheck) {
 
             k ^= Zobrist::psq[pc][to] ^ Zobrist::psq[promotion][to];
             si.pawnKey ^= Zobrist::psq[pc][to];
+
+            // The pawn's move above becomes a removal, and the promoted piece appears
+            si.dirtyPiece.to[si.dirtyPiece.count - 1] = SQ_NONE;
+            si.dirtyPiece.add(promotion, to);
         }
 
         si.pawnKey ^= Zobrist::psq[pc][from] ^ Zobrist::psq[pc][to];
@@ -596,6 +612,7 @@ void Position::undo_move(Move m) {
     }
 
     states.pop_back();
+    accumulatorStack.pop_back();
     --gamePly;
 
     assert(pos_is_ok());
@@ -606,7 +623,11 @@ void Position::do_null_move() {
     assert(!checkers());
 
     states.push_back(states.back());
-    StateInfo& si = st();
+    StateInfo& si       = st();
+    si.dirtyPiece.count = 0;  // nothing moved; the accumulator is the parent's
+
+    accumulatorStack.emplace_back();
+    accumulatorStack.back().computed = false;
 
     if (si.epSquare != SQ_NONE) {
         si.key ^= Zobrist::enpassant[file_of(si.epSquare)];
@@ -629,6 +650,7 @@ void Position::do_null_move() {
 void Position::undo_null_move() {
     assert(!checkers());
     states.pop_back();
+    accumulatorStack.pop_back();
     sideToMove = ~sideToMove;
 }
 

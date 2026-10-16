@@ -27,6 +27,7 @@ option(SP_USE_PEXT "Use the PEXT instruction for sliding attacks (fast on Intel 
 option(SP_LTO "Enable link-time optimisation" ON)
 option(SP_BUILD_TESTS "Build the unit tests" ON)
 option(SP_WERROR "Treat warnings as errors" OFF)
+set(SP_EMBED_NET "${CMAKE_SOURCE_DIR}/nets/default.nnue" CACHE FILEPATH "NNUE network to embed, or OFF for none")
 
 # ---------------------------------------------------------------------------
 # Version string from git
@@ -56,6 +57,7 @@ add_library(superpawn_core OBJECT
   src/misc.cpp
   src/movegen.cpp
   src/movepick.cpp
+  src/nnue.cpp
   src/perft.cpp
   src/position.cpp
   src/search.cpp
@@ -63,7 +65,27 @@ add_library(superpawn_core OBJECT
   src/timeman.cpp
   src/tt.cpp
   src/uci.cpp
-  src/ucioption.cpp)
+  src/ucioption.cpp
+  ${CMAKE_BINARY_DIR}/generated/embedded_net.cpp)
+
+# The embedded network is turned into a byte array at build time. With no
+# network file the array is empty and the engine uses its hand-crafted
+# evaluation.
+if(SP_EMBED_NET AND EXISTS "${SP_EMBED_NET}")
+  message(STATUS "Embedding NNUE network: ${SP_EMBED_NET}")
+  set(SP_EMBED_NET_DEPENDS "${SP_EMBED_NET}")
+else()
+  message(STATUS "No NNUE network embedded (SP_EMBED_NET=${SP_EMBED_NET})")
+  set(SP_EMBED_NET "")
+  set(SP_EMBED_NET_DEPENDS "")
+endif()
+add_custom_command(
+  OUTPUT ${CMAKE_BINARY_DIR}/generated/embedded_net.cpp
+  COMMAND ${CMAKE_COMMAND} -DINPUT=${SP_EMBED_NET} -DOUTPUT=${CMAKE_BINARY_DIR}/generated/embedded_net.cpp
+          -P ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake
+  DEPENDS ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake ${SP_EMBED_NET_DEPENDS}
+  COMMENT "Generating embedded network source"
+  VERBATIM)
 
 target_include_directories(superpawn_core PUBLIC src)
 target_compile_definitions(superpawn_core PUBLIC SP_VERSION="${SP_VERSION}")
@@ -137,6 +159,7 @@ if(SP_BUILD_TESTS)
     tests/test_main.cpp
     tests/test_bitboard.cpp
     tests/test_eval.cpp
+    tests/test_nnue.cpp
     tests/test_position.cpp
     tests/test_perft.cpp
     tests/test_search.cpp

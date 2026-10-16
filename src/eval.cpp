@@ -2,15 +2,15 @@
 // Copyright (C) 2026 John Byrd and the Superpawn contributors.
 // Licensed under the GNU Affero General Public License v3.0 or later.
 
-// Placeholder hand-crafted evaluation: tapered material and piece-square
-// tables. It exists so that the engine plays sensible chess before the NNUE
-// evaluator lands, and will be replaced by it.
+// Evaluation: the NNUE network when one is loaded, otherwise a placeholder
+// hand-crafted evaluation of tapered material and piece-square tables.
 
 #include "eval.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -20,6 +20,10 @@
 namespace sp {
 
 namespace {
+
+std::unique_ptr<nnue::Network> theNetwork;
+
+Value evaluate_hce(const Position& pos);
 
 struct Score {
     int              mg, eg;
@@ -89,7 +93,33 @@ Score psq_bonus(PieceType pt, Square s) {
 
 }  // namespace
 
+const nnue::Network* Eval::network() {
+    return theNetwork.get();
+}
+
+std::string Eval::set_network(const std::string& path) {
+    std::string error;
+    auto        net =
+        path.empty() || path == "<embedded>" ? nnue::Network::load_embedded(error) : nnue::Network::load(path, error);
+    if (!net)
+        return "info string NNUE network not loaded: " + error;
+
+    theNetwork = std::move(net);
+    return "info string NNUE evaluation using " + theNetwork->name + " (" + std::to_string(nnue::INPUTS) + "x"
+         + std::to_string(nnue::HIDDEN) + "x2 -> " + std::to_string(nnue::OUTPUT_BUCKETS) + ", " + nnue::simd_name()
+         + ")";
+}
+
+std::string Eval::info() {
+    if (theNetwork)
+        return "info string NNUE evaluation using " + theNetwork->name + " (" + nnue::simd_name() + ")";
+    return "info string No NNUE network available, using the hand-crafted evaluation";
+}
+
 void Eval::init() {
+    std::string error;
+    theNetwork = nnue::Network::load_embedded(error);
+
     for (PieceType pt = PAWN; pt <= KING; ++pt)
         for (Square s = SQ_A1; s <= SQ_H8; ++s) {
             const Score bonus                        = psq_bonus(pt, s);
@@ -99,6 +129,14 @@ void Eval::init() {
 }
 
 Value Eval::evaluate(const Position& pos) {
+    if (theNetwork)
+        return nnue::evaluate(*theNetwork, pos);
+    return evaluate_hce(pos);
+}
+
+namespace {
+
+Value evaluate_hce(const Position& pos) {
     Score score = {0, 0};
     int   phase = 0;
 
@@ -125,11 +163,18 @@ Value Eval::evaluate(const Position& pos) {
     return pos.side_to_move() == WHITE ? v : -v;
 }
 
+}  // namespace
+
 std::string Eval::trace(const Position& pos) {
     std::ostringstream ss;
-    const Value        v = evaluate(pos);
-    ss << "Static evaluation (side to move): " << v << " cp\n"
-       << "Static evaluation (white): " << (pos.side_to_move() == WHITE ? v : -v) << " cp\n";
+    const Value        hce = evaluate_hce(pos);
+    ss << "Hand-crafted evaluation (side to move): " << hce << " cp\n";
+    if (theNetwork)
+        ss << "NNUE evaluation (side to move): " << nnue::evaluate(*theNetwork, pos) << " cp  [" << theNetwork->name
+           << "]\n";
+    const Value v = evaluate(pos);
+    ss << "Final evaluation (side to move): " << v << " cp\n"
+       << "Final evaluation (white): " << (pos.side_to_move() == WHITE ? v : -v) << " cp\n";
     return ss.str();
 }
 
