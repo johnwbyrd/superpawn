@@ -136,6 +136,20 @@ The first network is tested against the hand-crafted evaluation and should
 win by a wide margin; later ones are tested against the previous network
 with the usual bounds.
 
+6. Publish
+----------
+
+A network that passed becomes the project's current one:
+
+    tools/train/publish_net.sh nets/spn-002.nnue
+    git add nets/NETWORK && git commit -m "Use network spn-002" && git push
+
+The script records the file name and SHA-256 in `nets/NETWORK` and uploads
+the file to the `nets` GitHub release with the `gh` CLI. Builds without a
+local `nets/default.nnue` download and embed the network named there, so
+remove or rename `nets/default.nnue` once the network is published. Network
+files are never committed to git.
+
 Public data
 -----------
 

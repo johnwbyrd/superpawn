@@ -1,12 +1,19 @@
 # Generates a C++ source that embeds a network file as a byte array.
 #
-#   cmake -DINPUT=<file> -DOUTPUT=<generated.cpp> -P embed_net.cmake
+#   cmake -DINPUT=<file> [-DFALLBACK=<file>] -DOUTPUT=<generated.cpp> -P embed_net.cmake
+#
+# INPUT is the local candidate (nets/default.nnue); when it does not exist the
+# FALLBACK, the released network named in nets/NETWORK, is embedded instead.
 #
 # Runs on every build. The file is re-read only when its size or timestamp
 # changed since the last run (recorded in OUTPUT.stamp), and the output is
 # only rewritten when its content changed, so incremental builds stay
 # incremental. With no INPUT, or an INPUT that does not exist, the array is
 # empty and the engine falls back to its hand-crafted evaluation.
+
+if(NOT (INPUT AND EXISTS "${INPUT}") AND FALLBACK AND EXISTS "${FALLBACK}")
+  set(INPUT "${FALLBACK}")
+endif()
 
 if(INPUT AND EXISTS "${INPUT}")
   file(SIZE "${INPUT}" NET_SIZE)

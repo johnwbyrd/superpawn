@@ -76,13 +76,54 @@ add_library(superpawn_core OBJECT
 if(NOT SP_EMBED_NET)
   set(SP_EMBED_NET "")
 endif()
+
+# The released network: nets/NETWORK names the file and its SHA-256. It is
+# downloaded from the "nets" GitHub release when not present. A local
+# nets/default.nnue (a candidate under test) takes precedence over it.
+set(SP_RELEASED_NET "")
+if(SP_EMBED_NET STREQUAL "${CMAKE_SOURCE_DIR}/nets/default.nnue" AND EXISTS "${CMAKE_SOURCE_DIR}/nets/NETWORK")
+  file(STRINGS "${CMAKE_SOURCE_DIR}/nets/NETWORK" SP_NET_LINES REGEX "^[^#]")
+  list(GET SP_NET_LINES 0 SP_NET_LINE)
+  separate_arguments(SP_NET_FIELDS UNIX_COMMAND "${SP_NET_LINE}")
+  list(GET SP_NET_FIELDS 0 SP_NET_NAME)
+  list(GET SP_NET_FIELDS 1 SP_NET_SHA256)
+  set(SP_RELEASED_NET "${CMAKE_SOURCE_DIR}/nets/${SP_NET_NAME}")
+  if(NOT EXISTS "${SP_RELEASED_NET}")
+    set(SP_NET_URL "https://github.com/johnwbyrd/superpawn/releases/download/nets/${SP_NET_NAME}")
+    message(STATUS "Downloading network ${SP_NET_NAME}")
+    file(DOWNLOAD "${SP_NET_URL}" "${SP_RELEASED_NET}.part" STATUS SP_DL_STATUS TLS_VERIFY ON)
+    list(GET SP_DL_STATUS 0 SP_DL_CODE)
+    if(SP_DL_CODE EQUAL 0)
+      file(SHA256 "${SP_RELEASED_NET}.part" SP_DL_SHA256)
+      if(SP_DL_SHA256 STREQUAL SP_NET_SHA256)
+        file(RENAME "${SP_RELEASED_NET}.part" "${SP_RELEASED_NET}")
+      else()
+        message(WARNING "Downloaded ${SP_NET_NAME} has SHA-256 ${SP_DL_SHA256}, expected ${SP_NET_SHA256}; not using it")
+        file(REMOVE "${SP_RELEASED_NET}.part")
+        set(SP_RELEASED_NET "")
+      endif()
+    else()
+      list(GET SP_DL_STATUS 1 SP_DL_MSG)
+      message(WARNING "Could not download ${SP_NET_NAME} (${SP_DL_MSG}); building without a network unless nets/default.nnue exists")
+      file(REMOVE "${SP_RELEASED_NET}.part")
+      set(SP_RELEASED_NET "")
+    endif()
+  else()
+    file(SHA256 "${SP_RELEASED_NET}" SP_HAVE_SHA256)
+    if(NOT SP_HAVE_SHA256 STREQUAL SP_NET_SHA256)
+      message(WARNING "${SP_RELEASED_NET} does not match the SHA-256 in nets/NETWORK; not using it")
+      set(SP_RELEASED_NET "")
+    endif()
+  endif()
+endif()
+
 set(SP_EMBED_NET_CPP ${CMAKE_BINARY_DIR}/generated/embedded_net.cpp)
 file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/generated)
+set(SP_EMBED_ARGS -DINPUT=${SP_EMBED_NET} -DFALLBACK=${SP_RELEASED_NET} -DOUTPUT=${SP_EMBED_NET_CPP})
 # Generate once at configure time so the source exists for the first build
-execute_process(COMMAND ${CMAKE_COMMAND} -DINPUT=${SP_EMBED_NET} -DOUTPUT=${SP_EMBED_NET_CPP}
-                        -P ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake)
+execute_process(COMMAND ${CMAKE_COMMAND} ${SP_EMBED_ARGS} -P ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake)
 add_custom_target(superpawn_embed_net ALL
-  COMMAND ${CMAKE_COMMAND} -DINPUT=${SP_EMBED_NET} -DOUTPUT=${SP_EMBED_NET_CPP}
+  COMMAND ${CMAKE_COMMAND} ${SP_EMBED_ARGS}
           -P ${CMAKE_SOURCE_DIR}/cmake/embed_net.cmake
   BYPRODUCTS ${SP_EMBED_NET_CPP}
   COMMENT "Checking for an NNUE network to embed"
