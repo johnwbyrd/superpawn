@@ -27,19 +27,28 @@ option(SP_USE_PEXT "Use the PEXT instruction for sliding attacks (fast on Intel 
 option(SP_LTO "Enable link-time optimisation" ON)
 option(SP_BUILD_TESTS "Build the unit tests" ON)
 option(SP_WERROR "Treat warnings as errors" OFF)
+option(SP_STATIC "Link statically so the binary runs without runtime libraries (release builds)" OFF)
+if(SP_STATIC AND MSVC)
+  # Must be set before any target is created
+  set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
 set(SP_EMBED_NET "${CMAKE_SOURCE_DIR}/nets/default.nnue" CACHE FILEPATH "NNUE network to embed, or OFF for none")
 
 # ---------------------------------------------------------------------------
 # Version string from git
 # ---------------------------------------------------------------------------
+# Release tags are v2.0.x; the version is the tag without the "v", followed
+# by the distance and commit for builds between tags (e.g. 2.0.3-14-g1a2b3c4).
+# Other tags (nets, latest) are not versions and are skipped.
 find_package(Git QUIET)
 if(GIT_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/.git")
   execute_process(
-    COMMAND "${GIT_EXECUTABLE}" describe --tags --always --dirty
+    COMMAND "${GIT_EXECUTABLE}" describe --tags --always --dirty --match "v[0-9]*"
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
     OUTPUT_VARIABLE SP_VERSION
     OUTPUT_STRIP_TRAILING_WHITESPACE
     ERROR_QUIET)
+  string(REGEX REPLACE "^v" "" SP_VERSION "${SP_VERSION}")
 endif()
 if(NOT SP_VERSION)
   set(SP_VERSION "dev")
@@ -170,6 +179,13 @@ else()
   if(SP_WERROR)
     target_compile_options(superpawn_core PUBLIC -Werror)
   endif()
+endif()
+
+# Static linking for distributed binaries: libstdc++ and glibc on Linux. The
+# Windows static runtime is selected above, before the targets exist. macOS
+# has no static libc.
+if(SP_STATIC AND NOT MSVC AND NOT APPLE)
+  target_link_options(superpawn_core PUBLIC -static)
 endif()
 
 # Link-time optimisation in release builds

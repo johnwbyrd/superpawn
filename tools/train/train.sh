@@ -87,7 +87,7 @@ Generate and shuffle training data first, from the repository root:
     build/superpawn datagen data/run1.bin --threads 15 --nodes 5000 --positions 100000000
     ../bullet/target/release/bullet-utils shuffle -i data/run1.bin -o data/run1.shuffled.bin -m 8000
 
-See tools/train/README.md.
+See doc/training.md.
 MSG
             exit 1
         fi

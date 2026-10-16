@@ -1,0 +1,179 @@
+name: Release
+
+# Builds distributable binaries for every push to main and for release tags.
+# A push to main refreshes the rolling "latest" prerelease; a tag v2.0.x
+# publishes a versioned release with generated notes. The network named in
+# nets/NETWORK is downloaded and embedded by the build.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86-64-avx2
+            os: ubuntu-24.04
+            cmake_args: -DSP_ARCH=x86-64-v3 -DSP_STATIC=ON
+            binary: build/superpawn
+            test: true
+          - name: linux-x86-64
+            os: ubuntu-24.04
+            cmake_args: -DSP_ARCH=x86-64 -DSP_STATIC=ON
+            binary: build/superpawn
+            test: true
+          - name: windows-x86-64-avx2
+            os: windows-latest
+            cmake_args: -A x64 -DSP_ARCH=x86-64-v3 -DSP_STATIC=ON
+            binary: build/Release/superpawn.exe
+            test: true
+          - name: windows-x86-64
+            os: windows-latest
+            cmake_args: -A x64 -DSP_ARCH=x86-64 -DSP_STATIC=ON
+            binary: build/Release/superpawn.exe
+            test: true
+          - name: macos-arm64
+            os: macos-latest
+            cmake_args: -DSP_ARCH=none
+            binary: build/superpawn
+            test: true
+          - name: macos-x86-64
+            os: macos-latest
+            # Cross-compiled for Intel Macs on the Apple Silicon runner
+            cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DSP_ARCH=x86-64-v3 -DSP_BUILD_TESTS=OFF
+            binary: build/superpawn
+            test: false
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Install ninja (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build
+
+      - name: Configure
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            cmake -S . -B build ${{ matrix.cmake_args }}
+          else
+            cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release ${{ matrix.cmake_args }}
+          fi
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Check the network was embedded
+        shell: bash
+        run: |
+          if [ "${{ matrix.test }}" = "true" ]; then
+            printf 'uci\nquit\n' | "${{ matrix.binary }}" | tee uci.txt | grep -q uciok
+            grep -q "NNUE evaluation using <embedded>" uci.txt || { echo "no network embedded"; exit 1; }
+          fi
+
+      - name: Unit tests and bench
+        if: matrix.test == true
+        shell: bash
+        run: |
+          ctest --test-dir build -C Release --output-on-failure -R unit
+          "${{ matrix.binary }}" bench 16 1 12 2>&1 | tail -2 | tee bench.txt
+
+      - name: Package
+        shell: bash
+        run: |
+          VERSION=$(git describe --tags --always --match 'v[0-9]*' | sed 's/^v//')
+          NAME="superpawn-${VERSION}-${{ matrix.name }}"
+          mkdir -p "dist/$NAME"
+          cp "${{ matrix.binary }}" "dist/$NAME/"
+          cp README.md LICENSE "dist/$NAME/"
+          mkdir -p "dist/$NAME/logo" && cp logo/logo-medium.jpg logo/logo-small.bmp "dist/$NAME/logo/"
+          cd dist
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            7z a -tzip "../$NAME.zip" "$NAME" >/dev/null
+          else
+            tar -czf "../$NAME.tar.gz" "$NAME"
+          fi
+          echo "ARCHIVE=$NAME" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            superpawn-*.tar.gz
+            superpawn-*.zip
+            bench.txt
+          if-no-files-found: error
+
+  publish:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v5
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Release notes header
+        id: header
+        shell: bash
+        run: |
+          NET=$(grep -v '^#' nets/NETWORK | awk 'NF {print $1; exit}')
+          BENCH=$(grep -h "Nodes searched" artifacts/bench.txt 2>/dev/null | head -1 | awk '{print $NF}')
+          {
+            echo "Network: \`$NET\` (embedded). Bench: \`${BENCH:-n/a}\`."
+            echo
+            echo "| Archive | For |"
+            echo "|---|---|"
+            echo "| linux-x86-64-avx2 | Linux, any x86-64 CPU from about 2015 on (AVX2) |"
+            echo "| linux-x86-64 | Linux, older x86-64 CPUs |"
+            echo "| windows-x86-64-avx2 | Windows, any x86-64 CPU from about 2015 on (AVX2) |"
+            echo "| windows-x86-64 | Windows, older x86-64 CPUs |"
+            echo "| macos-arm64 | Apple Silicon Macs |"
+            echo "| macos-x86-64 | Intel Macs |"
+            echo
+            echo "Binaries are statically linked and need no other files. Point any UCI chess GUI at the executable."
+            echo
+          } > header.md
+          ls -la artifacts
+
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" artifacts/superpawn-*.tar.gz artifacts/superpawn-*.zip \
+            --title "Superpawn ${TAG#v}" --notes-file header.md --generate-notes --verify-tag
+
+      - name: Refresh the rolling latest prerelease
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag -f latest
+          git push -f origin latest
+          gh release delete latest --yes --cleanup-tag=false 2>/dev/null || true
+          {
+            echo "Rolling build of the latest commit on main (${GITHUB_SHA::8}). Not a release; use a versioned release unless you want the newest code."
+            echo
+            cat header.md
+          } > latest.md
+          gh release create latest artifacts/superpawn-*.tar.gz artifacts/superpawn-*.zip \
+            --title "Latest main build" --notes-file latest.md --prerelease

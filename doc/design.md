@@ -124,7 +124,7 @@ Training data comes from the engine itself (`datagen.*`): each thread plays
 games that open with random moves and continue with fixed-node searches,
 and writes quiet positions with the search score and the game result in the
 bulletformat `ChessBoard` layout, which the trainer reads directly. The
-pipeline is described in `tools/train/README.md`.
+pipeline is described in `doc/training.md`.
 
 The network file format is documented in `src/nnue.h`. A network is embedded
 at build time from `nets/default.nnue` (or `SP_EMBED_NET`) and can be
@@ -142,7 +142,7 @@ Each step below is a separate change, tested in isolation.
    placeholder evaluation, unit tests, CI.
 2. **Done.** SPRT testing with fastchess: `tools/sprt/sprt.sh` builds the
    working tree and a baseline commit, fetches fastchess and the UHO book,
-   and runs the test with the bounds in `tools/sprt/README.md`.
+   and runs the test with the bounds in `doc/testing.md`.
 3. **Done.** NNUE inference: perspective network, 768 inputs per side,
    1024 hidden neurons, SCReLU, 8 output buckets, lazily updated
    accumulators, AVX-512, AVX2 and scalar paths, embedding and `EvalFile`.

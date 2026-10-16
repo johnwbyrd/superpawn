@@ -102,7 +102,7 @@ On a console the engine also understands a few commands of its own:
 Developing it
 -------------
 
-The architecture is described in [DESIGN.md](DESIGN.md). The unit tests run
+The architecture is described in [doc/design.md](doc/design.md). The unit tests run
 in about a second:
 
     ctest --test-dir build --output-on-failure
@@ -119,9 +119,9 @@ Sequential Probability Ratio Test, not on judgement:
     tools/sprt/sprt.sh --base origin/main
 
 builds both versions, fetches fastchess and an opening book on first use and
-plays until the result is decided. [tools/sprt/README.md](tools/sprt/README.md)
+plays until the result is decided. [doc/testing.md](doc/testing.md)
 gives the time controls and bounds. A network is trained and tested with the
-pipeline in [tools/train/README.md](tools/train/README.md). Code is formatted
+pipeline in [doc/training.md](doc/training.md). Code is formatted
 with `clang-format` using the repository's configuration.
 
 Credits
