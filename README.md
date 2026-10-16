@@ -46,10 +46,25 @@ survives in the current code.
 Getting it
 ----------
 
-Builds for Linux, macOS and Windows are produced by the continuous
-integration workflow for every commit and attached to the workflow run under
-Actions. The current network is downloaded and embedded at build time, so a
-binary needs nothing else.
+Download the newest release for your machine. Each archive holds a single
+statically linked executable with the network built in; it needs no other
+files.
+
+| Download | For |
+|---|---|
+| [superpawn-linux-x86-64-avx2.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-linux-x86-64-avx2.tar.gz) | Linux, any x86-64 CPU from about 2015 on |
+| [superpawn-linux-x86-64.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-linux-x86-64.tar.gz) | Linux, older CPUs |
+| [superpawn-windows-x86-64-avx2.zip](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-windows-x86-64-avx2.zip) | Windows, any x86-64 CPU from about 2015 on |
+| [superpawn-windows-x86-64.zip](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-windows-x86-64.zip) | Windows, older CPUs |
+| [superpawn-macos-arm64.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-macos-arm64.tar.gz) | Apple Silicon Macs |
+| [superpawn-macos-x86-64.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-macos-x86-64.tar.gz) | Intel Macs |
+
+The AVX2 builds are faster; if one refuses to start, your CPU lacks AVX2 and
+the plain build is for you. All releases, with their notes, are at
+[Releases](https://github.com/johnwbyrd/superpawn/releases). A build of the
+newest commit on `main` is kept at the
+[latest](https://github.com/johnwbyrd/superpawn/releases/tag/latest)
+prerelease for anyone who wants the newest code at the cost of less testing.
 
 To build it yourself you need CMake 3.21 or newer and a C++23 compiler:
 GCC 13, Clang 17 or Visual Studio 2022 17.8 and later.

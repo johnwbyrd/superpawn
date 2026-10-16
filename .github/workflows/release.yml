@@ -94,6 +94,10 @@ jobs:
         shell: bash
         run: |
           VERSION=$(git describe --tags --always --match 'v[1-9]*' | sed 's/^v//')
+          # The archive name carries no version so that
+          # releases/latest/download/<archive> is a stable link from the
+          # README; the folder inside the archive is versioned.
+          ARCHIVE="superpawn-${{ matrix.name }}"
           NAME="superpawn-${VERSION}-${{ matrix.name }}"
           mkdir -p "dist/$NAME"
           cp "${{ matrix.binary }}" "dist/$NAME/"
@@ -101,11 +105,10 @@ jobs:
           mkdir -p "dist/$NAME/logo" && cp logo/logo-medium.jpg logo/logo-small.bmp "dist/$NAME/logo/"
           cd dist
           if [ "$RUNNER_OS" = "Windows" ]; then
-            7z a -tzip "../$NAME.zip" "$NAME" >/dev/null
+            7z a -tzip "../$ARCHIVE.zip" "$NAME" >/dev/null
           else
-            tar -czf "../$NAME.tar.gz" "$NAME"
+            tar -czf "../$ARCHIVE.tar.gz" "$NAME"
           fi
-          echo "ARCHIVE=$NAME" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v5
         with:

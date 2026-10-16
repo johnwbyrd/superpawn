@@ -16,16 +16,21 @@ linked binaries with the current network embedded:
 
 | Archive | For |
 |---|---|
-| `superpawn-X.Y.Z-linux-x86-64-avx2.tar.gz` | Linux, any x86-64 CPU from about 2015 on |
-| `superpawn-X.Y.Z-linux-x86-64.tar.gz` | Linux, older CPUs |
-| `superpawn-X.Y.Z-windows-x86-64-avx2.zip` | Windows, any x86-64 CPU from about 2015 on |
-| `superpawn-X.Y.Z-windows-x86-64.zip` | Windows, older CPUs |
-| `superpawn-X.Y.Z-macos-arm64.tar.gz` | Apple Silicon Macs |
-| `superpawn-X.Y.Z-macos-x86-64.tar.gz` | Intel Macs |
+| `superpawn-linux-x86-64-avx2.tar.gz` | Linux, any x86-64 CPU from about 2015 on |
+| `superpawn-linux-x86-64.tar.gz` | Linux, older CPUs |
+| `superpawn-windows-x86-64-avx2.zip` | Windows, any x86-64 CPU from about 2015 on |
+| `superpawn-windows-x86-64.zip` | Windows, older CPUs |
+| `superpawn-macos-arm64.tar.gz` | Apple Silicon Macs |
+| `superpawn-macos-x86-64.tar.gz` | Intel Macs |
 
-Each archive holds the binary, `README.md`, `LICENSE` and the logo. The
-release notes start with the network name and the bench signature and
-continue with the commits since the previous release.
+The archive names carry no version, so the README can link to
+`releases/latest/download/<archive>`, which GitHub resolves to the newest
+non-prerelease release; those links never go stale. The folder inside each
+archive is `superpawn-X.Y.Z-<platform>`, so unpacked builds of different
+versions do not collide. Each archive holds the binary, `README.md`,
+`LICENSE` and the logo. The release notes start with the network name and
+the bench signature and continue with the commits since the previous
+release.
 
 Every push to `main` also rebuilds the same set and refreshes the rolling
 `latest` prerelease, so testers can always get the newest code without a
