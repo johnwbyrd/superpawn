@@ -179,7 +179,21 @@ cmake_build() {  # source dir, build dir, output binary
         -DSP_ARCH="${SP_ARCH:-native}" ${SP_CMAKE_ARGS:-} >"$bld.log" 2>&1 \
         && cmake --build "$bld" --parallel >>"$bld.log" 2>&1 \
         || { echo "build failed, see $bld.log" >&2; exit 1; }
+
+    # A build that names a network but could not get it would silently test
+    # the hand-crafted evaluation. Refuse rather than cache such a binary.
+    if grep -qE "Could not download|does not match the SHA-256" "$bld.log"; then
+        grep -E "Could not download|does not match the SHA-256" "$bld.log" >&2
+        echo "the network named in nets/NETWORK is not available; fix the release or the checksum and rerun" >&2
+        rm -f "$out"
+        exit 1
+    fi
     cp "$bld/superpawn" "$out"
+}
+
+# Reports whether a binary carries a network, from its startup line.
+net_of() {
+    printf 'uci\nquit\n' | "$1" 2>/dev/null | sed -n 's/^info string //p' | head -1
 }
 
 # Builds a committed revision in a temporary worktree. Cached by commit hash.
@@ -238,6 +252,8 @@ fi
 BASE_BENCH=$(bench_of "$BASE_BIN")
 NEW_BENCH=$(bench_of "$NEW_BIN")
 log "bench: $NEW_NAME $NEW_BENCH vs $BASE_NAME $BASE_BENCH"
+log "eval:  new: $(net_of "$NEW_BIN")"
+log "       base: $(net_of "$BASE_BIN")"
 if [[ "$BASE_BENCH" == "$NEW_BENCH" && -z "$NEW" ]]; then
     log "warning: identical bench signatures; the search may be unchanged"
 fi
@@ -268,8 +284,8 @@ CMD=(
 
 printf '%q ' "${CMD[@]}" >"$RUN/command.txt"; echo >>"$RUN/command.txt"
 {
-    echo "base:  $BASE ($BASE_NAME) bench $BASE_BENCH"
-    echo "new:   ${NEW:-working tree} ($NEW_NAME) bench $NEW_BENCH"
+    echo "base:  $BASE ($BASE_NAME) bench $BASE_BENCH  [$(net_of "$BASE_BIN")]"
+    echo "new:   ${NEW:-working tree} ($NEW_NAME) bench $NEW_BENCH  [$(net_of "$NEW_BIN")]"
     echo "limit: $LIMIT  hash $HASH  threads $THREADS  concurrency $CONCURRENCY"
     echo "sprt:  [$ELO0, $ELO1]  alpha $ALPHA  beta $BETA  $MODEL"
 } >"$RUN/summary.txt"
