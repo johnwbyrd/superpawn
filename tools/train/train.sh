@@ -63,8 +63,24 @@ MSG
     echo "train.sh: using CUDA toolkit at $CUDA_PATH" >&2
 fi
 
+# The trainer runs inside tools/train so that its checkpoints land there;
+# make path arguments absolute first so they still resolve.
+ARGS=()
+expect_path=0
+for arg in "$@"; do
+    if [[ $expect_path -eq 1 ]]; then
+        ARGS+=("$(cd "$(dirname "$arg")" 2>/dev/null && pwd)/$(basename "$arg")")
+        expect_path=0
+    else
+        ARGS+=("$arg")
+        case "$arg" in
+        --data | --resume | --out) expect_path=1 ;;
+        esac
+    fi
+done
+
 cd "$HERE"
-cargo run --release --no-default-features --features "$FEATURES" -- "$@"
+cargo run --release --no-default-features --features "$FEATURES" -- "${ARGS[@]}"
 
 cat >&2 <<MSG
 
