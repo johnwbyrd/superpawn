@@ -82,6 +82,11 @@ Contributing
 ------------
 
 Search and evaluation changes are accepted on the basis of SPRT test results
-against the previous version, in the usual way for chess engines. The tooling
-for this is part of the roadmap in [DESIGN.md](DESIGN.md). Format code with
-`clang-format` using the repository's `.clang-format`.
+against the previous version, in the usual way for chess engines:
+
+    tools/sprt/sprt.sh --base origin/feature/next
+
+builds both versions, fetches fastchess and an opening book on first use,
+and runs the test. See [tools/sprt/README.md](tools/sprt/README.md) for the
+time controls and bounds. Format code with `clang-format` using the
+repository's `.clang-format`.

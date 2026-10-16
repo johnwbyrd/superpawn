@@ -25,8 +25,9 @@ Layout
     src/        engine sources
     tests/      doctest unit tests
     tests/doctest/  vendored doctest header
+    tools/sprt/ SPRT testing with fastchess
     nets/       the embedded NNUE network (to come)
-    tools/      training, testing and tuning scripts (to come)
+    tools/train/  NNUE training (to come)
 
 Board representation (`types.h`, `bitboard.*`, `position.*`)
 -------------------------------------------------------------
@@ -111,8 +112,9 @@ Each step below is a separate change, tested in isolation.
 
 1. **Done.** Board, move generation (perft-exact), UCI, threaded search,
    placeholder evaluation, unit tests, CI.
-2. **Testing infrastructure.** `tools/` scripts for fastchess SPRT runs
-   against the previous commit, an opening book, and a `bench` check in CI.
+2. **Done.** SPRT testing with fastchess: `tools/sprt/sprt.sh` builds the
+   working tree and a baseline commit, fetches fastchess and the UHO book,
+   and runs the test with the bounds in `tools/sprt/README.md`.
 3. **NNUE inference.** A perspective network, 768 inputs per side (king
    bucket to follow), two accumulators updated incrementally in make and
    unmake, SCReLU activation, output buckets by material. AVX2 with AVX-512

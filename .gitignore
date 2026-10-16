@@ -27,6 +27,10 @@
 *.epd.out
 fastchess*.log
 cutechess*.log
+/tools/sprt/bin/
+/tools/sprt/books/
+/tools/sprt/builds/
+/tools/sprt/results/
 
 # Training data and networks that are not meant to be committed
 /data/
