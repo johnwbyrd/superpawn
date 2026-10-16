@@ -61,41 +61,42 @@ void to_host_order(std::int16_t* data, std::size_t count) {
 // and the SCReLU dot product of the output layer.
 // ---------------------------------------------------------------------------
 
-inline void add_row(std::int16_t* acc, const std::int16_t* row) {
+// acc = base + sum of the `added` rows - sum of the `removed` rows, in a
+// single pass over the vector so that each accumulator element is loaded and
+// stored once however many pieces changed.
+inline void combine(std::int16_t*              acc,
+                    const std::int16_t*        base,
+                    const std::int16_t* const* added,
+                    int                        addedCount,
+                    const std::int16_t* const* removed,
+                    int                        removedCount) {
 #if defined(SP_NNUE_AVX512)
     for (int i = 0; i < HIDDEN; i += 32) {
-        auto a = _mm512_load_si512(reinterpret_cast<const __m512i*>(acc + i));
-        auto w = _mm512_load_si512(reinterpret_cast<const __m512i*>(row + i));
-        _mm512_store_si512(reinterpret_cast<__m512i*>(acc + i), _mm512_add_epi16(a, w));
+        auto v = _mm512_load_si512(reinterpret_cast<const __m512i*>(base + i));
+        for (int a = 0; a < addedCount; ++a)
+            v = _mm512_add_epi16(v, _mm512_load_si512(reinterpret_cast<const __m512i*>(added[a] + i)));
+        for (int r = 0; r < removedCount; ++r)
+            v = _mm512_sub_epi16(v, _mm512_load_si512(reinterpret_cast<const __m512i*>(removed[r] + i)));
+        _mm512_store_si512(reinterpret_cast<__m512i*>(acc + i), v);
     }
 #elif defined(SP_NNUE_AVX2)
     for (int i = 0; i < HIDDEN; i += 16) {
-        auto a = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc + i));
-        auto w = _mm256_load_si256(reinterpret_cast<const __m256i*>(row + i));
-        _mm256_store_si256(reinterpret_cast<__m256i*>(acc + i), _mm256_add_epi16(a, w));
+        auto v = _mm256_load_si256(reinterpret_cast<const __m256i*>(base + i));
+        for (int a = 0; a < addedCount; ++a)
+            v = _mm256_add_epi16(v, _mm256_load_si256(reinterpret_cast<const __m256i*>(added[a] + i)));
+        for (int r = 0; r < removedCount; ++r)
+            v = _mm256_sub_epi16(v, _mm256_load_si256(reinterpret_cast<const __m256i*>(removed[r] + i)));
+        _mm256_store_si256(reinterpret_cast<__m256i*>(acc + i), v);
     }
 #else
-    for (int i = 0; i < HIDDEN; ++i)
-        acc[i] = std::int16_t(acc[i] + row[i]);
-#endif
-}
-
-inline void sub_row(std::int16_t* acc, const std::int16_t* row) {
-#if defined(SP_NNUE_AVX512)
-    for (int i = 0; i < HIDDEN; i += 32) {
-        auto a = _mm512_load_si512(reinterpret_cast<const __m512i*>(acc + i));
-        auto w = _mm512_load_si512(reinterpret_cast<const __m512i*>(row + i));
-        _mm512_store_si512(reinterpret_cast<__m512i*>(acc + i), _mm512_sub_epi16(a, w));
+    for (int i = 0; i < HIDDEN; ++i) {
+        int v = base[i];
+        for (int a = 0; a < addedCount; ++a)
+            v += added[a][i];
+        for (int r = 0; r < removedCount; ++r)
+            v -= removed[r][i];
+        acc[i] = std::int16_t(v);
     }
-#elif defined(SP_NNUE_AVX2)
-    for (int i = 0; i < HIDDEN; i += 16) {
-        auto a = _mm256_load_si256(reinterpret_cast<const __m256i*>(acc + i));
-        auto w = _mm256_load_si256(reinterpret_cast<const __m256i*>(row + i));
-        _mm256_store_si256(reinterpret_cast<__m256i*>(acc + i), _mm256_sub_epi16(a, w));
-    }
-#else
-    for (int i = 0; i < HIDDEN; ++i)
-        acc[i] = std::int16_t(acc[i] - row[i]);
 #endif
 }
 
@@ -326,24 +327,29 @@ bool Network::save(const std::string& path) const {
 
 void refresh(const Network& net, const Position& pos, Accumulator& acc) {
     for (Color c : {WHITE, BLACK}) {
-        std::memcpy(acc.v[c], net.featureBias, sizeof(acc.v[c]));
+        const std::int16_t* rows[32];
+        int                 count = 0;
         for (Bitboard b = pos.pieces(); b;) {
             const Square s = pop_lsb(b);
-            add_row(acc.v[c], &net.featureWeights[feature_index(c, pos.piece_on(s), s) * HIDDEN]);
+            rows[count++]  = &net.featureWeights[feature_index(c, pos.piece_on(s), s) * HIDDEN];
         }
+        combine(acc.v[c], net.featureBias, rows, count, nullptr, 0);
     }
     acc.computed = true;
 }
 
 void update(const Network& net, const Accumulator& prev, Accumulator& acc, const DirtyPiece& dp) {
     for (Color c : {WHITE, BLACK}) {
-        std::memcpy(acc.v[c], prev.v[c], sizeof(acc.v[c]));
+        const std::int16_t* added[3];
+        const std::int16_t* removed[3];
+        int                 addedCount = 0, removedCount = 0;
         for (int i = 0; i < dp.count; ++i) {
             if (dp.from[i] != SQ_NONE)
-                sub_row(acc.v[c], &net.featureWeights[feature_index(c, dp.piece[i], dp.from[i]) * HIDDEN]);
+                removed[removedCount++] = &net.featureWeights[feature_index(c, dp.piece[i], dp.from[i]) * HIDDEN];
             if (dp.to[i] != SQ_NONE)
-                add_row(acc.v[c], &net.featureWeights[feature_index(c, dp.piece[i], dp.to[i]) * HIDDEN]);
+                added[addedCount++] = &net.featureWeights[feature_index(c, dp.piece[i], dp.to[i]) * HIDDEN];
         }
+        combine(acc.v[c], prev.v[c], added, addedCount, removed, removedCount);
     }
     acc.computed = true;
 }
