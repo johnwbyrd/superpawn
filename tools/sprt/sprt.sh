@@ -34,6 +34,7 @@ BOOK_URL="https://raw.githubusercontent.com/official-stockfish/books/master/${BO
 BASE="HEAD"
 NEW=""            # empty means the working tree
 TC="10+0.1"
+NODES=""        # when set, play at fixed nodes per move instead of on the clock
 HASH=16
 THREADS=1
 ELO0=0
@@ -58,6 +59,7 @@ Options:
   --new REF           candidate git ref (default: the working tree)
   --tc TC             time control, e.g. 10+0.1 (default)
   --ltc               long time control preset: 60+0.6, Hash 64
+  --nodes N           fixed nodes per move instead of a clock (removes speed from the comparison)
   --bounds LO,HI      SPRT Elo bounds (default 0,5)
   --gainer            bounds [0, 5]
   --simplify          bounds [-5, 0]
@@ -83,6 +85,7 @@ while [[ $# -gt 0 ]]; do
     --new) NEW="$2"; shift 2 ;;
     --tc) TC="$2"; shift 2 ;;
     --ltc) TC="60+0.6"; HASH=64; shift ;;
+    --nodes) NODES="$2"; shift 2 ;;
     --bounds) ELO0="${2%,*}"; ELO1="${2#*,}"; shift 2 ;;
     --gainer) ELO0=0; ELO1=5; shift ;;
     --simplify) ELO0=-5; ELO1=0; shift ;;
@@ -239,6 +242,9 @@ if [[ "$BASE_BENCH" == "$NEW_BENCH" && -z "$NEW" ]]; then
     log "warning: identical bench signatures; the search may be unchanged"
 fi
 
+# Fixed nodes per move, or a clock
+if [[ -n "$NODES" ]]; then LIMIT="nodes=$NODES"; else LIMIT="tc=$TC"; fi
+
 RUN="$RESULTS/$(date +%Y%m%d-%H%M%S)${NAME:+-$NAME}"
 mkdir -p "$RUN"
 
@@ -246,7 +252,7 @@ CMD=(
     "$FASTCHESS"
     -engine "cmd=$NEW_BIN" "name=$NEW_NAME"
     -engine "cmd=$BASE_BIN" "name=$BASE_NAME"
-    -each "tc=$TC" "option.Hash=$HASH" "option.Threads=$THREADS" proto=uci
+    -each "$LIMIT" "option.Hash=$HASH" "option.Threads=$THREADS" proto=uci
     -openings "file=$BOOK" format=epd order=random
     -repeat -rounds "$ROUNDS" -games 2
     -concurrency "$CONCURRENCY" -recover
@@ -264,7 +270,7 @@ printf '%q ' "${CMD[@]}" >"$RUN/command.txt"; echo >>"$RUN/command.txt"
 {
     echo "base:  $BASE ($BASE_NAME) bench $BASE_BENCH"
     echo "new:   ${NEW:-working tree} ($NEW_NAME) bench $NEW_BENCH"
-    echo "tc:    $TC  hash $HASH  threads $THREADS  concurrency $CONCURRENCY"
+    echo "tc:    ${NODES:+$NODES nodes}${NODES:-$TC}  hash $HASH  threads $THREADS  concurrency $CONCURRENCY"
     echo "sprt:  [$ELO0, $ELO1]  alpha $ALPHA  beta $BETA  $MODEL"
 } >"$RUN/summary.txt"
 cat "$RUN/summary.txt" >&2
