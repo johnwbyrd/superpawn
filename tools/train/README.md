@@ -67,15 +67,30 @@ Then:
     tools/train/train.sh --data data/run1.shuffled.bin --id spn-001 --superbatches 40
 
 The script locates the CUDA toolkit, builds the trainer in release mode and
-runs it. A superbatch is about 100 million positions. Forty superbatches over
-200 million positions means each position is seen about twenty times, which
-is a sensible first run; a 4090 does a superbatch of this network in well
-under a minute. Checkpoints land in `tools/train/checkpoints/<id>-<n>/`.
+runs it. A superbatch is about 100 million positions; a 4090 does one for
+this network in well under a minute. Checkpoints land in
+`tools/train/checkpoints/<id>-<n>/`.
 
 Defaults: learning rate 0.001 with cosine decay to 0.3^5 of that, WDL
-weight 0.75 (the loss target is 0.75 x game result + 0.25 x sigmoid of the
+weight 0.1 (the loss target is 0.1 x game result + 0.9 x sigmoid of the
 search score), AdamW. `--lr`, `--wdl`, `--threads`, `--out` and `--resume
 <checkpoint dir>` adjust them. `--data` may be repeated.
+
+**Choosing the WDL weight.** The game result is only a useful label when the
+games are good. Results of fixed-node games between weak versions are
+decided by blunders, so a network trained mostly on results learns noise:
+it ranks positions roughly right but stretches its outputs towards win or
+loss, and plays worse than the evaluation that generated the data. Start
+with a low weight such as 0.1 and raise it towards 0.5 as the engine and
+its data improve. `evalstats` (below) shows whether a network predicts the
+search scores better than the hand-crafted evaluation; a good first network
+must.
+
+**Passes over the data.** A superbatch is about 100 million positions, so
+`--superbatches` times 100 million divided by the number of positions is how
+many times each position is seen. Keep that below about 10 for small
+datasets; the network can otherwise memorise games. More data beats more
+passes.
 
 The architecture constants at the top of `tools/train/src/main.rs` must
 match `src/nnue.h` in the engine. Change them together.
@@ -92,6 +107,22 @@ file format with its checksum. To try it without rebuilding:
 
 To embed it, copy it to `nets/default.nnue` (ignored by git) and rebuild,
 or configure with `-DSP_EMBED_NET=/path/to/net.nnue`.
+
+Checking a network
+------------------
+
+Before playing games, check that the network predicts the search scores in
+the data better than the hand-crafted evaluation does:
+
+    printf 'evalstats data/run1.bin 2000000\nquit\n' | build/superpawn
+
+With the network embedded this prints the mean absolute error, RMSE and
+correlation of both evaluations against two million stored scores. The
+hand-crafted evaluation lands around 85 centipawns mean absolute error on
+its own data; a usable network must be well below that. A network far above
+it has learnt the wrong target (see the WDL weight above) or has not trained
+enough. `python3 tools/train/check_net.py nets/default.nnue` evaluates a few
+positions independently of the engine and prints weight statistics.
 
 5. Test
 -------
