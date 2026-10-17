@@ -53,6 +53,13 @@ jobs:
             cmake_args: -DCMAKE_OSX_ARCHITECTURES=x86_64 -DSP_ARCH=x86-64-v3 -DSP_BUILD_TESTS=OFF
             binary: build/superpawn
             test: false
+          - name: android-arm64
+            os: ubuntu-24.04
+            # Cross-compiled with the NDK preinstalled on the runner. libc++ is
+            # linked statically by the NDK's default; bionic is on every device.
+            cmake_args: -DCMAKE_TOOLCHAIN_FILE=${ANDROID_NDK_LATEST_HOME}/build/cmake/android.toolchain.cmake -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-21 -DSP_ARCH=none -DSP_BUILD_TESTS=OFF
+            binary: build/superpawn
+            test: false
 
     steps:
       - uses: actions/checkout@v5
@@ -81,6 +88,13 @@ jobs:
           if [ "${{ matrix.test }}" = "true" ]; then
             printf 'uci\nquit\n' | "${{ matrix.binary }}" | tee uci.txt | grep -q uciok
             grep -q "NNUE evaluation using <embedded>" uci.txt || { echo "no network embedded"; exit 1; }
+          else
+            # A cross-compiled binary cannot run here; it must at least be
+            # larger than the network it is supposed to contain.
+            NET=$(awk 'NF && $1 !~ /^#/ {print $1; exit}' nets/NETWORK)
+            BIN=$(stat -c %s "${{ matrix.binary }}" 2>/dev/null || stat -f %z "${{ matrix.binary }}")
+            NETSIZE=$(stat -c %s "nets/$NET" 2>/dev/null || stat -f %z "nets/$NET")
+            [ "$BIN" -gt "$NETSIZE" ] || { echo "binary ($BIN bytes) is smaller than $NET ($NETSIZE bytes): no network embedded"; exit 1; }
           fi
 
       - name: Unit tests and bench
@@ -150,6 +164,7 @@ jobs:
             echo "| windows-x86-64 | Windows, older x86-64 CPUs |"
             echo "| macos-arm64 | Apple Silicon Macs |"
             echo "| macos-x86-64 | Intel Macs |"
+            echo "| android-arm64 | Android phones and tablets (Termux, or a GUI that runs external engines) |"
             echo
             echo "Binaries are statically linked and need no other files. Point any UCI chess GUI at the executable."
             echo

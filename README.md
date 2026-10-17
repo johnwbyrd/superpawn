@@ -58,9 +58,12 @@ files.
 | [superpawn-windows-x86-64.zip](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-windows-x86-64.zip) | Windows, older CPUs |
 | [superpawn-macos-arm64.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-macos-arm64.tar.gz) | Apple Silicon Macs |
 | [superpawn-macos-x86-64.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-macos-x86-64.tar.gz) | Intel Macs |
+| [superpawn-android-arm64.tar.gz](https://github.com/johnwbyrd/superpawn/releases/latest/download/superpawn-android-arm64.tar.gz) | Android phones and tablets, in Termux or a GUI that runs external engines |
 
 The AVX2 builds are faster; if one refuses to start, your CPU lacks AVX2 and
-the plain build is for you. All releases, with their notes, are at
+the plain build is for you. The Android build is a plain command-line
+binary: unpack it in Termux and run it there, or give it to a chess app
+that can run external engines. All releases, with their notes, are at
 [Releases](https://github.com/johnwbyrd/superpawn/releases). A build of the
 newest commit on `main` is kept at the
 [latest](https://github.com/johnwbyrd/superpawn/releases/tag/latest)

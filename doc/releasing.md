@@ -22,6 +22,7 @@ linked binaries with the current network embedded:
 | `superpawn-windows-x86-64.zip` | Windows, older CPUs |
 | `superpawn-macos-arm64.tar.gz` | Apple Silicon Macs |
 | `superpawn-macos-x86-64.tar.gz` | Intel Macs |
+| `superpawn-android-arm64.tar.gz` | Android, 64-bit ARM; built with the NDK, not run on the runner |
 
 The archive names carry no version, so the README can link to
 `releases/latest/download/<archive>`, which GitHub resolves to the newest
