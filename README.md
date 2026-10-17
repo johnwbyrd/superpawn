@@ -104,6 +104,34 @@ En Croissant, or any other. The engine accepts these UCI options:
 | `Move Overhead` | 10           | Milliseconds reserved per move for GUI and network latency. |
 | `EvalFile`      | `<embedded>` | Path to a network file to use instead of the embedded one. |
 
+### XBoard and other XBoard-protocol GUIs
+
+XBoard, WinBoard, eboard and friends speak the older XBoard protocol rather
+than UCI, so they need the [PolyGlot](https://wbec-ridderkerk.nl/html/details1/PolyGlot.html)
+adapter in between. On Debian or Ubuntu:
+
+    sudo apt install xboard polyglot
+
+The quickest way to a game is to let XBoard run PolyGlot for you. From the
+repository root, after building:
+
+    xboard -fcp build/superpawn -fUCI
+
+or, with a downloaded release unpacked somewhere:
+
+    xboard -fcp /path/to/superpawn-1.9.0-linux-x86-64-avx2/superpawn -fUCI
+
+To set engine options such as hash size and thread count, launch PolyGlot
+with the configuration file [play.ini](play.ini) instead. It expects the
+engine at `build/superpawn`; edit `EngineDir` to point elsewhere, and add
+or change UCI options under `[Engine]`:
+
+    xboard -fcp "polyglot play.ini"
+
+Use `-scp` in place of `-fcp` to load Superpawn as the second engine, for
+instance to watch it play against whatever `-fcp` names. The time control
+is set from XBoard's Engine menu; the default is 40 moves in five minutes.
+
 On a console the engine also understands a few commands of its own:
 
     bench [hash] [threads] [depth]   search a fixed set of positions; the node count identifies the search
