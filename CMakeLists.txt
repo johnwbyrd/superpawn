@@ -184,8 +184,9 @@ endif()
 
 # Static linking for distributed binaries: libstdc++ and glibc on Linux. The
 # Windows static runtime is selected above, before the targets exist. macOS
-# has no static libc.
-if(SP_STATIC AND NOT MSVC AND NOT APPLE)
+# has no static libc. Android links libc++ statically by the NDK's default and
+# bionic is on every device, so -static is neither needed nor wanted there.
+if(SP_STATIC AND NOT MSVC AND NOT APPLE AND NOT ANDROID)
   target_link_options(superpawn_core PUBLIC -static)
 endif()
 
