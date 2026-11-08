@@ -92,6 +92,10 @@ endif()
 # nets/default.nnue (a candidate under test) takes precedence over it.
 set(SP_RELEASED_NET "")
 if(SP_EMBED_NET STREQUAL "${CMAKE_SOURCE_DIR}/nets/default.nnue" AND EXISTS "${CMAKE_SOURCE_DIR}/nets/NETWORK")
+  # Reconfigure when nets/NETWORK changes, so that publishing a network and
+  # rebuilding embeds the new one rather than the one named at the last
+  # configure.
+  set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/nets/NETWORK")
   file(STRINGS "${CMAKE_SOURCE_DIR}/nets/NETWORK" SP_NET_LINES REGEX "^[^#]")
   list(GET SP_NET_LINES 0 SP_NET_LINE)
   separate_arguments(SP_NET_FIELDS UNIX_COMMAND "${SP_NET_LINE}")
