@@ -8,44 +8,57 @@ This is the whole loop for producing the next network, with the current
 numbers. Run everything from the repository root on the training machine,
 with the latest `main` built in `build/` (which embeds the current network).
 
-1. Generate data with the current network. More is better; 30 million
-   positions at 1200 nodes take about 40 minutes on 15 threads, 60 million
-   about 80.
+1. Generate data with the current network. More is better; on 15 threads,
+   2500 nodes gives about 6000 positions a second, so 500 million take about
+   23 hours. Speed is inversely proportional to the node count.
 
-       build/superpawn datagen data/run4.bin --threads 15 --nodes 1200 --positions 60000000
+       build/superpawn datagen data/run6.bin --threads 15 --nodes 2500 --positions 500000000
 
-2. Shuffle (`bullet-utils` is built once from a bullet checkout, see below).
+2. Shuffle (`bullet-utils` is built once from a bullet checkout, see below),
+   and interleave the previous generation's shuffled data with it. This takes
+   a few minutes.
 
-       ../bullet/target/release/bullet-utils shuffle -i data/run4.bin -o data/run4.shuffled.bin -m 8000
+       ../bullet/target/release/bullet-utils shuffle -i data/run6.bin -o data/run6.shuffled.bin -m 8000
+       ../bullet/target/release/bullet-utils interleave data/run6.shuffled.bin data/run5.shuffled.bin -o data/train6.bin
 
 3. Train. One superbatch is 100 million positions, so choose `--superbatches`
-   to make three to eight passes over the data: 60 million positions and four
-   superbatches is about seven passes. Raise `--wdl` a step per generation
-   towards 0.5.
+   to make three to eight passes over the data: a billion positions and 40
+   superbatches is four passes. A superbatch takes about 19 seconds on a 4090.
+   Raise `--wdl` a step per generation towards 0.5.
 
-       tools/train/train.sh --data data/run4.shuffled.bin --id spn-004 --superbatches 4 --wdl 0.3
+       tools/train/train.sh --data data/train6.bin --id spn-006 --superbatches 40 --wdl 0.5
+
+   The log is bullet's terminal progress display; the line that matters is
+   one per superbatch:
+
+       sed 's/\x1b\[[0-9;]*m//g; s/\x1b\[F/\n/g' train.log | grep 'running loss'
+
+   The loss rises with the WDL weight, since game results are harder to
+   predict than scores, so it cannot be compared between generations.
 
 4. Convert the checkpoint to the candidate slot and check it predicts the
-   search scores better than the hand-crafted evaluation.
+   search scores better than the hand-crafted evaluation and the current
+   network.
 
-       build/superpawn convert tools/train/checkpoints/spn-004-4/quantised.bin nets/default.nnue
+       build/superpawn convert tools/train/checkpoints/spn-006-40/quantised.bin nets/default.nnue
        cmake --build build
-       printf 'evalstats data/run4.bin 2000000\nquit\n' | build/superpawn
+       printf 'evalstats data/run6.bin 2000000\nquit\n' | build/superpawn
+       printf 'setoption name EvalFile value nets/spn-005.nnue\nevalstats data/run6.bin 2000000\nquit\n' | build/superpawn
 
 5. Test against the current network. `nets/default.nnue` makes the working
    tree build the candidate; the baseline downloads the published network.
    The run ends on its own when the result is decided, usually within an
    hour.
 
-       tools/sprt/sprt.sh --base origin/main --name spn-004
+       tools/sprt/sprt.sh --base origin/main --name spn-006
 
 6. If it passed, publish and start the next generation; if it failed, keep
    the data (it is still good) and try more data, more superbatches, or a
    different WDL weight.
 
-       cp nets/default.nnue nets/spn-004.nnue
-       tools/train/publish_net.sh nets/spn-004.nnue
-       git add nets/NETWORK && git commit -m "Use network spn-004" && git push
+       cp nets/default.nnue nets/spn-006.nnue
+       tools/train/publish_net.sh nets/spn-006.nnue
+       git add nets/NETWORK && git commit -m "Use network spn-006" && git push
        rm nets/default.nnue
        cmake --build build
 
@@ -61,6 +74,8 @@ History
 |---|---|---|---|
 | spn-002 | 20M positions, hand-crafted eval at 5000 nodes | 2 superbatches, WDL 0.1 | +460 Elo vs the hand-crafted evaluation at fixed nodes; 74-0-6 on the clock |
 | spn-003 | 30M positions, spn-002 at 1200 nodes | 3 superbatches, WDL 0.2 | +141 Elo vs spn-002, 257-74-145 at 10+0.1 |
+| spn-004 | 160M positions, spn-003 at 1200 nodes | 4 superbatches, WDL 0.3 | +263 Elo vs spn-003, 58-3-25 at 10+0.1 (stopped after 86 games) |
+| spn-005 | 500M positions, spn-004 at 2500 nodes, plus spn-004's 160M | 30 superbatches, WDL 0.4 | +165 Elo vs spn-004, 230-35-177 at 10+0.1 |
 
 A first attempt at spn-001 with WDL 0.75 and 25 passes over the data lost 96
 Elo to the hand-crafted evaluation; see "Choosing the WDL weight" below.
